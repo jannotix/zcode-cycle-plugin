@@ -59,13 +59,25 @@ All execution happens inside that path, never in the project directory.
 ## 4. Verification
 
 1. `cycle_plan_verification` — record `planId` and `evidenceIds`.
-2. `cycle_freeze_candidate` with the base revision, plan id and evidence
+2. Managed browser evidence (UI-affecting changes): the daemon discovers
+   mandatory `browser:affected-user-flow` and
+   `accessibility:affected-user-flow` gates, satisfied only by an
+   attested session whose receipt contains the required operation
+   subsequence. Run one executor session with `cycle_browser` in this
+   order — `open` the page (loopback allowed by default), `check` the
+   expected text, `screenshot`, `logs`, `snapshot` (accessibility),
+   `close` — then pass `browser_session_ids` plus the frozen
+   `candidate_digest` to verify. External origins require explicit user
+   approval (`approve_origin`) after the tool reports
+   `origin-approval-required`.
+3. `cycle_freeze_candidate` with the base revision, plan id and evidence
    ids. Record `candidateId`, `candidateDigest` and the manifest.
-3. `cycle_verify_candidate`. Record every gate's status.
-4. Mandatory gates failed: the failing evidence becomes repair feedback;
-   the daemon drives the state back to execution — continue from phase 3
-   and count one repair cycle. Five failed repairs: the daemon blocks;
-   report the blocked state and stop (recovery is `/cycle:resume`).
+4. `cycle_verify_candidate`. Record every gate's status.
+5. Mandatory gates failed or skipped for lack of valid attestations: the
+   evidence becomes repair feedback; the daemon drives the state back to
+   execution — continue from phase 3 and count one repair cycle. Five
+   failed repairs: the daemon blocks; report the blocked state and stop
+   (recovery is `/cycle:resume`).
 
 ## 5. Reviews (full mode only)
 

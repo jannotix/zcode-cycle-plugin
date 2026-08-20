@@ -9,6 +9,10 @@ import {
   type HistoryOperation,
   type MemoryOperation,
 } from "./client.js"
+import { BrowserEvidenceRegistry } from "./browser/browser-evidence.js"
+import { BrowserManager } from "./browser/browser-manager.js"
+import { ManagedBrowserSessionFactory } from "./browser/managed-browser-session.js"
+import { attestForVerification, browserRun } from "./browser/browser-ops.js"
 
 // Role session registry: the bridge writes it, the PreToolUse hook reads it.
 // The agents' tool whitelists are the primary role boundary; this is the
@@ -42,11 +46,28 @@ const plane = new LocalControlPlane({
   stopOwnedProcessOnDispose: false,
 })
 
-const registryPath = join(
-  process.env.ZCODE_CYCLE_DATA_DIR ?? resolveDataDirectory(process.platform, process.env),
-  "runtime",
-  "role-sessions.json",
-)
+const dataDirectory =
+  process.env.ZCODE_CYCLE_DATA_DIR ?? resolveDataDirectory(process.platform, process.env)
+
+const registryPath = join(dataDirectory, "runtime", "role-sessions.json")
+
+const allowedOrigins = process.env.ZCODE_CYCLE_BROWSER_ALLOWED_ORIGINS?.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
+const browserManager = new BrowserManager({
+  ...(allowedOrigins !== undefined && allowedOrigins.length > 0 ? { allowedOrigins } : {}),
+  artifactDirectory: join(dataDirectory, "browser"),
+  create: (input) =>
+    new ManagedBrowserSessionFactory({
+      ...(process.env.ZCODE_CYCLE_BROWSER ? { browserExecutable: process.env.ZCODE_CYCLE_BROWSER } : {}),
+      headless: process.env.ZCODE_CYCLE_BROWSER_HEADLESS !== "false",
+      projectDirectory: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
+    }).create(input),
+  maxSessions: 2,
+})
+
+const browserEvidence = new BrowserEvidenceRegistry(join(dataDirectory, "browser"))
 
 async function readRegistry(): Promise<Record<string, RoleRegistration>> {
   try {
@@ -214,7 +235,11 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
           "cycle_verify_candidate requires workflow_id, candidate_id and plan_id",
         )
       }
-      const attestations = Array.isArray(args.attestations) ? args.attestations : []
+      let attestations = Array.isArray(args.attestations) ? args.attestations : []
+      attestations = [
+        ...attestations,
+        ...(await attestForVerification(args, browserEvidence)),
+      ]
       return plane.verifyCandidate(
         projectKey,
         workflowId,
@@ -222,6 +247,19 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
         planId,
         attestations as Parameters<typeof plane.verifyCandidate>[4],
       )
+    }
+    case "cycle_browser": {
+      const sessionId = text(args.session_id)
+      if (!sessionId || !text(args.operation)) {
+        throw new Error("cycle_browser requires session_id and operation")
+      }
+      return browserRun({
+        command: args,
+        manager: browserManager,
+        registration: (await readRegistry())[sessionId],
+        registry: browserEvidence,
+        sessionId,
+      })
     }
     case "cycle_submit_review": {
       const workflowId = text(args.workflow_id)
@@ -418,6 +456,47 @@ const TOOLS: Record<string, ToolDefinition> = {
     description: "List registered role sessions.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
+  cycle_browser: {
+    description:
+      "Control an isolated managed browser for QA evidence: open (loopback allowed by default; external origins require approve_origin after explicit user approval), snapshot, click, fill, press, upload, check, screenshot, logs, close. Interactive actions (click, fill, press, upload) require an executor-registered session. Close captures the evidence receipt bound to the session; pass browser_session_ids plus candidate_digest to cycle_verify_candidate for browser evidence gates.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        session_id: { type: "string" },
+        operation: {
+          enum: [
+            "open",
+            "snapshot",
+            "click",
+            "fill",
+            "press",
+            "upload",
+            "check",
+            "screenshot",
+            "logs",
+            "close",
+          ],
+        },
+        approve_origin: { type: "boolean" },
+        url: { type: "string" },
+        selector: { type: "string" },
+        testId: { type: "string" },
+        role: { type: "string" },
+        name: { type: "string" },
+        text: { type: "string" },
+        value: { type: "string" },
+        environmentVariable: { type: "string" },
+        key: { type: "string" },
+        path: { type: "string" },
+        expectedText: { type: "string" },
+        expectedUrl: { type: "string" },
+        exact: { type: "boolean" },
+        fullPage: { type: "boolean" },
+      },
+      required: ["session_id", "operation"],
+      additionalProperties: false,
+    },
+  },
   cycle_code_index: {
     description:
       "Request the incremental code intelligence index for a workflow: scoped symbol graph context for the architect, without rescanning unchanged files.",
@@ -492,7 +571,7 @@ const TOOLS: Record<string, ToolDefinition> = {
   },
   cycle_verify_candidate: {
     description:
-      "Run the mandatory verification gates against the frozen candidate. Returns per-gate evidence records and the mandatory pass verdict; failures drive the repair loop.",
+      "Run the mandatory verification gates against the frozen candidate. Returns per-gate evidence records and the mandatory pass verdict; failures drive the repair loop. Pass browser_session_ids and the frozen candidate_digest to include managed-browser attestations as browser evidence gates.",
     inputSchema: {
       type: "object",
       properties: {
@@ -501,6 +580,8 @@ const TOOLS: Record<string, ToolDefinition> = {
         candidate_id: { type: "string" },
         plan_id: { type: "string" },
         attestations: { type: "array", items: { type: "object" } },
+        browser_session_ids: { type: "array", items: { type: "string" } },
+        candidate_digest: { type: "string" },
       },
       required: ["project_key", "workflow_id", "candidate_id", "plan_id"],
       additionalProperties: false,
@@ -654,7 +735,9 @@ async function main(): Promise<void> {
     })
   })
   process.stdin.on("close", () => {
-    void plane.dispose().finally(() => process.exit(0))
+    void Promise.allSettled([plane.dispose(), browserManager.dispose()]).finally(() =>
+      process.exit(0),
+    )
   })
 }
 
