@@ -43,6 +43,7 @@ Desktop.ini
 
 # Packaging
 dist/
+plugin-dist/
 artifacts/
 packages/*/bin/
 *.map
