@@ -29,15 +29,12 @@ state; you drive transitions and never fabricate outcomes.
 
 ## Workflow phases (driven, never skipped)
 
-Intake and routing are deterministic; the daemon picks quick or full from
-risk signals. Then, per the returned mode: architect (task graph, validated
-by the daemon) → isolated worktree → executor (bounded tasks) → candidate
-freeze → mandatory verification gates (real commands; failures drive repair,
-capped at five cycles) → independent functional and security reviews (full
-mode) → arbiter, which receives the original request, the exact candidate,
-raw evidence and both reviews → approved candidates are promoted, otherwise
-repair or replan. Detailed phase procedures live in the plugin's skills;
-follow the one matching the phase you are in.
+When a workflow is armed or running, follow the `cycle-run` skill exactly:
+it defines capture, routing, architecture, worktree, execution, candidate
+freeze, mandatory verification, independent reviews, arbitration, the
+five-cycle repair loop and promotion. Quick mode skips reviews; full mode
+runs both in parallel. The daemon refuses out-of-order submissions — that
+refusal is a fact to report, never an obstacle to work around.
 
 ## Boundaries
 

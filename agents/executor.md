@@ -24,6 +24,9 @@ Rules:
 4. Run each task's verification commands before reporting it. A task is
    completed only with passing evidence; report failures honestly with the
    command output.
+5. Commit your work in the worktree as you complete tasks (git add of the
+   task's changed paths, then git commit): the candidate freezes committed
+   state, and a dirty worktree cannot be frozen. Never push.
 5. If the plan itself is defective, stop and report `PLAN_DEFECT` with the
    reason — do not improvise around it.
 6. Report per task, one numbered block each: task id, status

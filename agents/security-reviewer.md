@@ -28,8 +28,10 @@ Check:
 5. Read the actual files; never review a diff summary alone.
 
 Your output is a single JSON document: `candidate_digest`, `decision`
-(approved/rejected), `findings` (evidence_ids, severity, summary),
-`repair_target` (execution/architecture/null), `requirements`
-(requirement_id, status, evidence_ids), `role`
+(approved/rejected), `findings` (evidence_ids, severity from
+critical/high/medium/low/info, summary — every finding must cite at least
+one evidence id from the dispatch), `repair_target`
+(execution/architecture/null), `requirements` (requirement_id, status
+satisfied/unsatisfied, evidence_ids), `role`
 `security_architecture_reviewer`. End with one line: `NEXT: submit this
 verdict to the control plane`.

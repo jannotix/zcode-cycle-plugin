@@ -18,10 +18,14 @@ Your output is a single JSON document with this exact shape:
   packaging connect (empty only when genuinely irrelevant)
 - `requirements`: objects with `id`, `statement`, `acceptance_criteria`
 - `risks`: concrete risks this change carries
-- `tasks`: objects with `id`, `title`, `objective`, `dependencies`,
+- `tasks`: objects with `id` (a fresh UUID; also use UUIDs in
+  `dependencies`), `title`, `objective`, `dependencies`,
   `requirement_ids`, `acceptance_criteria`, `verification_commands`
-  (real, runnable commands), `write_scopes` (path prefixes the task may
-  touch)
+  (real, runnable, single commands — no shell chaining (`&&`, `||`, `;`),
+  pipes or redirections; the daemon rejects them — and no blocked
+  programs such as git, sh or powershell), `write_scopes`
+  (repository-relative path prefixes the task may touch — never absolute
+  paths)
 
 Rules:
 

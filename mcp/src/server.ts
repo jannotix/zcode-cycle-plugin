@@ -20,6 +20,7 @@ interface RoleRegistration {
   readonly workflow_id: string | null
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const READ_ONLY_ROLES = new Set([
   "architect",
   "functional_reviewer",
@@ -153,6 +154,123 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
     }
     case "cycle_role_list":
       return readRegistry()
+    case "cycle_code_index": {
+      const projectDirectory = text(args.project_directory)
+      const workflowId = text(args.workflow_id)
+      if (!projectDirectory || !workflowId) {
+        throw new Error("cycle_code_index requires project_directory and workflow_id")
+      }
+      return plane.codeIndex(projectKey, workflowId, projectDirectory)
+    }
+    case "cycle_submit_architecture": {
+      const workflowId = text(args.workflow_id)
+      const plan = args.plan
+      if (!workflowId || typeof plan !== "object" || plan === null) {
+        throw new Error("cycle_submit_architecture requires workflow_id and a plan object")
+      }
+      await plane.submitArchitecture(
+        projectKey,
+        workflowId,
+        plan as Parameters<typeof plane.submitArchitecture>[2],
+      )
+      return { accepted: true, workflow_id: workflowId }
+    }
+    case "cycle_prepare_worktree": {
+      const workflowId = text(args.workflow_id)
+      const projectDirectory = text(args.project_directory)
+      if (!workflowId || !projectDirectory) {
+        throw new Error("cycle_prepare_worktree requires workflow_id and project_directory")
+      }
+      return plane.prepareWorktree(projectKey, projectDirectory, workflowId)
+    }
+    case "cycle_plan_verification": {
+      const workflowId = text(args.workflow_id)
+      const planId = UUID.test(String(args.plan_id ?? ""))
+        ? (String(args.plan_id) as Parameters<typeof plane.planVerification>[2])
+        : undefined
+      if (!workflowId) throw new Error("cycle_plan_verification requires workflow_id")
+      return plane.planVerification(projectKey, workflowId, planId)
+    }
+    case "cycle_freeze_candidate": {
+      const workflowId = text(args.workflow_id)
+      const baseRevision = text(args.base_revision)
+      const planId = text(args.plan_id)
+      if (!workflowId || !baseRevision || !planId) {
+        throw new Error(
+          "cycle_freeze_candidate requires workflow_id, base_revision and plan_id",
+        )
+      }
+      const evidenceIds = Array.isArray(args.evidence_ids)
+        ? args.evidence_ids.map(String)
+        : []
+      return plane.freezeCandidate(projectKey, workflowId, baseRevision, planId, evidenceIds)
+    }
+    case "cycle_verify_candidate": {
+      const workflowId = text(args.workflow_id)
+      const candidateId = text(args.candidate_id)
+      const planId = text(args.plan_id)
+      if (!workflowId || !candidateId || !planId) {
+        throw new Error(
+          "cycle_verify_candidate requires workflow_id, candidate_id and plan_id",
+        )
+      }
+      const attestations = Array.isArray(args.attestations) ? args.attestations : []
+      return plane.verifyCandidate(
+        projectKey,
+        workflowId,
+        candidateId,
+        planId,
+        attestations as Parameters<typeof plane.verifyCandidate>[4],
+      )
+    }
+    case "cycle_submit_review": {
+      const workflowId = text(args.workflow_id)
+      const candidateId = text(args.candidate_id)
+      const verdict = args.verdict
+      if (!workflowId || !candidateId || typeof verdict !== "object" || verdict === null) {
+        throw new Error("cycle_submit_review requires workflow_id, candidate_id and verdict")
+      }
+      return plane.submitReview(
+        projectKey,
+        workflowId,
+        candidateId,
+        verdict as Parameters<typeof plane.submitReview>[3],
+      )
+    }
+    case "cycle_submit_arbitration": {
+      const workflowId = text(args.workflow_id)
+      const candidateId = text(args.candidate_id)
+      const verdict = args.verdict
+      if (!workflowId || !candidateId || typeof verdict !== "object" || verdict === null) {
+        throw new Error(
+          "cycle_submit_arbitration requires workflow_id, candidate_id and verdict",
+        )
+      }
+      return plane.submitArbitration(
+        projectKey,
+        workflowId,
+        candidateId,
+        verdict as Parameters<typeof plane.submitArbitration>[3],
+      )
+    }
+    case "cycle_report_execution": {
+      const workflowId = text(args.workflow_id)
+      const outcome = args.outcome === "plan_defect" ? "plan_defect" : "blocked"
+      if (!workflowId) throw new Error("cycle_report_execution requires workflow_id")
+      const workflowState = await plane.reportExecution(projectKey, workflowId, outcome)
+      return { outcome, workflow_id: workflowId, workflow_state: workflowState }
+    }
+    case "cycle_promote_candidate": {
+      const workflowId = text(args.workflow_id)
+      const candidateId = text(args.candidate_id)
+      const projectDirectory = text(args.project_directory)
+      if (!workflowId || !candidateId || !projectDirectory) {
+        throw new Error(
+          "cycle_promote_candidate requires workflow_id, candidate_id and project_directory",
+        )
+      }
+      return plane.promoteCandidate(projectKey, workflowId, candidateId, projectDirectory)
+    }
     default:
       throw new Error(`unknown tool: ${name}`)
   }
@@ -299,6 +417,153 @@ const TOOLS: Record<string, ToolDefinition> = {
   cycle_role_list: {
     description: "List registered role sessions.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  cycle_code_index: {
+    description:
+      "Request the incremental code intelligence index for a workflow: scoped symbol graph context for the architect, without rescanning unchanged files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        project_directory: { type: "string" },
+      },
+      required: ["project_key", "workflow_id", "project_directory"],
+      additionalProperties: false,
+    },
+  },
+  cycle_submit_architecture: {
+    description:
+      "Submit the architect's task graph for validation and state transition. The daemon rejects invalid graphs and out-of-order submissions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        plan: { type: "object" },
+      },
+      required: ["project_key", "workflow_id", "plan"],
+      additionalProperties: false,
+    },
+  },
+  cycle_prepare_worktree: {
+    description:
+      "Prepare the isolated git worktree for execution and record its base revision.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        project_directory: { type: "string" },
+      },
+      required: ["project_key", "workflow_id", "project_directory"],
+      additionalProperties: false,
+    },
+  },
+  cycle_plan_verification: {
+    description:
+      "Plan the verification gates for the pending candidate; returns the plan id and evidence ids.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        plan_id: { type: "string" },
+      },
+      required: ["project_key", "workflow_id"],
+      additionalProperties: false,
+    },
+  },
+  cycle_freeze_candidate: {
+    description:
+      "Freeze the exact candidate from the worktree: manifest with per-file digests, diff and environment digests. Verification always runs against the frozen candidate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        base_revision: { type: "string" },
+        plan_id: { type: "string" },
+        evidence_ids: { type: "array", items: { type: "string" } },
+      },
+      required: ["project_key", "workflow_id", "base_revision", "plan_id"],
+      additionalProperties: false,
+    },
+  },
+  cycle_verify_candidate: {
+    description:
+      "Run the mandatory verification gates against the frozen candidate. Returns per-gate evidence records and the mandatory pass verdict; failures drive the repair loop.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        candidate_id: { type: "string" },
+        plan_id: { type: "string" },
+        attestations: { type: "array", items: { type: "object" } },
+      },
+      required: ["project_key", "workflow_id", "candidate_id", "plan_id"],
+      additionalProperties: false,
+    },
+  },
+  cycle_submit_review: {
+    description:
+      "Submit an independent review verdict (functional or security reviewer) for the frozen candidate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        candidate_id: { type: "string" },
+        verdict: { type: "object" },
+      },
+      required: ["project_key", "workflow_id", "candidate_id", "verdict"],
+      additionalProperties: false,
+    },
+  },
+  cycle_submit_arbitration: {
+    description:
+      "Submit the arbiter's final verdict. Only valid after verification (and reviews in full mode); the daemon refuses out-of-order arbitration.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        candidate_id: { type: "string" },
+        verdict: { type: "object" },
+      },
+      required: ["project_key", "workflow_id", "candidate_id", "verdict"],
+      additionalProperties: false,
+    },
+  },
+  cycle_report_execution: {
+    description:
+      "Report an execution outcome the orchestrator cannot resolve: blocked, or plan_defect to restart planning.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        outcome: { enum: ["blocked", "plan_defect"] },
+      },
+      required: ["project_key", "workflow_id", "outcome"],
+      additionalProperties: false,
+    },
+  },
+  cycle_promote_candidate: {
+    description:
+      "Promote the approved candidate from the worktree to the project directory and deliver it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_key: { type: "string" },
+        workflow_id: { type: "string" },
+        candidate_id: { type: "string" },
+        project_directory: { type: "string" },
+      },
+      required: ["project_key", "workflow_id", "candidate_id", "project_directory"],
+      additionalProperties: false,
+    },
   },
 }
 
