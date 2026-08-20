@@ -1,0 +1,50 @@
+# JavaScript
+node_modules/
+.bun/
+*.tsbuildinfo
+
+# Rust
+target/
+
+# Tests and analysis
+.superpowers/
+coverage/
+.coverage/
+test-results/
+playwright-report/
+fuzz/artifacts/
+fuzz/corpus/generated/
+benchmarks/results/local/
+
+# Runtime state
+.zcode-cycle/
+*.db-shm
+*.db-wal
+*.log
+
+# Secrets and signing material
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+.mimosa/
+
+# Packaging
+dist/
+artifacts/
+packages/*/bin/
+*.map
+*.tgz
+*.zip

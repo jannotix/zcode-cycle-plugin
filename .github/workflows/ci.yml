@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo test --workspace --all-features --no-fail-fast
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --all-features --no-fail-fast
+      - run: cargo build --release -p workflowd
+      - name: Smoke check
+        run: cargo run --release -p workflowd
+        continue-on-error: true
+
+  native-packages:
+    runs-on: ${{ matrix.os }}
+    needs: quality
+    strategy:
+      matrix:
+        include:
+          - target: win32-x64
+            os: windows-latest
+            binary: target/release/workflowd.exe
+          - target: linux-x64
+            os: ubuntu-latest
+            binary: target/release/workflowd
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: oven-sh/setup-bun@v2
+      - run: cargo build --release -p workflowd
+      - run: bun scripts/release/package-native.ts --target ${{ matrix.target }} --binary ${{ matrix.binary }} --output target/native-packages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.target }}
+          path: target/native-packages
+          if-no-files-found: error

@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+set -eu
+
+git diff --cached --check
+
+if git grep --cached -n -I -E '(^|[^A-Za-z])(TODO|FIXME|TBD)([^A-Za-z]|$)' -- ':!docs/plans/**' ':!.githooks/**'; then
+  echo "Commit blocked: remove unresolved placeholders." >&2
+  exit 1
+fi

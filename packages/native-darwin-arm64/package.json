@@ -1,0 +1,13 @@
+{
+  "name": "@zcode-cycle/native-darwin-arm64",
+  "version": "1.0.0",
+  "description": "ZCode Cycle control plane for macOS arm64 (compiled, not certified)",
+  "license": "FSL-1.1-MIT",
+  "author": "Gianluca Iannotta",
+  "repository": "https://github.com/jannotix/zcode-cycle-plugin",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "exports": "./bin/workflowd",
+  "files": ["bin", "LICENSE", "NOTICE"],
+  "publishConfig": { "access": "public" }
+}
