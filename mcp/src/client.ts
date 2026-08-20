@@ -69,6 +69,23 @@ export type HistoryOperation =
 
 export type MemoryOperation =
   | { readonly type: "explain"; readonly memory_id: string }
+  | {
+      readonly type: "insert"
+      readonly confidence: "inferred" | "user_asserted"
+      readonly detail: string
+      readonly kind:
+        | "approval"
+        | "architecture_decision"
+        | "bug_fix"
+        | "command"
+        | "constraint"
+        | "convention"
+        | "failed_approach"
+      readonly scope: readonly string[]
+      readonly source_event_ids: readonly string[]
+      readonly summary: string
+      readonly title: string
+    }
   | { readonly type: "remove"; readonly memory_id: string }
   | {
       readonly type: "search"

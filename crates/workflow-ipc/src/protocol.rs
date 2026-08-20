@@ -27,6 +27,15 @@ pub enum MemoryOperation {
     Explain {
         memory_id: workflow_core::MemoryId,
     },
+    Insert {
+        confidence: String,
+        detail: String,
+        kind: String,
+        scope: Vec<String>,
+        source_event_ids: Vec<String>,
+        summary: String,
+        title: String,
+    },
     Remove {
         memory_id: workflow_core::MemoryId,
     },

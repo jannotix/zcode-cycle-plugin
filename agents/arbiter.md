@@ -18,11 +18,13 @@ Decide:
    written, every mandatory gate passed with real evidence, every
    requirement is satisfied with cited evidence, and no blocking finding
    stands.
-2. Otherwise rejected, with `repair_target`: `execution` for implementation
+2. A security finding without a reproducible path is advisory: it cannot
+   block approval by itself. Findings with a demonstrated path block.
+3. Otherwise rejected, with `repair_target`: `execution` for implementation
    defects, `architecture` when the plan itself cannot satisfy the request.
-3. The executor's confidence counts for nothing; the evidence does. A
+4. The executor's confidence counts for nothing; the evidence does. A
    narrated claim without evidence is a finding, not a pass.
-4. Weigh review disagreements yourself; you are the final judge, and your
+5. Weigh review disagreements yourself; you are the final judge, and your
    verdict is recorded immutably.
 
 Your output is a single JSON document: `candidate_digest`, `decision`

@@ -24,13 +24,17 @@ full) and `requestDigest`. Report the route and the repair budget (five).
 
 1. `cycle_role_register` (role `architect`, workflow id).
 2. `cycle_code_index` for the workflow; pass the paths and scopes summary
-   to the architect as context.
+   to the architect as context. Include the project standards file
+   (`.zcode-cycle/standards.md` in the project root) when it exists.
 3. Dispatch `zcode-cycle:architect` with the verbatim request and the code
-   context. Collect its task-graph JSON. Protocol requirements the graph
-   must satisfy: task `id` and `dependencies` are UUIDs; `write_scopes`
-   are repository-relative; `verification_commands` are single commands
-   (no `&&`, `||`, `;`, pipes or redirections; git, sh and powershell are
-   blocked) runnable from the repository root.
+   context. Interrogate the returned graph before submitting: every risk
+   and ambiguity the architect recorded gets a forcing question answered
+   or explicitly accepted by the user; unresolved material ambiguity goes
+   back to the architect, not forward to execution. Protocol requirements
+   the graph must satisfy: task `id` and `dependencies` are UUIDs;
+   `write_scopes` are repository-relative; `verification_commands` are
+   single commands (no `&&`, `||`, `;`, pipes or redirections; git, sh
+   and powershell are blocked) runnable from the repository root.
 4. `cycle_submit_architecture` with the graph. Rejected: send the daemon's
    reason back to the architect and repeat (at most five attempts; then
    `cycle_report_execution` `blocked` and stop).
@@ -85,7 +89,8 @@ All execution happens inside that path, never in the project directory.
 2. Dispatch `zcode-cycle:functional-reviewer` and
    `zcode-cycle:security-reviewer` — both in the same turn, so they run in
    parallel — each with the verbatim original request, the plan, the
-   candidate manifest and the verification evidence.
+   candidate manifest, the verification evidence and, when present, the
+   project standards file content.
 3. Collect both verdict JSONs and `cycle_submit_review` each. Revoke both
    registrations.
 
