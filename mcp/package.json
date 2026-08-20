@@ -1,0 +1,17 @@
+{
+  "name": "@zcode-cycle/mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ZCode Cycle MCP bridge to the workflowd control plane",
+  "license": "FSL-1.1-MIT",
+  "author": "Gianluca Iannotta",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "description": "ZCode Cycle role enforcement: denies mutating tools from registered read-only role sessions and audits the decision to the project ledger. The agents' tool whitelists are the primary boundary; this hook is the audited second layer.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|ApplyPatch|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${ZCODE_PLUGIN_ROOT}/hooks/pre-tool-use.js\"",
+            "timeoutMs": 5000,
+            "statusMessage": "ZCode Cycle: checking role boundaries"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${ZCODE_PLUGIN_ROOT}/hooks/post-tool-use.js\"",
+            "timeoutMs": 5000,
+            "statusMessage": "ZCode Cycle: recording tool audit"
+          }
+        ]
+      }
+    ]
+  }
+}
