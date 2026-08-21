@@ -2,12 +2,8 @@
   "mcpServers": {
     "zcode-cycle": {
       "command": "node",
-      "args": [
-        "${CLAUDE_PLUGIN_ROOT}/mcp/dist/server.js"
-      ],
-      "env": {
-        "ZCODE_CYCLE_BINARY": "C:/Users/User/Desktop/Cycle/Cycle for Zcode/production/target/release/workflowd.exe"
-      }
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/dist/server.js"],
+      "env": {}
     }
   }
 }
