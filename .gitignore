@@ -49,3 +49,6 @@ packages/*/bin/
 *.map
 *.tgz
 *.zip
+# The assembled distribution plugin ships in-repo, dependencies included.
+!plugin/
+!plugin/**

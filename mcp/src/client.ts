@@ -1314,10 +1314,12 @@ export function nativePackageName(platform: NodeJS.Platform, architecture: strin
 }
 
 function packagedBinaryPath(platform: NodeJS.Platform, architecture: string): string {
-  // Sidecar installs ship the binary in the plugin's bin/ directory.
+  // Distribution installs ship per-platform binaries under bin/<platform>-<arch>/.
   const pluginRoot = process.env.ZCODE_PLUGIN_ROOT
   if (pluginRoot !== undefined && pluginRoot !== "") {
     const executable = platform === "win32" ? "workflowd.exe" : "workflowd"
+    const scoped = join(pluginRoot, "bin", `${platform}-${architecture}`, executable)
+    if (existsSync(scoped)) return scoped
     const sidecar = join(pluginRoot, "bin", executable)
     if (existsSync(sidecar)) return sidecar
   }

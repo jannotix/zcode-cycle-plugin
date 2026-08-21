@@ -1,0 +1,12 @@
+{
+  "name": "zcode-cycle-plugin",
+  "plugins": [
+    {
+      "name": "zcode-cycle",
+      "source": "./plugin",
+      "description": "Evidence-gated software delivery for ZCode: an architect, an executor, two independent reviewers and a final arbiter over a deterministic, tamper-evident control plane.",
+      "version": "1.0.0",
+      "category": "workflow"
+    }
+  ]
+}

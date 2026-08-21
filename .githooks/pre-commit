@@ -1,9 +1,11 @@
 #!/usr/bin/env sh
 set -eu
 
-git diff --cached --check
+# Third-party runtime dependencies ship inside the assembled plugin; their
+# style is not ours to police.
+git diff --cached --check -- . ':(exclude)plugin/mcp/node_modules/**'
 
-if git grep --cached -n -I -E '(^|[^A-Za-z])(TODO|FIXME|TBD)([^A-Za-z]|$)' -- ':!docs/plans/**' ':!.githooks/**'; then
+if git grep --cached -n -I -E '(^|[^A-Za-z])(TODO|FIXME|TBD)([^A-Za-z]|$)' -- ':!docs/plans/**' ':!.githooks/**' ':!plugin/mcp/node_modules/**'; then
   echo "Commit blocked: remove unresolved placeholders." >&2
   exit 1
 fi
