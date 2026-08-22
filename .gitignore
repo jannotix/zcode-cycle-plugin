@@ -52,3 +52,6 @@ packages/*/bin/
 # The assembled distribution plugin ships in-repo, dependencies included.
 !plugin/
 !plugin/**
+
+# Local build staging for the assembler; shipped binaries live in plugin/bin/.
+bin/
