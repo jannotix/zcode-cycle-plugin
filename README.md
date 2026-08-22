@@ -1,4 +1,4 @@
-# ZCode Cycle
+# Cycle for Zcode
 
 ZCode Cycle is a native ZCode plugin for evidence-gated software delivery. It
 coordinates an architect, an executor, two independent reviewers and an
