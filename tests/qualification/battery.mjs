@@ -215,7 +215,13 @@ async function main() {
 
     // 7. MCP server over stdio (sequential request/response)
     const server = spawn(process.execPath, [process.env.F6_SERVER ?? `${ROOT}/mcp/dist/server.js`], {
-      env: { ...process.env, ZCODE_CYCLE_BINARY: BINARY, ZCODE_CYCLE_DATA_DIR: dataDir },
+      env: {
+        ...process.env,
+        ZCODE_CYCLE_BINARY: BINARY,
+        ZCODE_CYCLE_DATA_DIR: dataDir,
+        ZCODE_PLUGIN_ROOT: ROOT,
+        ZCODE_PROJECT_DIR: fixture,
+      },
       stdio: ["pipe", "pipe", "ignore"],
     })
     let nextId = 1
@@ -258,10 +264,42 @@ async function main() {
       const listed = await request("tools/list", {})
       check(
         "mcp exposes pipeline tools",
-        ["cycle_start", "cycle_freeze_candidate", "cycle_submit_arbitration", "cycle_browser"].every(
+        [
+          "cycle_start",
+          "cycle_freeze_candidate",
+          "cycle_submit_arbitration",
+          "cycle_browser",
+          "cycle_role_profiles",
+        ].every(
           (name) => listed.tools.some((tool) => tool.name === name),
         ),
         listed.tools.map((t) => t.name),
+      )
+      const installProfiles = await request("tools/call", {
+        name: "cycle_role_profiles",
+        arguments: {
+          operation: "install",
+          confirmation: "INSTALL_ZCODE_CYCLE_ROLE_PROFILES",
+        },
+      })
+      const installedProfiles = JSON.parse(installProfiles.content?.[0]?.text ?? "null")
+      check(
+        "mcp installs managed role profiles",
+        installProfiles.isError === false && installedProfiles?.ready === true,
+        installProfiles,
+      )
+      const removeProfiles = await request("tools/call", {
+        name: "cycle_role_profiles",
+        arguments: {
+          operation: "remove",
+          confirmation: "REMOVE_ZCODE_CYCLE_ROLE_PROFILES",
+        },
+      })
+      const removedProfiles = JSON.parse(removeProfiles.content?.[0]?.text ?? "null")
+      check(
+        "mcp removes only managed role profiles",
+        removeProfiles.isError === false && removedProfiles?.ready === false,
+        removeProfiles,
       )
     } finally {
       server.kill()

@@ -1,10 +1,10 @@
 ---
-description: Consult the executor for feasibility analysis only (never implementation outside a workflow)
+description: Consult the read-only architect for implementation feasibility
 argument-hint: "[question]"
 ---
 
-Ask the executor role for feasibility analysis of $ARGUMENTS. Register a
-temporary executor session, dispatch the `zcode-cycle:executor` agent with
-explicit instructions that this is a feasibility consultation: analysis,
-risks, estimated effort and blockers only — no file changes of any kind.
-Revoke the registration when it returns and present the analysis.
+Ask the architect role for implementation feasibility analysis of $ARGUMENTS.
+Generate a fresh UUID role token, register it as `architect`, dispatch
+`zcode-cycle:architect` with the question and token, then revoke that token.
+Request analysis, risks, estimated effort and blockers only. Never use the
+executor profile for advisory work because it has mutating tools.

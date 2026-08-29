@@ -1,17 +1,18 @@
 ---
-description: Inspect per-role model assignments or assign one until restart
-argument-hint: "[role] [provider/model]"
+description: Inspect or safely configure a managed project role profile
+argument-hint: "[role] [provider/model|inherit] [low|medium|high|max]"
 ---
 
 Handle model assignment with arguments: $ARGUMENTS
 
-No arguments: read the role agent definitions (architect, executor,
-functional-reviewer, security-reviewer, arbiter) and report each role's
-effective model (explicit or inherit) and reasoning effort.
+No arguments: call `cycle_role_profiles` with operation `status` and report
+each role's effective model and thought level. Refuse configuration until all
+five profiles are `current`.
 
-With `role provider/model`: validate the model string format, then write a
-user-scope agent override for that role in `~/.zcode/agents/` preserving
-the role's other settings, and report the change plus that a session
-restart makes it effective.
+With `role provider/model [thought-level]`: call `cycle_role_profiles` with
+operation `configure`, the exact role/model, thought level (default `high`)
+and confirmation `CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE`. `inherit` is a valid
+model value. The tool preserves the security-critical prompt and tool list.
+Report the project profile changed and that a new session is required.
 
 With invalid input: explain the two forms and stop.

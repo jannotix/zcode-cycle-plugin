@@ -1,6 +1,6 @@
 # Command Reference
 
-Every command runs through the Cycle agent against the control plane.
+Every command runs through the main ZCode session against the Cycle control plane.
 Operations that the flow needs are executed automatically when their
 preconditions are met; the commands remain available for inspection,
 control, recovery and expert use.
@@ -23,7 +23,7 @@ control, recovery and expert use.
 | Command | What it does |
 |---|---|
 | `/cycle:architect [topic]` | Read-only planning consultation with the architect |
-| `/cycle:feasibility [question]` | Executor analysis only — no implementation outside a governed workflow |
+| `/cycle:feasibility [question]` | Read-only architecture feasibility analysis; executor is not dispatched |
 | `/cycle:review-implementation [scope]` | Functional review, read-only, advisory |
 | `/cycle:review-security [scope]` | Security review, read-only, advisory |
 | `/cycle:arbiter [question]` | Advisory verdict — final approval exists only inside a governed workflow |
@@ -32,7 +32,7 @@ control, recovery and expert use.
 
 | Command | What it does |
 |---|---|
-| `/cycle:models [role] [provider/model]` | Inspect per-role model assignments or assign one until restart |
+| `/cycle:models [role] [provider/model\|inherit] [thought-level]` | Inspect or safely configure a managed project role profile |
 | `/cycle:permissions` | Show the immutable role boundaries and enforcement layers |
 | `/cycle:limits` | Show adaptive admission and repair limits |
 
@@ -54,7 +54,7 @@ control, recovery and expert use.
 
 | Command | What it does |
 |---|---|
-| `/cycle:setup` | First-run initialization and compatibility checks |
+| `/cycle:setup [install\|repair\|remove]` | Inspect or explicitly manage project role profiles and run compatibility checks |
 | `/cycle:doctor` | Read-only installation and project diagnostics |
 | `/cycle:browser` | Managed browser QA status and limits |
 | `/cycle:help` | This reference |

@@ -1,11 +1,20 @@
 ---
-description: Guided configuration and compatibility checks (first-run initialization)
+description: Inspect or explicitly install, repair or remove Cycle role profiles
+argument-hint: "[install|repair|remove]"
 ---
 
-Run first-run setup: call `cycle_health` and report the control plane
-versions; call `cycle_control` with operation `doctor` for this project and
-report installation and project diagnostics; verify that role agents
-resolve (dispatch a trivial read-only check if needed); report the data
-directory location and confirm it is outside any application installation.
-Finish with a numbered summary of anything the user must fix, or a clean
-bill of health.
+Run setup with arguments: $ARGUMENTS
+
+- No arguments: call `cycle_role_profiles` with operation `status`; do not
+  modify files.
+- `install`: call it with operation `install` and confirmation
+  `INSTALL_ZCODE_CYCLE_ROLE_PROFILES`.
+- `repair`: call it with operation `repair` and confirmation
+  `REPAIR_ZCODE_CYCLE_ROLE_PROFILES`.
+- `remove`: call it with operation `remove` and confirmation
+  `REMOVE_ZCODE_CYCLE_ROLE_PROFILES`.
+- Any other arguments: print these four forms and stop.
+
+Then follow the `cycle-setup` skill. A mutating operation must report the
+exact `.zcode/agents` directory and stop for a real ZCode session restart;
+never claim that the new profiles are loaded in the current session.

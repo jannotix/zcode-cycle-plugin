@@ -14,18 +14,20 @@ remains out of scope.
 
 ## Trust boundaries
 
-1. **Plugin ↔ host application.** The plugin registers agents, commands,
-   hooks and one MCP server through the host's extension surface. It
-   never patches the application installation and stores nothing inside
-   it; application updates cannot destroy project data.
+1. **Plugin ↔ host application.** The plugin registers commands, skills,
+   hooks and one MCP server through the host's extension surface. Because
+   ZCode CLI 0.16.5 does not execute plugin-provided agent components,
+   explicit `/cycle:setup install` writes five managed profiles under the
+   project's `.zcode/agents`; it never patches the application installation.
 2. **Bridge ↔ control plane.** The MCP bridge and hooks speak framed IPC
    to `workflowd` over a named pipe (Windows) or unix socket (Linux),
    authenticated with a local HMAC challenge-response bound to a
    per-installation secret in the data directory. Only local processes
    that can read the runtime secret connect.
-3. **Roles.** Read-only roles lack edit and shell tools at the agent
-   definition level; a PreToolUse hook re-checks and audits every
-   governed session's tool use into the ledger. Interactive browser
+3. **Roles.** Read-only roles lack edit and shell tools at the managed
+   profile level; a PreToolUse hook re-checks the qualified host identity.
+   An executor mutation additionally requires one unique active registration
+   for the current project. Interactive browser
    actions are executor-only. No dispatched role can launch a workflow;
    arbitration is only accepted by the daemon in the arbitration state
    for the exact frozen candidate digest. No role may delegate to another
@@ -60,7 +62,8 @@ remains out of scope.
 - The user's machine and the ZCode application are trusted; a
   compromised host can read the IPC secret and the data directory, and
   no local-only design defends against that.
-- The host application enforces the tool allowlists agents declare.
+- The host application enforces the tool allowlists in project profiles and
+  does not permit a sub-agent to delegate another sub-agent.
 - The git repository is the source of base-revision truth.
 
 ## Out of scope

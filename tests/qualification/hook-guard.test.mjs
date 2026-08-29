@@ -18,7 +18,11 @@ function run(input, registry) {
     }
     const result = spawnSync(process.execPath, [HOOK], {
       encoding: "utf8",
-      env: { ...process.env, ZCODE_CYCLE_DATA_DIR: dataDirectory },
+      env: {
+        ...process.env,
+        ZCODE_CYCLE_DATA_DIR: dataDirectory,
+        ZCODE_PROJECT_DIR: ROOT,
+      },
       input: typeof input === "string" ? input : JSON.stringify(input),
       shell: false,
     })
@@ -101,6 +105,30 @@ test("the executor may commit but cannot delegate, rewrite history or publish", 
     assert.match(denied(run({ sessionId: "executor", toolName, toolInput: {} }, registry)), /delegate/u)
 })
 
+test("an executor profile cannot mutate outside a uniquely registered workflow", () => {
+  const input = {
+    agent_type: "zcode-cycle:executor",
+    sessionId: "child-session",
+    toolName: "Write",
+    toolInput: {},
+  }
+  assert.match(denied(run(input)), /no unique active workflow/u)
+
+  const registered = {
+    "role-token": {
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: Date.now(),
+      role: "executor",
+      workflow_id: "workflow",
+    },
+  }
+  allowed(run(input, registered))
+
+  registered["second-token"] = { ...registered["role-token"] }
+  assert.match(denied(run(input, registered)), /ambiguous/u)
+})
+
 test("forbidden Git remains denied through options, paths, assignments and command chains", () => {
   const registry = {
     executor: {
@@ -131,6 +159,8 @@ test("an unrelated valid session is not governed by Cycle", () => {
 test("shipped read-only agents do not declare mutating, shell or delegation tools", () => {
   for (const name of ["architect", "functional-reviewer", "security-reviewer", "arbiter"]) {
     const text = readFileSync(join(ROOT, "agents", `${name}.md`), "utf8")
+    assert.match(text, new RegExp(`^name: zcode-cycle:${name}$`, "mu"))
+    assert.match(text, /^thoughtLevel: high$/mu)
     const tools = text.match(/^tools:\s*(.+)$/mu)?.[1] ?? ""
     for (const deniedTool of ["Write", "Edit", "MultiEdit", "ApplyPatch", "NotebookEdit", "Bash", "Shell", "Task", "Agent"])
       assert.equal(tools.split(/\s*,\s*/u).includes(deniedTool), false, `${name} declares ${deniedTool}`)

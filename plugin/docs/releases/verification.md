@@ -8,23 +8,24 @@ does not ship.
    (a link step silently blocked by a running daemon once shipped a
    stale binary).
 2. **Full workspace suite on both platforms.**
-   `cargo test --workspace --all-features` — expect 242 passed, 0
-   failed, identical on both.
+   `cargo test --workspace --all-features --no-fail-fast` — expect zero
+   failed tests on both; record counts rather than hard-coding them here.
 3. **Qualification battery on both platforms.**
    `node tests/qualification/battery.mjs <n>` with the platform
    overrides — zero FAIL iterations.
 4. **Assemble the distribution.**
    `bun scripts/packaging/assemble-plugin.ts`; verify the assembled
-   plugin contains both platform binaries, the built MCP bundle, all
-   agents, commands, skills, hooks and manifests — and nothing else
+   plugin contains both platform binaries, the built MCP bundle, the five
+   role-profile templates, commands, skills, hooks and manifests — and nothing else
    (no working tree, no node_modules, no build intermediates).
 5. **Clean-install smoke.** Install from the assembled plugin in a
-   pristine profile: `/cycle:setup` clean bill, `/cycle:doctor` PASS,
+   pristine profile: `/cycle:setup install`, new session, `/cycle:setup`
+   clean bill, `/cycle:doctor` PASS,
    one quick governed cycle on a fixture, `/cycle:history verify` valid.
-6. **Uninstall check.** Remove the plugin: zero residues in the
-   application, user data directory untouched.
+6. **Uninstall check.** Run `/cycle:setup remove`, remove the plugin: zero
+   plugin/profile residues in the application and project, user data untouched.
 7. **License and identity.** `LICENSE`, `NOTICE`, package manifests and
    commit authorship consistent; no attribution noise; version numbers
    aligned across workspace, plugin manifest and marketplace entry.
-8. **Tag.** `git tag vX.Y.Z` on the verified commit; the tag is the
-   release.
+8. **Tag.** Create and verify a signed `vX.Y.Z` tag on the admitted commit;
+   an unsigned or moved tag is not a release.

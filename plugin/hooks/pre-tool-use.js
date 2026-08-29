@@ -1,11 +1,11 @@
-// PreToolUse enforcement for Cycle role sessions. Agent tool declarations are
+// PreToolUse enforcement for Cycle role sessions. Managed project profiles are
 // the first boundary; this hook is the fail-closed runtime boundary; candidate
 // reconciliation is the final boundary. It never relaxes a ZCode permission or
 // confirmation decision.
 
 const { createHash } = require("node:crypto")
 const { readFile } = require("node:fs/promises")
-const { join, posix, win32 } = require("node:path")
+const { join, posix, resolve, win32 } = require("node:path")
 const { spawn } = require("node:child_process")
 
 const MAX_HOOK_INPUT_BYTES = 1024 * 1024
@@ -127,6 +127,28 @@ function roleFromAgent(input) {
     if (ALL_ROLES.has(role)) return role
   }
   return null
+}
+
+function sameProject(left, right) {
+  if (typeof left !== "string" || typeof right !== "string" || !left || !right) return false
+  const a = resolve(left)
+  const b = resolve(right)
+  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b
+}
+
+function registrationForHostRole(registry, role) {
+  const projectDirectory = process.env.ZCODE_PROJECT_DIR
+  if (!projectDirectory) return { ambiguous: false, registration: undefined }
+  const candidates = Object.values(registry).filter(
+    (item) =>
+      typeof item === "object" &&
+      item !== null &&
+      item.role === role &&
+      sameProject(item.project_directory, projectDirectory),
+  )
+  return candidates.length === 1
+    ? { ambiguous: false, registration: candidates[0] }
+    : { ambiguous: candidates.length > 1, registration: undefined }
 }
 
 function auditAsync(observation) {
@@ -264,15 +286,33 @@ async function main() {
   const sessionId = input.sessionId ?? input.session_id
   const toolName = String(input.toolName ?? input.tool_name ?? "")
   const registry = await readRegistry()
-  const registration = typeof sessionId === "string" ? registry[sessionId] : undefined
+  const candidateRegistration = typeof sessionId === "string" ? registry[sessionId] : undefined
+  const directRegistration =
+    typeof candidateRegistration === "object" &&
+    candidateRegistration !== null &&
+    ALL_ROLES.has(candidateRegistration.role)
+      ? candidateRegistration
+      : undefined
   const registeredRole =
-    registration !== undefined && ALL_ROLES.has(registration.role) ? registration.role : null
+    directRegistration !== undefined && ALL_ROLES.has(directRegistration.role)
+      ? directRegistration.role
+      : null
   const hostRole = roleFromAgent(input)
 
   if (registeredRole !== null && hostRole !== null && registeredRole !== hostRole) {
     deny("role identity mismatch between the host payload and Cycle registry", null)
     return
   }
+
+  const fallback =
+    directRegistration === undefined && hostRole !== null
+      ? registrationForHostRole(registry, hostRole)
+      : { ambiguous: false, registration: undefined }
+  if (fallback.ambiguous) {
+    deny("multiple active workflow registrations made the role identity ambiguous", null)
+    return
+  }
+  const registration = directRegistration ?? fallback.registration
 
   const role = registeredRole ?? hostRole
   if (role === null) {
@@ -287,6 +327,15 @@ async function main() {
   }
   if (READ_ONLY_ROLES.has(role) && DENIED_FOR_READ_ONLY.has(toolName)) {
     deny(`${role} is read-only and cannot use ${toolName || "an unidentified high-risk tool"}`, audit)
+    return
+  }
+
+  if (
+    role === "executor" &&
+    registration === undefined &&
+    (DENIED_FOR_READ_ONLY.has(toolName) || toolName === "Bash" || toolName === "Shell")
+  ) {
+    deny("the executor has no unique active workflow registration", audit)
     return
   }
 

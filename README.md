@@ -34,8 +34,9 @@ the plugin hooks from a trusted source.
 
 For development and certification, add a **local directory marketplace** in
 Settings -> Plugins -> Create -> Add marketplace, select this repository, then
-install `zcode-cycle`. Restart the Agent runtime if ZCode asks, select the
-`zcode-cycle:cycle` agent and run `/cycle:setup`.
+install `zcode-cycle`. In each governed project run `/cycle:setup install`,
+start a new ZCode session, then run `/cycle:setup` to verify the five managed
+role profiles. The main session is the orchestrator; roles are sub-agents.
 
 Requirements:
 
@@ -50,8 +51,8 @@ never downloaded or executed from a remote URL at runtime.
 
 ## What the plugin installs
 
-- six ZCode agents: orchestrator, architect, executor, two reviewers and
-  arbiter;
+- five explicit project role profiles: architect, executor, two reviewers and
+  arbiter; the main ZCode session orchestrates them;
 - slash commands and five workflow skills;
 - a `PreToolUse` role guard and a `PostToolUse` audit hook;
 - one local stdio MCP server;
@@ -66,6 +67,9 @@ arms a governed run.
 ### Files and Git
 
 - Normal conversation, setup, architecture and review are read-only.
+- `/cycle:setup install` writes five managed files under the current project's
+  `.zcode/agents`; repair, model changes and removal require their explicit
+  setup/model command forms and never overwrite an unowned conflicting file.
 - The executor modifies an isolated Git worktree within declared write scopes.
 - The executor may stage and commit those worktree changes. It cannot delegate,
   push, tag, switch branches, create another worktree, rewrite history or run
@@ -126,12 +130,13 @@ See [the user manual](docs/USER_MANUAL.md), [command reference](docs/commands/re
 ## Update, rollback and removal
 
 - Never reuse a published version. Refresh the marketplace, update to a higher
-  semantic version and restart the Agent runtime.
+  semantic version, run `/cycle:setup repair`, and start a new session.
 - Release certification includes upgrade from the previous public version and
   rollback with preserved data. A newer database schema may open only in the
   documented safe read-only mode.
-- Remove the plugin in ZCode. Remove the data directory separately only if the
-  ledger, memory, evidence and recovery state are no longer required.
+- Before uninstalling, run `/cycle:setup remove` in every configured project;
+  then remove the plugin in ZCode. Remove the data directory separately only
+  if the ledger, memory, evidence and recovery state are no longer required.
 
 ## Development checks
 

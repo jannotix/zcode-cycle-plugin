@@ -3,7 +3,7 @@
 
 const { createHash } = require("node:crypto")
 const { readFile } = require("node:fs/promises")
-const { join, posix, win32 } = require("node:path")
+const { join, posix, resolve, win32 } = require("node:path")
 const { spawn } = require("node:child_process")
 
 const LEDGER_ROLE = {
@@ -13,6 +13,8 @@ const LEDGER_ROLE = {
   security_reviewer: "security_architecture_reviewer",
   arbiter: "arbiter",
 }
+
+const ALL_ROLES = new Set(Object.keys(LEDGER_ROLE))
 
 function dataDirectory() {
   if (process.env.ZCODE_CYCLE_DATA_DIR) return process.env.ZCODE_CYCLE_DATA_DIR
@@ -54,7 +56,16 @@ async function main() {
   } catch {
     return
   }
-  const registration = registry[sessionId]
+  const candidateRegistration = registry[sessionId]
+  const directRegistration =
+    typeof candidateRegistration === "object" &&
+    candidateRegistration !== null &&
+    ALL_ROLES.has(candidateRegistration.role)
+      ? candidateRegistration
+      : undefined
+  const hostRole = roleFromAgent(input)
+  const registration =
+    directRegistration ?? (hostRole === null ? undefined : registrationForHostRole(registry, hostRole))
   if (registration === undefined) return
   if (!process.env.ZCODE_PLUGIN_ROOT) return
 
@@ -86,6 +97,47 @@ async function main() {
   child.stdin.write(JSON.stringify(observation))
   child.stdin.end()
   child.unref()
+}
+
+function roleFromAgent(input) {
+  for (const value of [
+    input.agent_type,
+    input.agentType,
+    input.subagent_type,
+    input.agent?.type,
+    input.context?.agent_type,
+  ]) {
+    if (typeof value !== "string") continue
+    const prefix = value.startsWith("zcode-cycle:")
+      ? "zcode-cycle:"
+      : value.startsWith("cycle:")
+        ? "cycle:"
+        : null
+    if (prefix === null) continue
+    const role = value.slice(prefix.length).replaceAll("-", "_")
+    if (ALL_ROLES.has(role)) return role
+  }
+  return null
+}
+
+function registrationForHostRole(registry, role) {
+  const projectDirectory = process.env.ZCODE_PROJECT_DIR
+  if (!projectDirectory) return undefined
+  const candidates = Object.values(registry).filter(
+    (item) =>
+      typeof item === "object" &&
+      item !== null &&
+      item.role === role &&
+      sameProject(item.project_directory, projectDirectory),
+  )
+  return candidates.length === 1 ? candidates[0] : undefined
+}
+
+function sameProject(left, right) {
+  if (typeof left !== "string" || typeof right !== "string" || !left || !right) return false
+  const a = resolve(left)
+  const b = resolve(right)
+  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b
 }
 
 main().catch(() => process.exit(0))

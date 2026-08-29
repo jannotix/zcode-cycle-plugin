@@ -1,5 +1,5 @@
 {
-  "description": "ZCode Cycle role enforcement: denies mutating tools from registered read-only role sessions and audits the decision to the project ledger. The agents' tool whitelists are the primary boundary; this hook is the audited second layer.",
+  "description": "Cycle role enforcement: managed project profiles provide the primary tool boundary; this Hook denies read-only mutations, delegation, unsafe executor Git and unregistered executor writes, then audits governed calls.",
   "hooks": {
     "PreToolUse": [
       {

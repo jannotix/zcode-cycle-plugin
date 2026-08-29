@@ -28,8 +28,9 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 角色保护依赖 ZCode 从可信来源加载插件 Hook，因此官方发布是安全门槛。
 
 开发和认证时，请在 Settings -> Plugins -> Create -> Add marketplace 中添加本地目录
-市场，选择本仓库并安装 `zcode-cycle`。如 ZCode 提示，请重启 Agent runtime，然后选择
-`zcode-cycle:cycle` Agent 并运行 `/cycle:setup`。
+市场，选择本仓库并安装 `zcode-cycle`。在每个受治理项目中运行
+`/cycle:setup install`，新建 ZCode 会话，再运行 `/cycle:setup` 验证五个受管理角色配置。
+主会话负责编排，各角色作为子 Agent 运行。
 
 要求：
 
@@ -44,7 +45,7 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 
 ## 插件内容
 
-- 六个 ZCode Agent：编排器、架构师、执行器、两名审查者和裁决者；
+- 五个显式项目角色配置：架构师、执行器、两名审查者和裁决者；主 ZCode 会话负责编排；
 - 斜杠命令和五个工作流 Skill；
 - `PreToolUse` 角色保护 Hook 与 `PostToolUse` 审计 Hook；
 - 一个本地 stdio MCP 服务；
@@ -58,6 +59,8 @@ Cycle 只有在用户明确启动受治理运行后才会修改项目。
 ### 文件和 Git
 
 - 普通对话、设置、架构和审查均为只读。
+- `/cycle:setup install` 会在当前项目的 `.zcode/agents` 下写入五个受管理文件；修复、
+  模型变更和删除必须使用对应的显式命令，且不会覆盖不属于 Cycle 的冲突文件。
 - 执行器仅在隔离的 Git worktree 和声明的写入范围内修改文件。
 - 执行器可以暂存并提交该 worktree 的变更，但不能委派子 Agent、push、tag、切换分支、
   新建 worktree、重写历史或执行破坏性 Git 清理。
@@ -110,11 +113,12 @@ Shell；不安全操作符、被阻止的程序和破坏性形式会被拒绝。
 
 ## 更新、回滚和删除
 
-- 已发布版本不可复用。刷新市场后升级到更高的语义版本，并重启 Agent runtime。
+- 已发布版本不可复用。刷新市场后升级到更高的语义版本，运行
+  `/cycle:setup repair`，并新建会话。
 - 发布认证包含从上一公共版本升级、保留数据的回滚。较新的数据库 Schema 只能按文档
   以安全只读模式打开。
-- 在 ZCode 中卸载插件。只有在不再需要账本、记忆、证据和恢复状态时，才单独删除数据
-  目录。
+- 卸载前在每个已配置项目运行 `/cycle:setup remove`，然后在 ZCode 中删除插件。只有在
+  不再需要账本、记忆、证据和恢复状态时，才单独删除数据目录。
 
 ## 开发检查
 

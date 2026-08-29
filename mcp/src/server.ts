@@ -13,12 +13,14 @@ import { BrowserEvidenceRegistry } from "./browser/browser-evidence.js"
 import { BrowserManager } from "./browser/browser-manager.js"
 import { ManagedBrowserSessionFactory } from "./browser/managed-browser-session.js"
 import { attestForVerification, browserRun } from "./browser/browser-ops.js"
+import { manageRoleProfiles } from "./role-profiles.js"
 import { productVersion } from "./version.js"
 
 // Role session registry: the bridge writes it, the PreToolUse hook reads it.
-// The agents' tool whitelists are the primary role boundary; this is the
+// Managed project profile tool whitelists are the primary role boundary; this is the
 // audited second layer.
 interface RoleRegistration {
+  readonly project_directory: string
   readonly project_key: string
   readonly registered_at_unix_millis: number
   readonly role: string
@@ -150,6 +152,26 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
         text(args.workspace),
         args.operation === "renew" || args.operation === "release" ? args.operation : "acquire",
       )
+    case "cycle_role_profiles": {
+      const operation =
+        args.operation === "install" ||
+        args.operation === "repair" ||
+        args.operation === "configure" ||
+        args.operation === "remove"
+          ? args.operation
+          : "status"
+      const pluginRoot = process.env.ZCODE_PLUGIN_ROOT || process.env.CLAUDE_PLUGIN_ROOT
+      if (!pluginRoot) throw new Error("cycle_role_profiles requires ZCODE_PLUGIN_ROOT")
+      return manageRoleProfiles({
+        operation,
+        pluginRoot,
+        projectRoot: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
+        ...(typeof args.confirmation === "string" ? { confirmation: args.confirmation } : {}),
+        ...(typeof args.model === "string" ? { model: args.model } : {}),
+        ...(typeof args.role === "string" ? { role: args.role } : {}),
+        ...(typeof args.thought_level === "string" ? { thoughtLevel: args.thought_level } : {}),
+      })
+    }
     case "cycle_role_register": {
       const sessionId = text(args.session_id)
       const role = text(args.role)
@@ -158,6 +180,7 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
       }
       const registry = await readRegistry()
       registry[sessionId] = {
+        project_directory: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
         project_key: projectKey,
         registered_at_unix_millis: Date.now(),
         role,
@@ -441,6 +464,30 @@ const TOOLS: Record<string, ToolDefinition> = {
         workflow_id: { type: "string" },
       },
       required: ["session_id", "role", "project_key"],
+      additionalProperties: false,
+    },
+  },
+  cycle_role_profiles: {
+    description:
+      "Inspect or explicitly install, repair, configure or remove the five managed Cycle role profiles under the current project's .zcode/agents directory. Mutations require the operation-specific confirmation token and a session restart.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        operation: { enum: ["status", "install", "repair", "configure", "remove"] },
+        confirmation: { type: "string" },
+        role: {
+          enum: [
+            "architect",
+            "executor",
+            "functional-reviewer",
+            "security-reviewer",
+            "arbiter",
+          ],
+        },
+        model: { type: "string" },
+        thought_level: { enum: ["low", "medium", "high", "max"] },
+      },
+      required: ["operation"],
       additionalProperties: false,
     },
   },

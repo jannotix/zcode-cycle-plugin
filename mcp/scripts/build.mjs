@@ -24,6 +24,7 @@ try {
       join(ROOT, "src", "cli.ts"),
       join(ROOT, "src", "client.ts"),
       join(ROOT, "src", "version.ts"),
+      join(ROOT, "src", "role-profiles.ts"),
     ],
     format: "esm",
     // Marketplace reviewers must be able to inspect the shipped runtime.

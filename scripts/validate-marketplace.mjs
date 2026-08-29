@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { readFileSync, statSync } from "node:fs"
+import { existsSync, readFileSync, statSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -24,6 +24,11 @@ const entry = marketplace.plugins?.[0]
 const legacyEntry = legacyMarketplace.plugins?.[0]
 
 assert.equal(manifest.name, "zcode-cycle")
+assert.equal(
+  Object.hasOwn(manifest, "agents"),
+  false,
+  "certified ZCode CLI 0.16.5 treats plugin agent components as diagnostic-only",
+)
 assert.match(manifest.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u)
 assert.deepEqual(installedManifest, manifest, "source and installable plugin manifests differ")
 assert.equal(entry?.name, manifest.name)
@@ -52,5 +57,19 @@ assert.equal(server?.cwd, "${ZCODE_PROJECT_DIR}")
 assert.equal(server?.enabled, true)
 assert.equal(server?.timeoutMs, 60000)
 assert.equal(JSON.stringify(mcp).includes("CLAUDE_PLUGIN_ROOT"), false)
+assert.equal(existsSync(join(ROOT, "plugin", "mcp", "node_modules")), false)
+
+for (const role of [
+  "architect",
+  "executor",
+  "functional-reviewer",
+  "security-reviewer",
+  "arbiter",
+]) {
+  const profile = readFileSync(join(ROOT, "agents", `${role}.md`), "utf8")
+  assert.match(profile, new RegExp(`^name: zcode-cycle:${role}$`, "mu"))
+  assert.match(profile, /^thoughtLevel: high$/mu)
+  assert.ok(profile.includes(`<!-- zcode-cycle-managed-role-profile: ${role} -->`))
+}
 
 console.log(`marketplace contract valid for ${manifest.name} ${manifest.version}`)

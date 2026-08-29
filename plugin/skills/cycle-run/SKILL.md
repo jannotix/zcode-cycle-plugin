@@ -9,9 +9,13 @@ The daemon owns every transition and refuses out-of-order submissions. Your
 job is to feed it exact inputs, dispatch roles, and relay outcomes. Never
 fabricate a state the daemon did not return.
 
-Throughout: `project_key` is this workspace's stable project key. Register
-every role session with `cycle_role_register` before its dispatch and
-`cycle_role_revoke` after it returns.
+Throughout: `project_key` is this workspace's stable project key. Before every
+role dispatch, generate a fresh UUID role token, call `cycle_role_register`
+with that token as `session_id`, the exact role, project key and workflow id,
+and include the token in the dispatched prompt. Revoke that exact token after
+the role returns. The installed `zcode-cycle:<role>` project profile is the
+host identity used by the fail-closed Hook; the token binds audit and browser
+evidence to the workflow. Never reuse a token or invent a host session id.
 
 ## 0. Capture and start
 
@@ -22,7 +26,7 @@ full) and `requestDigest`. Report the route and the repair budget (five).
 
 ## 1. Architecture
 
-1. `cycle_role_register` (role `architect`, workflow id).
+1. Create and register an architect role token.
 2. `cycle_code_index` for the workflow; pass the paths and scopes summary
    to the architect as context. Include the project standards file
    (`.zcode-cycle/standards.md` in the project root) when it exists.
@@ -38,7 +42,7 @@ full) and `requestDigest`. Report the route and the repair budget (five).
 4. `cycle_submit_architecture` with the graph. Rejected: send the daemon's
    reason back to the architect and repeat (at most five attempts; then
    `cycle_report_execution` `blocked` and stop).
-5. `cycle_role_revoke` the architect.
+5. Revoke the architect role token.
 
 ## 2. Worktree
 
@@ -47,7 +51,7 @@ All execution happens inside that path, never in the project directory.
 
 ## 3. Execution
 
-1. `cycle_role_register` (role `executor`, workflow id).
+1. Create and register an executor role token.
 2. Dispatch `zcode-cycle:executor` with the task graph, the worktree path
    and the base revision. The executor commits its work in the worktree
    (candidates freeze committed state). Collect per-task reports.
@@ -58,7 +62,7 @@ All execution happens inside that path, never in the project directory.
    `PLAN_DEFECT`: `cycle_report_execution` `plan_defect`; if the daemon
    returns the workflow to architecture, go to phase 1 keeping the same
    workflow id.
-5. `cycle_role_revoke` the executor.
+5. Revoke the executor role token.
 
 ## 4. Verification
 
@@ -67,7 +71,8 @@ All execution happens inside that path, never in the project directory.
    mandatory `browser:affected-user-flow` and
    `accessibility:affected-user-flow` gates, satisfied only by an
    attested session whose receipt contains the required operation
-   subsequence. Run one executor session with `cycle_browser` in this
+   subsequence. Run one registered executor role token and session with
+   `cycle_browser` (pass that token as `session_id`) in this
    order — `open` the page (loopback allowed by default), `check` the
    expected text, `screenshot`, `logs`, `snapshot` (accessibility),
    `close` — then pass `browser_session_ids` plus the frozen
@@ -85,18 +90,19 @@ All execution happens inside that path, never in the project directory.
 
 ## 5. Reviews (full mode only)
 
-1. Register both reviewers (`functional_reviewer`, `security_reviewer`).
+1. Create and register distinct tokens for both reviewers
+   (`functional_reviewer`, `security_reviewer`).
 2. Dispatch `zcode-cycle:functional-reviewer` and
    `zcode-cycle:security-reviewer` — both in the same turn, so they run in
    parallel — each with the verbatim original request, the plan, the
    candidate manifest, the verification evidence and, when present, the
    project standards file content.
 3. Collect both verdict JSONs and `cycle_submit_review` each. Revoke both
-   registrations.
+   tokens.
 
 ## 6. Arbitration
 
-1. Register the arbiter.
+1. Create and register an arbiter role token.
 2. Dispatch `zcode-cycle:arbiter` with the verbatim original request, the
    candidate manifest, the raw evidence records and both review verdicts.
 3. `cycle_submit_arbitration` with its verdict JSON.
@@ -107,7 +113,7 @@ All execution happens inside that path, never in the project directory.
      feedback; continue from phase 3, one repair cycle.
    - Rejected with `repair_target` `architecture`: continue from phase 1,
      one repair cycle.
-4. `cycle_role_revoke` the arbiter.
+4. Revoke the arbiter role token.
 
 ## Repair budget
 

@@ -76,11 +76,11 @@ function __extends(d, b) {
 }
 function __awaiter(thisArg, _arguments, P, generator) {
   function adopt(value) {
-    return value instanceof P ? value : new P(function(resolve3) {
-      resolve3(value);
+    return value instanceof P ? value : new P(function(resolve4) {
+      resolve4(value);
     });
   }
-  return new (P || (P = Promise))(function(resolve3, reject) {
+  return new (P || (P = Promise))(function(resolve4, reject) {
     function fulfilled(value) {
       try {
         step(generator.next(value));
@@ -96,7 +96,7 @@ function __awaiter(thisArg, _arguments, P, generator) {
       }
     }
     function step(result) {
-      result.done ? resolve3(result.value) : adopt(result.value).then(fulfilled, rejected);
+      result.done ? resolve4(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
@@ -279,14 +279,14 @@ function __asyncValues(o) {
   }, i);
   function verb(n) {
     i[n] = o[n] && function(v) {
-      return new Promise(function(resolve3, reject) {
-        v = o[n](v), settle(resolve3, reject, v.done, v.value);
+      return new Promise(function(resolve4, reject) {
+        v = o[n](v), settle(resolve4, reject, v.done, v.value);
       });
     };
   }
-  function settle(resolve3, reject, d, v) {
+  function settle(resolve4, reject, d, v) {
     Promise.resolve(v).then(function(v2) {
-      resolve3({ value: v2, done: d });
+      resolve4({ value: v2, done: d });
     }, reject);
   }
 }
@@ -817,7 +817,7 @@ function of() {
 }
 function lastValueFrom(source, config2) {
   var hasConfig = typeof config2 === "object";
-  return new Promise(function(resolve3, reject) {
+  return new Promise(function(resolve4, reject) {
     var _hasValue = false;
     var _value;
     source.subscribe({
@@ -828,9 +828,9 @@ function lastValueFrom(source, config2) {
       error: reject,
       complete: function() {
         if (_hasValue) {
-          resolve3(_value);
+          resolve4(_value);
         } else if (hasConfig) {
-          resolve3(config2.defaultValue);
+          resolve4(config2.defaultValue);
         } else {
           reject(new EmptyError);
         }
@@ -840,16 +840,16 @@ function lastValueFrom(source, config2) {
 }
 function firstValueFrom(source, config2) {
   var hasConfig = typeof config2 === "object";
-  return new Promise(function(resolve3, reject) {
+  return new Promise(function(resolve4, reject) {
     var subscriber = new SafeSubscriber({
       next: function(value) {
-        resolve3(value);
+        resolve4(value);
         subscriber.unsubscribe();
       },
       error: reject,
       complete: function() {
         if (hasConfig) {
-          resolve3(config2.defaultValue);
+          resolve4(config2.defaultValue);
         } else {
           reject(new EmptyError);
         }
@@ -1901,7 +1901,7 @@ var init_rxjs = __esm(() => {
     Observable2.prototype.forEach = function(next, promiseCtor) {
       var _this = this;
       promiseCtor = getPromiseCtor(promiseCtor);
-      return new promiseCtor(function(resolve3, reject) {
+      return new promiseCtor(function(resolve4, reject) {
         var subscriber = new SafeSubscriber({
           next: function(value) {
             try {
@@ -1912,7 +1912,7 @@ var init_rxjs = __esm(() => {
             }
           },
           error: reject,
-          complete: resolve3
+          complete: resolve4
         });
         _this.subscribe(subscriber);
       });
@@ -1934,14 +1934,14 @@ var init_rxjs = __esm(() => {
     Observable2.prototype.toPromise = function(promiseCtor) {
       var _this = this;
       promiseCtor = getPromiseCtor(promiseCtor);
-      return new promiseCtor(function(resolve3, reject) {
+      return new promiseCtor(function(resolve4, reject) {
         var value;
         _this.subscribe(function(x) {
           return value = x;
         }, function(err) {
           return reject(err);
         }, function() {
-          return resolve3(value);
+          return resolve4(value);
         });
       });
     };
@@ -3243,8 +3243,8 @@ class Deferred {
   #isRejected = false;
   #value;
   #resolve;
-  #taskPromise = new Promise((resolve3) => {
-    this.#resolve = resolve3;
+  #taskPromise = new Promise((resolve4) => {
+    this.#resolve = resolve4;
   });
   #timeoutId;
   #timeoutError;
@@ -3334,12 +3334,12 @@ var init_Mutex = __esm(() => {
       return new Mutex.Guard(this, onRelease);
     }
     release() {
-      const resolve3 = this.#acquirers.shift();
-      if (!resolve3) {
+      const resolve4 = this.#acquirers.shift();
+      if (!resolve4) {
         this.#locked = false;
         return;
       }
-      resolve3();
+      resolve4();
     }
   };
 });
@@ -5107,12 +5107,12 @@ var init_locators = __esm(() => {
       }
       return defer(() => {
         return from(handle.evaluate((element) => {
-          return new Promise((resolve3) => {
+          return new Promise((resolve4) => {
             window.requestAnimationFrame(() => {
               const rect1 = element.getBoundingClientRect();
               window.requestAnimationFrame(() => {
                 const rect2 = element.getBoundingClientRect();
-                resolve3([
+                resolve4([
                   {
                     x: rect1.x,
                     y: rect1.y,
@@ -6438,9 +6438,9 @@ var init_ElementHandle = __esm(() => {
           const handle = await this.#asSVGElementHandle();
           const target = __addDisposableResource6(env_5, handle && await handle.#getOwnerSVGElement(), false);
           return await (target ?? this).evaluate(async (element, threshold) => {
-            const visibleRatio = await new Promise((resolve3) => {
+            const visibleRatio = await new Promise((resolve4) => {
               const observer = new IntersectionObserver((entries) => {
-                resolve3(entries[0].intersectionRatio);
+                resolve4(entries[0].intersectionRatio);
                 observer.disconnect();
               });
               observer.observe(element);
@@ -6870,7 +6870,7 @@ var init_Frame = __esm(() => {
         }
         type = type ?? "text/javascript";
         return await this.mainRealm().transferHandle(await this.isolatedRealm().evaluateHandle(async ({ url, id, type: type2, content: content2 }) => {
-          return await new Promise((resolve3, reject) => {
+          return await new Promise((resolve4, reject) => {
             const script = document.createElement("script");
             script.type = type2;
             script.text = content2;
@@ -6883,12 +6883,12 @@ var init_Frame = __esm(() => {
             if (url) {
               script.src = url;
               script.addEventListener("load", () => {
-                resolve3(script);
+                resolve4(script);
               }, { once: true });
               document.head.appendChild(script);
             } else {
               document.head.appendChild(script);
-              resolve3(script);
+              resolve4(script);
             }
           });
         }, { ...options, type, content }));
@@ -6905,7 +6905,7 @@ var init_Frame = __esm(() => {
           options.content = content;
         }
         return await this.mainRealm().transferHandle(await this.isolatedRealm().evaluateHandle(async ({ url, content: content2 }) => {
-          return await new Promise((resolve3, reject) => {
+          return await new Promise((resolve4, reject) => {
             let element;
             if (!url) {
               element = document.createElement("style");
@@ -6917,7 +6917,7 @@ var init_Frame = __esm(() => {
               element = link;
             }
             element.addEventListener("load", () => {
-              resolve3(element);
+              resolve4(element);
             }, { once: true });
             element.addEventListener("error", (event) => {
               reject(new Error(event.message ?? "Could not load style"));
@@ -7778,9 +7778,9 @@ var init_Page = __esm(() => {
         ++this.#screencastSessionCount;
         if (!this.#startScreencastPromise) {
           this.#startScreencastPromise = this.mainFrame().client.send("Page.startScreencast", { format: "png" }).then(() => {
-            return new Promise((resolve3) => {
+            return new Promise((resolve4) => {
               return this.mainFrame().client.once("Page.screencastFrame", () => {
-                return resolve3();
+                return resolve4();
               });
             });
           });
@@ -10577,11 +10577,11 @@ function addPageBinding(type, name, prefix) {
           return value instanceof Node;
         })
       }));
-      return new Promise((resolve3, reject) => {
+      return new Promise((resolve4, reject) => {
         callPuppeteer.callbacks.set(seq, {
           resolve(value) {
             callPuppeteer.args.delete(seq);
-            resolve3(value);
+            resolve4(value);
           },
           reject(value) {
             callPuppeteer.args.delete(seq);
@@ -14325,8 +14325,8 @@ var init_Input2 = __esm(() => {
       if (typeof delay === "number") {
         await Promise.all(actions);
         actions.length = 0;
-        await new Promise((resolve3) => {
-          setTimeout(resolve3, delay);
+        await new Promise((resolve4) => {
+          setTimeout(resolve4, delay);
         });
       }
       actions.push(this.up({ ...options, clickCount: count }));
@@ -14346,9 +14346,9 @@ var init_Input2 = __esm(() => {
       });
     }
     async drag(start, target) {
-      const promise = new Promise((resolve3) => {
+      const promise = new Promise((resolve4) => {
         this.#client.once("Input.dragIntercepted", (event) => {
-          return resolve3(event.data);
+          return resolve4(event.data);
         });
       });
       await this.move(start.x, start.y);
@@ -14389,8 +14389,8 @@ var init_Input2 = __esm(() => {
       await this.dragEnter(target, data);
       await this.dragOver(target, data);
       if (delay) {
-        await new Promise((resolve3) => {
-          return setTimeout(resolve3, delay);
+        await new Promise((resolve4) => {
+          return setTimeout(resolve4, delay);
         });
       }
       await this.drop(target, data);
@@ -14571,11 +14571,11 @@ var init_WebMCP = __esm(() => {
     }
     async execute(input = {}) {
       const { invocationId } = await this.#webmcp.invokeTool(this, input);
-      return await new Promise((resolve3) => {
+      return await new Promise((resolve4) => {
         const handler = (event) => {
           if (event.id === invocationId) {
             this.#webmcp.off("toolresponded", handler);
-            resolve3(event);
+            resolve4(event);
           }
         };
         this.#webmcp.on("toolresponded", handler);
@@ -15359,9 +15359,9 @@ var init_Page2 = __esm(() => {
     async captureHeapSnapshot(options) {
       const { createWriteStream } = environment.value.fs;
       const stream = createWriteStream(options.path);
-      const streamPromise = new Promise((resolve3, reject) => {
+      const streamPromise = new Promise((resolve4, reject) => {
         stream.on("error", reject);
-        stream.on("finish", resolve3);
+        stream.on("finish", resolve4);
       });
       const client = this.#primaryTargetClient;
       await client.send("HeapProfiler.enable");
@@ -17599,12 +17599,12 @@ var init_Browser2 = __esm(() => {
       for (const [targetId, targetInfo] of this._targetManager().getDiscoveredTargetInfos().entries()) {
         if (targetInfo.url.includes(id) && targetInfo.type === "service_worker") {
           this._targetManager().addToIgnoreTarget(targetId);
-          targetDestroyedPromises.push(new Promise((resolve3) => {
+          targetDestroyedPromises.push(new Promise((resolve4) => {
             return setTimeout(() => {
               this.#connection.emit("Target.targetDestroyed", {
                 targetId
               });
-              resolve3(null);
+              resolve4(null);
             }, 0);
           }));
         }
@@ -18028,10 +18028,10 @@ __export(exports_BrowserWebSocketTransport, {
 
 class BrowserWebSocketTransport {
   static create(url, _headers, logger) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve4, reject) => {
       const ws = new WebSocket(url);
       ws.addEventListener("open", () => {
-        return resolve3(new BrowserWebSocketTransport(ws, logger));
+        return resolve4(new BrowserWebSocketTransport(ws, logger));
       });
       ws.addEventListener("error", reject);
     });
@@ -20703,11 +20703,11 @@ class BrowsingContextProcessor {
     }
     const parentCdpClient = context2.cdpTarget.parentCdpClient;
     try {
-      const detachedFromTargetPromise = new Promise((resolve3) => {
+      const detachedFromTargetPromise = new Promise((resolve4) => {
         const onContextDestroyed = (event) => {
           if (event.targetId === params.context) {
             parentCdpClient.off("Target.detachedFromTarget", onContextDestroyed);
-            resolve3();
+            resolve4();
           }
         };
         parentCdpClient.on("Target.detachedFromTarget", onContextDestroyed);
@@ -21997,7 +21997,7 @@ class ActionDispatcher {
       }
     }
     const promises = [
-      new Promise((resolve3) => setTimeout(resolve3, this.#tickDuration))
+      new Promise((resolve4) => setTimeout(resolve4, this.#tickDuration))
     ];
     for (const option of options) {
       promises.push(this.#dispatchAction(option));
@@ -22600,8 +22600,8 @@ class Mutex2 {
   acquire() {
     const state = { resolved: false };
     if (this.#locked) {
-      return new Promise((resolve3) => {
-        this.#acquirers.push(() => resolve3(this.#release.bind(this, state)));
+      return new Promise((resolve4) => {
+        this.#acquirers.push(() => resolve4(this.#release.bind(this, state)));
       });
     }
     this.#locked = true;
@@ -22612,12 +22612,12 @@ class Mutex2 {
       throw new Error("Cannot release more than once.");
     }
     state.resolved = true;
-    const resolve3 = this.#acquirers.shift();
-    if (!resolve3) {
+    const resolve4 = this.#acquirers.shift();
+    if (!resolve4) {
       this.#locked = false;
       return;
     }
-    resolve3();
+    resolve4();
   }
   async run(action) {
     const release = await this.acquire();
@@ -23650,8 +23650,8 @@ class ChannelProxy {
       let queueNonEmptyResolver = null;
       return {
         async getMessage() {
-          const onMessage = queue.length > 0 ? Promise.resolve() : new Promise((resolve3) => {
-            queueNonEmptyResolver = resolve3;
+          const onMessage = queue.length > 0 ? Promise.resolve() : new Promise((resolve4) => {
+            queueNonEmptyResolver = resolve4;
           });
           await onMessage;
           return queue.shift();
@@ -23737,7 +23737,7 @@ class ChannelProxy {
       functionDeclaration: String((id) => {
         const w2 = window;
         if (w2[id] === undefined) {
-          return new Promise((resolve3) => w2[id] = resolve3);
+          return new Promise((resolve4) => w2[id] = resolve4);
         }
         const channelProxy = w2[id];
         delete w2[id];
@@ -25050,8 +25050,8 @@ var init_Deferred2 = __esm(() => {
       return this.#result;
     }
     constructor() {
-      this.#promise = new Promise((resolve3, reject) => {
-        this.#resolve = resolve3;
+      this.#promise = new Promise((resolve4, reject) => {
+        this.#resolve = resolve4;
         this.#reject = reject;
       });
       this.#promise.catch((_error) => {});
@@ -29319,11 +29319,11 @@ class BrowsingContextStorage {
     if (this.#contexts.has(browsingContextId)) {
       return Promise.resolve(this.getContext(browsingContextId));
     }
-    return new Promise((resolve3) => {
+    return new Promise((resolve4) => {
       const listener = (event) => {
         if (event.browsingContext.id === browsingContextId) {
           this.#eventEmitter.off("added", listener);
-          resolve3(event.browsingContext);
+          resolve4(event.browsingContext);
         }
       };
       this.#eventEmitter.on("added", listener);
@@ -32887,8 +32887,8 @@ var init_ExposedFunction = __esm(() => {
       const functionDeclaration = stringifyFunction(interpolateFunction((callback) => {
         Object.assign(globalThis, {
           [PLACEHOLDER("name")]: function(...args) {
-            return new Promise((resolve3, reject) => {
-              callback([resolve3, reject, args]);
+            return new Promise((resolve4, reject) => {
+              callback([resolve4, reject, args]);
             });
           }
         });
@@ -32976,8 +32976,8 @@ var init_ExposedFunction = __esm(() => {
           return;
         }
         try {
-          await dataHandle.evaluate(([resolve3], result2) => {
-            resolve3(result2);
+          await dataHandle.evaluate(([resolve4], result2) => {
+            resolve4(result2);
           }, result);
         } catch (error) {
           this.#logger?.(DEBUG_PREFIXES.error)?.(error);
@@ -39145,7 +39145,7 @@ var require_websocket = __commonJS((exports, module) => {
   var http = __require("http");
   var net = __require("net");
   var tls = __require("tls");
-  var { randomBytes, createHash: createHash3 } = __require("crypto");
+  var { randomBytes, createHash: createHash4 } = __require("crypto");
   var { Duplex, Readable } = __require("stream");
   var { URL: URL2 } = __require("url");
   var PerMessageDeflate = require_permessage_deflate();
@@ -39688,7 +39688,7 @@ var require_websocket = __commonJS((exports, module) => {
         abortHandshake(websocket, socket, "Invalid Upgrade header");
         return;
       }
-      const digest2 = createHash3("sha1").update(key + GUID).digest("base64");
+      const digest2 = createHash4("sha1").update(key + GUID).digest("base64");
       if (res.headers["sec-websocket-accept"] !== digest2) {
         abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
         return;
@@ -40063,7 +40063,7 @@ var require_websocket_server = __commonJS((exports, module) => {
   var EventEmitter3 = __require("events");
   var http = __require("http");
   var { Duplex } = __require("stream");
-  var { createHash: createHash3 } = __require("crypto");
+  var { createHash: createHash4 } = __require("crypto");
   var extension = require_extension();
   var PerMessageDeflate = require_permessage_deflate();
   var subprotocol = require_subprotocol();
@@ -40278,7 +40278,7 @@ var require_websocket_server = __commonJS((exports, module) => {
       }
       if (this._state > RUNNING)
         return abortHandshake(socket, 503);
-      const digest2 = createHash3("sha1").update(key + GUID).digest("base64");
+      const digest2 = createHash4("sha1").update(key + GUID).digest("base64");
       const headers = [
         "HTTP/1.1 101 Switching Protocols",
         "Upgrade: websocket",
@@ -40390,7 +40390,7 @@ __export(exports_NodeWebSocketTransport, {
 
 class NodeWebSocketTransport {
   static create(url, headers, logger) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve4, reject) => {
       const ws = new wrapper_default(url, [], {
         followRedirects: true,
         perMessageDeflate: false,
@@ -40402,7 +40402,7 @@ class NodeWebSocketTransport {
         }
       });
       ws.addEventListener("open", () => {
-        return resolve3(new NodeWebSocketTransport(ws, logger));
+        return resolve4(new NodeWebSocketTransport(ws, logger));
       });
       ws.addEventListener("error", reject);
     });
@@ -40441,22 +40441,22 @@ var init_NodeWebSocketTransport = __esm(() => {
 });
 
 // node_modules/@puppeteer/browsers/lib/httpUtil.js
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import { createWriteStream, unlinkSync } from "node:fs";
 import * as http from "node:http";
 import * as https from "node:https";
 import { URL as URL2, urlToHttpOptions } from "node:url";
 async function headHttpRequest(url) {
-  return await new Promise((resolve3) => {
+  return await new Promise((resolve4) => {
     httpRequest(url, "HEAD", (response) => {
       response.resume();
-      resolve3(response.statusCode === 200);
+      resolve4(response.statusCode === 200);
     }, false).then((request3) => {
       request3.on("error", () => {
-        resolve3(false);
+        resolve4(false);
       });
     }).catch(() => {
-      resolve3(false);
+      resolve4(false);
     });
   });
 }
@@ -40490,7 +40490,7 @@ async function httpRequest(url, method, response, keepAlive = true) {
 }
 
 class HashVerifier {
-  #hash = createHash3("sha256");
+  #hash = createHash4("sha256");
   update(chunk) {
     this.#hash.update(chunk);
   }
@@ -40508,7 +40508,7 @@ class HashVerifier {
   }
 }
 function downloadFile(url, destinationPath, progressCallback, expectedHash) {
-  return new Promise(async (resolve3, reject) => {
+  return new Promise(async (resolve4, reject) => {
     let downloadedBytes = 0;
     let totalBytes = 0;
     const verifier = expectedHash ? new HashVerifier : null;
@@ -40530,7 +40530,7 @@ function downloadFile(url, destinationPath, progressCallback, expectedHash) {
               return;
             }
           }
-          return resolve3();
+          return resolve4();
         });
         file.on("error", (error) => {
           return reject(error);
@@ -40562,7 +40562,7 @@ async function getJSON(url) {
   }
 }
 function getText(url) {
-  return new Promise(async (resolve3, reject) => {
+  return new Promise(async (resolve4, reject) => {
     try {
       const request3 = await httpRequest(url, "GET", (response) => {
         let data = "";
@@ -40574,7 +40574,7 @@ function getText(url) {
         });
         response.on("end", () => {
           try {
-            return resolve3(String(data));
+            return resolve4(String(data));
           } catch {
             return reject(new Error(`Failed to read text response from ${url}`));
           }
@@ -41881,7 +41881,7 @@ class Process {
     if (opts.onExit) {
       this.#onExitHook = opts.onExit;
     }
-    this.#browserProcessExiting = new Promise((resolve3, reject) => {
+    this.#browserProcessExiting = new Promise((resolve4, reject) => {
       this.#browserProcess.once("exit", async () => {
         this.#logger?.(`Browser process ${this.#browserProcess.pid} onExit`);
         this.#clearListeners();
@@ -41892,7 +41892,7 @@ class Process {
           reject(err);
           return;
         }
-        resolve3();
+        resolve4();
       });
     });
   }
@@ -42002,7 +42002,7 @@ Error cause: ${isErrorLike2(error) ? error.stack : error}`);
     return [...this.#logs];
   }
   waitForLineOutput(regex, timeout2 = 0) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve4, reject) => {
       const onClose = (errorOrCode) => {
         cleanup();
         reject(new Error([
@@ -42040,7 +42040,7 @@ Error cause: ${isErrorLike2(error) ? error.stack : error}`);
           return;
         }
         cleanup();
-        resolve3(match[1]);
+        resolve4(match[1]);
       }
     });
   }
@@ -42908,10 +42908,10 @@ function packTar(sources, options = {}) {
   let resumeWriter = null;
   let cancelError;
   const unblock = () => {
-    const resolve4 = resume;
+    const resolve5 = resume;
     resume = null;
     drain = null;
-    resolve4?.();
+    resolve5?.();
   };
   const wakeWriter = () => {
     resumeWriter?.();
@@ -42953,8 +42953,8 @@ function packTar(sources, options = {}) {
     if (stream.destroyed)
       throw cancelError;
     if (!stream.push(Buffer.from(chunk)) && !drain)
-      drain = new Promise((resolve4) => {
-        resume = resolve4;
+      drain = new Promise((resolve5) => {
+        resume = resolve5;
       });
   });
   (async () => {
@@ -43009,8 +43009,8 @@ function packTar(sources, options = {}) {
         if (allJobsQueued && writeIndex >= jobs.length)
           break;
         if (!results.has(writeIndex)) {
-          await new Promise((resolve4) => {
-            resumeWriter = resolve4;
+          await new Promise((resolve5) => {
+            resumeWriter = resolve5;
           });
           continue;
         }
@@ -43340,7 +43340,7 @@ function createFileSink(path9, { mode = 438, mtime } = {}, onError) {
   const settleDrain = (error) => {
     if (!drainPromise)
       return;
-    const resolve4 = drainResolve;
+    const resolve5 = drainResolve;
     const reject = drainReject;
     drainPromise = null;
     drainResolve = null;
@@ -43348,7 +43348,7 @@ function createFileSink(path9, { mode = 438, mtime } = {}, onError) {
     if (error)
       reject?.(error);
     else
-      resolve4?.();
+      resolve5?.();
   };
   const resetBuffers = () => {
     bytes = 0;
@@ -43511,8 +43511,8 @@ function createFileSink(path9, { mode = 438, mtime } = {}, onError) {
     if (storedError)
       return Promise.reject(storedError);
     if (state === STATE_OPENING || state === STATE_OPEN && (bytes >= BUFFER_LIMIT || queue.length >= MAX_WRITE_VECTORS))
-      return drainPromise ??= new Promise((resolve4, reject) => {
-        drainResolve = resolve4;
+      return drainPromise ??= new Promise((resolve5, reject) => {
+        drainResolve = resolve5;
         drainReject = reject;
       });
     return DRAINED_PROMISE;
@@ -43524,8 +43524,8 @@ function createFileSink(path9, { mode = 438, mtime } = {}, onError) {
       return DRAINED_PROMISE;
     if (endPromise)
       return endPromise;
-    endPromise = new Promise((resolve4, reject) => {
-      endResolve = resolve4;
+    endPromise = new Promise((resolve5, reject) => {
+      endResolve = resolve5;
       endReject = reject;
       if (state === STATE_OPEN && !flushing)
         if (queue.length > 0)
@@ -43704,7 +43704,7 @@ var win32Reserved, pathAlias, normalizeHeaderName = (s) => {
   let head = 0;
   let idle = null;
   let resolveIdle = null;
-  const ensureIdle = () => idle ??= new Promise((resolve4) => resolveIdle = resolve4);
+  const ensureIdle = () => idle ??= new Promise((resolve5) => resolveIdle = resolve5);
   const flush = () => {
     while (active < concurrency && head < tasks.length) {
       const task = tasks[head++];
@@ -43727,8 +43727,8 @@ var win32Reserved, pathAlias, normalizeHeaderName = (s) => {
   return {
     add(op) {
       const wasIdle = active === 0 && head === tasks.length;
-      return new Promise((resolve4, reject) => {
-        tasks.push(() => Promise.resolve().then(op).then(resolve4, reject));
+      return new Promise((resolve5, reject) => {
+        tasks.push(() => Promise.resolve().then(op).then(resolve5, reject));
         if (wasIdle)
           ensureIdle();
         flush();
@@ -44072,7 +44072,7 @@ var init_fs = __esm(() => {
 // node_modules/@puppeteer/browsers/lib/fileUtil.js
 import { spawnSync as spawnSync2, spawn as spawn2, execFile } from "node:child_process";
 import { constants as constants3, createReadStream as createReadStream2, createWriteStream as createWriteStream2 } from "node:fs";
-import { mkdir as mkdir3, readdir as readdir3, symlink as symlink2 } from "node:fs/promises";
+import { mkdir as mkdir4, readdir as readdir3, symlink as symlink2 } from "node:fs/promises";
 import * as path9 from "node:path";
 import { Stream, Writable as Writable2 } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -44082,12 +44082,12 @@ async function unpackArchive(archivePath, folderPath, logger) {
     folderPath = path9.resolve(process.cwd(), folderPath);
   }
   if (archivePath.endsWith(".zip")) {
-    await mkdir3(folderPath, { recursive: true });
+    await mkdir4(folderPath, { recursive: true });
     await extractZip(archivePath, folderPath, logger);
   } else if (archivePath.endsWith(".tar.bz2")) {
     await extractTar(archivePath, folderPath, "bzip2", logger);
   } else if (archivePath.endsWith(".dmg")) {
-    await mkdir3(folderPath);
+    await mkdir4(folderPath);
     await installDMG(archivePath, folderPath);
   } else if (archivePath.endsWith(".exe")) {
     const result = spawnSync2(archivePath, [`/ExtractDir=${folderPath}`], {
@@ -44209,8 +44209,8 @@ async function extractZipWithYauzl(archivePath, folderPath, _logger) {
   const open4 = promisify(yauzl.open);
   try {
     const zipFile = await open4(archivePath, { lazyEntries: true });
-    await new Promise((resolve5, reject) => {
-      zipFile.on("error", reject).on("end", resolve5).on("entry", (entry) => {
+    await new Promise((resolve6, reject) => {
+      zipFile.on("error", reject).on("end", resolve6).on("entry", (entry) => {
         extractZipEntry(zipFile, entry, folderPath).then(() => {
           zipFile.readEntry();
         }, reject);
@@ -44275,10 +44275,10 @@ async function extractZipEntry(zipFile, entry, folderPath) {
   const mode = unixMode === 0 ? isDirectory ? 493 : 420 : unixMode & 511;
   const destination = path9.join(folderPath, entry.fileName);
   if (isDirectory) {
-    await mkdir3(destination, { recursive: true, mode });
+    await mkdir4(destination, { recursive: true, mode });
     return;
   }
-  await mkdir3(path9.dirname(destination), { recursive: true });
+  await mkdir4(path9.dirname(destination), { recursive: true });
   const readStream = await promisify(zipFile.openReadStream.bind(zipFile))(entry);
   if (isSymlink) {
     const chunks = [];
@@ -44430,7 +44430,7 @@ var activeBar = null;
 import assert3 from "node:assert";
 import { spawnSync as spawnSync3 } from "node:child_process";
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import { mkdir as mkdir4, unlink } from "node:fs/promises";
+import { mkdir as mkdir5, unlink } from "node:fs/promises";
 import os5 from "node:os";
 import path10 from "node:path";
 function debugTime(label) {
@@ -44484,7 +44484,7 @@ async function installWithProviders(options) {
       }
       logger?.(DEBUG_PREFIXES2.install)?.(`Successfully got URL from ${provider.getName()}: ${url}`);
       if (!existsSync2(browserRoot)) {
-        await mkdir4(browserRoot, { recursive: true });
+        await mkdir5(browserRoot, { recursive: true });
       }
       return await installUrl(url, options, provider, logger);
     } catch (err) {
@@ -44560,7 +44560,7 @@ async function installUrl(url, options, provider, logger) {
   const browserRoot = cache.browserRoot(options.browser);
   const archivePath = path10.join(browserRoot, `${options.buildId}-${fileName}`);
   if (!existsSync2(browserRoot)) {
-    await mkdir4(browserRoot, { recursive: true });
+    await mkdir5(browserRoot, { recursive: true });
   }
   if (options.expectedHash) {
     logger?.(DEBUG_PREFIXES2.install)?.(`Using provided checksum for ${fileName}: ${options.expectedHash}`);
@@ -45542,10 +45542,10 @@ var init_cliui = __esm(() => {
 });
 
 // node_modules/escalade/sync/index.mjs
-import { dirname as dirname3, resolve as resolve5 } from "path";
+import { dirname as dirname3, resolve as resolve6 } from "path";
 import { readdirSync, statSync } from "fs";
 function sync_default(start, callback) {
-  let dir = resolve5(".", start);
+  let dir = resolve6(".", start);
   let tmp, stats = statSync(dir);
   if (!stats.isDirectory()) {
     dir = dirname3(dir);
@@ -45553,7 +45553,7 @@ function sync_default(start, callback) {
   while (true) {
     tmp = callback(dir, readdirSync(dir));
     if (tmp)
-      return resolve5(dir, tmp);
+      return resolve6(dir, tmp);
     dir = dirname3(tmp = dir);
     if (tmp === dir)
       break;
@@ -46500,7 +46500,7 @@ var init_yargs_parser = __esm(() => {
 
 // node_modules/yargs-parser/build/lib/index.js
 import { format } from "util";
-import { normalize, resolve as resolve6 } from "path";
+import { normalize, resolve as resolve7 } from "path";
 import { readFileSync as readFileSync3 } from "fs";
 import { createRequire as createRequire3 } from "node:module";
 var _a8, _b, _c, minNodeVersion, nodeVersion, env, require3, parser, yargsParser = function Parser(args, opts) {
@@ -46526,7 +46526,7 @@ var init_lib2 = __esm(() => {
     },
     format,
     normalize,
-    resolve: resolve6,
+    resolve: resolve7,
     require: (path11) => {
       if (typeof require3 !== "undefined") {
         return require3(path11);
@@ -46697,18 +46697,18 @@ var init_string_width3 = __esm(() => {
 });
 
 // node_modules/y18n/build/lib/platform-shims/node.js
-import { readFileSync as readFileSync4, statSync as statSync2, writeFile } from "fs";
+import { readFileSync as readFileSync4, statSync as statSync2, writeFile as writeFile2 } from "fs";
 import { format as format2 } from "util";
-import { resolve as resolve7 } from "path";
+import { resolve as resolve8 } from "path";
 var node_default;
 var init_node = __esm(() => {
   node_default = {
     fs: {
       readFileSync: readFileSync4,
-      writeFile
+      writeFile: writeFile2
     },
     format: format2,
-    resolve: resolve7,
+    resolve: resolve8,
     exists: (file) => {
       try {
         return statSync2(file).isFile();
@@ -46911,7 +46911,7 @@ var require_get_caller_file = __commonJS((exports, module) => {
 import { notStrictEqual, strictEqual } from "assert";
 import { inspect } from "util";
 import { fileURLToPath as fileURLToPath2 } from "url";
-import { basename as basename2, dirname as dirname4, extname, relative as relative3, resolve as resolve8, join as join5 } from "path";
+import { basename as basename2, dirname as dirname4, extname, relative as relative3, resolve as resolve9, join as join6 } from "path";
 import { createRequire as createRequire4 } from "node:module";
 import { readFileSync as readFileSync5, readdirSync as readdirSync2 } from "node:fs";
 var import_get_caller_file, __dirname2, mainFilename, require4, esm_default;
@@ -46944,8 +46944,8 @@ var init_esm = __esm(() => {
       dirname: dirname4,
       extname,
       relative: relative3,
-      resolve: resolve8,
-      join: join5
+      resolve: resolve9,
+      join: join6
     },
     process: {
       argv: () => process.argv,
@@ -46967,7 +46967,7 @@ var init_esm = __esm(() => {
     },
     stringWidth: stringWidth3,
     y18n: y18n_default({
-      directory: resolve8(__dirname2, "../../../locales"),
+      directory: resolve9(__dirname2, "../../../locales"),
       updateFiles: false
     })
   };
@@ -49253,12 +49253,12 @@ var init_yargs_factory = __esm(() => {
     async getCompletion(args, done) {
       argsert("<array> [function]", [args, done], arguments.length);
       if (!done) {
-        return new Promise((resolve9, reject) => {
+        return new Promise((resolve10, reject) => {
           __classPrivateFieldGet(this, _YargsInstance_completion, "f").getCompletion(args, (err, completions) => {
             if (err)
               reject(err);
             else
-              resolve9(completions);
+              resolve10(completions);
           });
         });
       } else {
@@ -50590,7 +50590,7 @@ class CLI {
         "-c",
         testCommand
       ];
-      await new Promise((resolve9, reject) => {
+      await new Promise((resolve10, reject) => {
         const createProcess = spawn3(pythonExecutable, bisectArgs, {
           stdio: "inherit"
         });
@@ -50601,7 +50601,7 @@ class CLI {
           if (code !== 0) {
             reject(new Error(`Process exited with code ${code}`));
           } else {
-            resolve9();
+            resolve10();
           }
         });
       });
@@ -50786,9 +50786,9 @@ async function getConnectionTransport(options) {
       throw new Error("Could not detect required browser platform");
     }
     const { convertPuppeteerChannelToBrowsersChannel: convertPuppeteerChannelToBrowsersChannel2 } = await Promise.resolve().then(() => (init_LaunchOptions(), exports_LaunchOptions));
-    const { join: join6 } = await import("node:path");
+    const { join: join7 } = await import("node:path");
     const userDataDir = resolveDefaultUserDataDir3(Browser7.CHROME, platform, convertPuppeteerChannelToBrowsersChannel2(options.channel));
-    const portPath = join6(userDataDir, "DevToolsActivePort");
+    const portPath = join7(userDataDir, "DevToolsActivePort");
     try {
       const fileContent = await environment.value.fs.promises.readFile(portPath, "ascii");
       const [rawPort, rawPath] = fileContent.split(`
@@ -52019,15 +52019,238 @@ function parseArbitrationReceipt(value) {
   return receipt;
 }
 
+// src/role-profiles.ts
+import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
+import { lstat as lstat2, mkdir as mkdir2, readFile as readFile2, rename as rename2, rm as rm2, writeFile } from "node:fs/promises";
+import { join as join2, resolve as resolve2 } from "node:path";
+var MAX_PROFILE_BYTES = 256 * 1024;
+var MODEL = /^(?:inherit|[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+)$/u;
+var THOUGHT_LEVELS = new Set(["low", "medium", "high", "max"]);
+var ROLE_PROFILES = [
+  { file: "architect.md", role: "architect" },
+  { file: "executor.md", role: "executor" },
+  { file: "functional-reviewer.md", role: "functional-reviewer" },
+  { file: "security-reviewer.md", role: "security-reviewer" },
+  { file: "arbiter.md", role: "arbiter" }
+];
+async function manageRoleProfiles(options) {
+  const projectRoot = resolve2(options.projectRoot);
+  const pluginRoot = resolve2(options.pluginRoot);
+  await requireSafeDirectory(projectRoot, "project root");
+  await requireSafeDirectory(pluginRoot, "plugin root");
+  await requireSafeDirectory(join2(pluginRoot, "agents"), "plugin role-profile directory");
+  const templates = new Map;
+  for (const profile of ROLE_PROFILES) {
+    const source = join2(pluginRoot, "agents", profile.file);
+    const content = await readBoundedRegularFile(source, "role-profile template");
+    assertCanonicalTemplate(content, profile.role);
+    templates.set(profile.role, content);
+  }
+  const mutating = options.operation !== "status";
+  const targetDirectory = await roleProfileDirectory(projectRoot, mutating);
+  const records = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(targetDirectory, profile.role, profile.file, templates.get(profile.role))));
+  switch (options.operation) {
+    case "status":
+      return report(projectRoot, records, false);
+    case "install":
+      requireConfirmation(options.confirmation, "INSTALL_ZCODE_CYCLE_ROLE_PROFILES");
+      rejectStates(records, new Set(["managed-drift", "conflict"]), "install");
+      for (const record of records) {
+        if (record.state === "missing") {
+          await writeAtomic(record.target, templates.get(record.role), false);
+        }
+      }
+      break;
+    case "repair":
+      requireConfirmation(options.confirmation, "REPAIR_ZCODE_CYCLE_ROLE_PROFILES");
+      rejectStates(records, new Set(["conflict"]), "repair");
+      for (const record of records) {
+        if (record.state !== "current") {
+          await writeAtomic(record.target, templates.get(record.role), record.state !== "missing");
+        }
+      }
+      break;
+    case "configure": {
+      requireConfirmation(options.confirmation, "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE");
+      rejectStates(records, new Set(["missing", "managed-drift", "conflict"]), "configure");
+      const role = canonicalRole(options.role);
+      const model = options.model ?? "inherit";
+      if (!MODEL.test(model))
+        throw new Error("role-profile model must be inherit or provider/model");
+      const thoughtLevel = options.thoughtLevel ?? "high";
+      if (!THOUGHT_LEVELS.has(thoughtLevel)) {
+        throw new Error("role-profile thought level must be low, medium, high or max");
+      }
+      const record = records.find((item) => item.role === role);
+      const configured = record.content.replace(/^model:.*$/mu, `model: ${model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${thoughtLevel}`);
+      await writeAtomic(record.target, configured, true);
+      break;
+    }
+    case "remove":
+      requireConfirmation(options.confirmation, "REMOVE_ZCODE_CYCLE_ROLE_PROFILES");
+      rejectStates(records, new Set(["conflict"]), "remove");
+      for (const record of records) {
+        if (record.state !== "missing")
+          await rm2(record.target);
+      }
+      break;
+    default:
+      throw new Error(`unsupported role-profile operation: ${String(options.operation)}`);
+  }
+  const afterDirectory = await roleProfileDirectory(projectRoot, false);
+  const after = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(afterDirectory, profile.role, profile.file, templates.get(profile.role))));
+  return report(projectRoot, after, mutating);
+}
+function canonicalRole(value) {
+  const role = ROLE_PROFILES.find((item) => item.role === value)?.role;
+  if (!role)
+    throw new Error("unknown Cycle role profile");
+  return role;
+}
+function marker(role) {
+  return `<!-- zcode-cycle-managed-role-profile: ${role} -->`;
+}
+function assertCanonicalTemplate(content, role) {
+  if (!content.includes(marker(role)))
+    throw new Error(`role-profile template lacks marker: ${role}`);
+  if (!content.includes(`name: zcode-cycle:${role}`)) {
+    throw new Error(`role-profile template has the wrong identity: ${role}`);
+  }
+  if (!/^model: inherit$/mu.test(content) || !/^thoughtLevel: high$/mu.test(content)) {
+    throw new Error(`role-profile template has a non-canonical model configuration: ${role}`);
+  }
+}
+async function roleProfileDirectory(projectRoot, create) {
+  let current = projectRoot;
+  for (const segment of [".zcode", "agents"]) {
+    current = join2(current, segment);
+    try {
+      await requireSafeDirectory(current, "project role-profile directory");
+    } catch (error) {
+      if (!isMissing(error))
+        throw error;
+      if (!create)
+        return null;
+      await mkdir2(current);
+      await requireSafeDirectory(current, "project role-profile directory");
+    }
+  }
+  return current;
+}
+async function inspectProfile(directory, role, file, template) {
+  const target = join2(directory ?? "", `zcode-cycle-${file}`);
+  if (directory === null)
+    return { file, role, state: "missing", target };
+  let content;
+  try {
+    content = await readBoundedRegularFile(target, "installed role profile");
+  } catch (error) {
+    if (isMissing(error))
+      return { file, role, state: "missing", target };
+    throw error;
+  }
+  const configured = configuredProfile(content, template, role);
+  return {
+    content,
+    digest: sha256(content),
+    file,
+    ...configured === null ? {} : configured,
+    role,
+    state: configured === null ? content.includes(marker(role)) ? "managed-drift" : "conflict" : "current",
+    target
+  };
+}
+function configuredProfile(content, template, role) {
+  if (!content.includes(marker(role)))
+    return null;
+  const model = /^model:\s*(\S+)\s*$/mu.exec(content)?.[1];
+  const thoughtLevel = /^thoughtLevel:\s*(\S+)\s*$/mu.exec(content)?.[1];
+  if (!model || !MODEL.test(model) || !thoughtLevel || !THOUGHT_LEVELS.has(thoughtLevel))
+    return null;
+  const normalized = content.replace(/^model:.*$/mu, "model: inherit").replace(/^thoughtLevel:.*$/mu, "thoughtLevel: high");
+  return normalized === template ? { model, thought_level: thoughtLevel } : null;
+}
+function rejectStates(records, denied, action) {
+  const blocked = records.filter((record) => denied.has(record.state));
+  if (blocked.length > 0) {
+    throw new Error(`role-profile ${action} refused: ${blocked.map((item) => `${item.role}=${item.state}`).join(", ")}`);
+  }
+}
+function requireConfirmation(actual, expected) {
+  if (actual !== expected)
+    throw new Error(`role-profile operation requires confirmation ${expected}`);
+}
+async function requireSafeDirectory(path, label) {
+  const info = await lstat2(path);
+  if (info.isSymbolicLink() || !info.isDirectory())
+    throw new Error(`${label} is unsafe: ${path}`);
+}
+async function readBoundedRegularFile(path, label) {
+  const info = await lstat2(path);
+  if (info.isSymbolicLink() || !info.isFile())
+    throw new Error(`${label} is unsafe: ${path}`);
+  if (info.size > MAX_PROFILE_BYTES)
+    throw new Error(`${label} exceeds the safety limit: ${path}`);
+  return readFile2(path, "utf8");
+}
+async function writeAtomic(target, content, replace) {
+  const directory = resolve2(target, "..");
+  await requireSafeDirectory(directory, "project role-profile directory");
+  const temporary = join2(directory, `.zcode-cycle-${randomUUID2()}.tmp`);
+  const backup = join2(directory, `.zcode-cycle-${randomUUID2()}.bak`);
+  await writeFile(temporary, content, { encoding: "utf8", flag: "wx", mode: 384 });
+  try {
+    if (!replace) {
+      await rename2(temporary, target);
+      return;
+    }
+    await rename2(target, backup);
+    try {
+      await rename2(temporary, target);
+    } catch (error) {
+      await rename2(backup, target).catch(() => {
+        return;
+      });
+      throw error;
+    }
+    await rm2(backup);
+  } finally {
+    await rm2(temporary, { force: true });
+    await rm2(backup, { force: true });
+  }
+}
+function report(projectRoot, records, changed) {
+  return {
+    changed,
+    profile_directory: join2(projectRoot, ".zcode", "agents"),
+    profiles: records.map(({ digest, file, model, role, state, thought_level }) => ({
+      ...digest ? { digest } : {},
+      file: `zcode-cycle-${file}`,
+      ...model ? { model } : {},
+      role,
+      state,
+      ...thought_level ? { thought_level } : {}
+    })),
+    ready: records.every((record) => record.state === "current"),
+    requires_session_restart: changed
+  };
+}
+function sha256(value) {
+  return createHash2("sha256").update(value).digest("hex");
+}
+function isMissing(error) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+}
+
 // src/server.ts
-import { mkdir as mkdir6, readFile as readFile3, rename as rename3, rm as rm6, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname6, join as join8 } from "node:path";
+import { mkdir as mkdir7, readFile as readFile4, rename as rename4, rm as rm7, writeFile as writeFile4 } from "node:fs/promises";
+import { dirname as dirname6, join as join9 } from "node:path";
 import { createInterface as createInterface2 } from "node:readline";
 
 // src/browser/browser-evidence.ts
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 import { open, readdir, realpath } from "node:fs/promises";
-import { isAbsolute, join as join2, relative, resolve as resolve2 } from "node:path";
+import { isAbsolute, join as join3, relative, resolve as resolve3 } from "node:path";
 var MAX_RECEIPT_BYTES = 2 * 1024 * 1024;
 var SHA2562 = /^[0-9a-f]{64}$/u;
 
@@ -52035,7 +52258,7 @@ class BrowserEvidenceRegistry {
   #artifactDirectory;
   #records = new Map;
   constructor(artifactDirectory) {
-    this.#artifactDirectory = resolve2(artifactDirectory);
+    this.#artifactDirectory = resolve3(artifactDirectory);
   }
   async recordClose(sessionId, value) {
     const result = parseCloseReceipt(value);
@@ -52082,13 +52305,13 @@ class BrowserEvidenceRegistry {
     return attestations;
   }
   async#discover(sessionId) {
-    const identity = createHash2("sha256").update(sessionId).digest("hex").slice(0, 16);
-    const directory = join2(this.#artifactDirectory, "evidence", identity);
+    const identity = createHash3("sha256").update(sessionId).digest("hex").slice(0, 16);
+    const directory = join3(this.#artifactDirectory, "evidence", identity);
     let entries;
     try {
       entries = await readdir(directory, { withFileTypes: true });
     } catch (error) {
-      if (isMissing(error))
+      if (isMissing2(error))
         return [];
       throw error;
     }
@@ -52097,17 +52320,17 @@ class BrowserEvidenceRegistry {
       if (!entry.isDirectory() || !/^[0-9a-f-]{36}$/u.test(entry.name))
         continue;
       try {
-        const receiptJson = await this.#readContained(join2(directory, entry.name, "session.json"));
+        const receiptJson = await this.#readContained(join3(directory, entry.name, "session.json"));
         records.push({ invalidated: false, receiptDigest: digest(receiptJson), receiptJson });
       } catch (error) {
-        if (!isMissing(error))
+        if (!isMissing2(error))
           throw error;
       }
     }
     return records;
   }
   async#readContained(path) {
-    const root = await realpath(join2(this.#artifactDirectory, "evidence"));
+    const root = await realpath(join3(this.#artifactDirectory, "evidence"));
     const resolved = await realpath(path);
     const scoped = relative(root, resolved);
     if (!scoped || isAbsolute(scoped) || scoped === ".." || scoped.startsWith(`..\\`) || scoped.startsWith("../")) {
@@ -52141,9 +52364,9 @@ function parseCloseReceipt(value) {
   return result;
 }
 function digest(value) {
-  return createHash2("sha256").update(value).digest("hex");
+  return createHash3("sha256").update(value).digest("hex");
 }
-function isMissing(error) {
+function isMissing2(error) {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
@@ -52238,9 +52461,9 @@ function required(value, message) {
 }
 
 // src/browser/managed-browser-session.ts
-import { createHash as createHash4, randomUUID as randomUUID2 } from "node:crypto";
-import { access as access2, mkdir as mkdir5, readFile as readFile2, rm as rm5, writeFile as writeFile2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute4, join as join7, relative as relative4, resolve as resolve9 } from "node:path";
+import { createHash as createHash5, randomUUID as randomUUID3 } from "node:crypto";
+import { access as access2, mkdir as mkdir6, readFile as readFile3, rm as rm6, writeFile as writeFile3 } from "node:fs/promises";
+import { isAbsolute as isAbsolute4, join as join8, relative as relative4, resolve as resolve10 } from "node:path";
 
 // node_modules/puppeteer-core/lib/puppeteer/node-env-setup.js
 init_environment();
@@ -52276,7 +52499,7 @@ init_util();
 init_NodeWebSocketTransport();
 import { existsSync as existsSync3 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join6 } from "node:path";
+import { join as join7 } from "node:path";
 
 // node_modules/puppeteer-core/lib/puppeteer/node/PipeTransport.js
 init_Debug();
@@ -52473,7 +52696,7 @@ class BrowserLauncher {
       browserCloseCallback();
       const logs = browserProcess.getRecentLogs().join(`
 `);
-      if (logs.includes("Failed to create a ProcessSingleton for your profile directory") || process.platform === "win32" && existsSync3(join6(launchArgs.userDataDir, "lockfile"))) {
+      if (logs.includes("Failed to create a ProcessSingleton for your profile directory") || process.platform === "win32" && existsSync3(join7(launchArgs.userDataDir, "lockfile"))) {
         throw new Error(`The browser is already running for ${launchArgs.userDataDir}. Use a different \`userDataDir\` or stop the running browser first.`);
       }
       if (logs.includes("Missing X server") && options.headless === false) {
@@ -52567,7 +52790,7 @@ class BrowserLauncher {
   }
   async getProfilePath() {
     const config2 = await this.puppeteer.configuration();
-    return join6(config2.temporaryDirectory ?? tmpdir(), `puppeteer_dev_${this.browser}_profile-`);
+    return join7(config2.temporaryDirectory ?? tmpdir(), `puppeteer_dev_${this.browser}_profile-`);
   }
   async resolveExecutablePath(headless, validatePath = true) {
     const config2 = await this.puppeteer.configuration();
@@ -52622,7 +52845,7 @@ var rmOptions = {
   recursive: true,
   maxRetries: 5
 };
-async function rm4(path12) {
+async function rm5(path12) {
   await fs6.promises.rm(path12, rmOptions);
 }
 
@@ -52701,7 +52924,7 @@ class ChromeLauncher extends BrowserLauncher {
   async cleanUserDataDir(path13, opts) {
     if (opts.isTemp) {
       try {
-        await rm4(path13);
+        await rm5(path13);
       } catch (error) {
         this.logger(DEBUG_PREFIXES.error)?.(error);
         throw error;
@@ -52837,7 +53060,7 @@ function removeMatchingFlags(array, flag) {
 init_main();
 init_Debug();
 import fs7 from "node:fs";
-import { rename as rename2, unlink as unlink2, mkdtemp as mkdtemp2 } from "node:fs/promises";
+import { rename as rename3, unlink as unlink2, mkdtemp as mkdtemp2 } from "node:fs/promises";
 import os8 from "node:os";
 import path13 from "node:path";
 class FirefoxLauncher extends BrowserLauncher {
@@ -52908,7 +53131,7 @@ class FirefoxLauncher extends BrowserLauncher {
   async cleanUserDataDir(userDataDir, opts) {
     if (opts.isTemp) {
       try {
-        await rm4(userDataDir);
+        await rm5(userDataDir);
       } catch (error) {
         this.logger(DEBUG_PREFIXES.error)?.(error);
         throw error;
@@ -52922,7 +53145,7 @@ class FirefoxLauncher extends BrowserLauncher {
           if (fs7.existsSync(prefsBackupPath)) {
             const prefsPath = path13.join(userDataDir, file);
             await unlink2(prefsPath);
-            await rename2(prefsBackupPath, prefsPath);
+            await rename3(prefsBackupPath, prefsPath);
           }
         }));
         for (const result of results) {
@@ -53181,8 +53404,8 @@ var ScreenRecorder = (() => {
     static {
       const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : undefined;
       __esDecorate22(this, _private_writeFrame_descriptor = { value: __setFunctionName5(async function(buffer) {
-        const error = await new Promise((resolve9) => {
-          this.#process.stdin.write(buffer, resolve9);
+        const error = await new Promise((resolve10) => {
+          this.#process.stdin.write(buffer, resolve10);
         });
         if (error) {
           console.log(`ffmpeg failed to write: ${error.message}.`);
@@ -53344,8 +53567,8 @@ var ScreenRecorder = (() => {
       const [buffer, timestamp] = await this.#lastFrame;
       await Promise.all(Array(Math.max(1, Math.round(this.#fps * (performance.now() - timestamp) / 1000))).fill(buffer).map(this.#writeFrame.bind(this)));
       this.#process.stdin.end();
-      await new Promise((resolve9) => {
-        this.#process.once("close", resolve9);
+      await new Promise((resolve10) => {
+        this.#process.once("close", resolve10);
       });
     }
     async[(_private_writeFrame_decorators = [guarded()], _stop_decorators = [guarded()], asyncDisposeSymbol)]() {
@@ -53370,12 +53593,12 @@ class ManagedBrowserSessionFactory {
   }
   async create(input2) {
     const executablePath = await resolveBrowserExecutable(this.#options.browserExecutable);
-    const identity2 = createHash4("sha256").update(input2.sessionId).digest("hex").slice(0, 16);
-    const evidenceDirectory = join7(input2.artifactDirectory, "evidence", identity2, randomUUID2());
-    const profileDirectory = join7(input2.artifactDirectory, "profiles", `${identity2}-${randomUUID2()}`);
+    const identity2 = createHash5("sha256").update(input2.sessionId).digest("hex").slice(0, 16);
+    const evidenceDirectory = join8(input2.artifactDirectory, "evidence", identity2, randomUUID3());
+    const profileDirectory = join8(input2.artifactDirectory, "profiles", `${identity2}-${randomUUID3()}`);
     await Promise.all([
-      mkdir5(evidenceDirectory, { recursive: true }),
-      mkdir5(profileDirectory, { recursive: true })
+      mkdir6(evidenceDirectory, { recursive: true }),
+      mkdir6(profileDirectory, { recursive: true })
     ]);
     const origins = new Set(input2.allowedOrigins);
     const browser = await puppeteer_core_default.launch({
@@ -53418,7 +53641,7 @@ class PuppeteerBrowserSession {
     this.#origins = origins;
     this.#evidenceDirectory = evidenceDirectory;
     this.#profileDirectory = profileDirectory;
-    this.#projectDirectory = resolve9(projectDirectory);
+    this.#projectDirectory = resolve10(projectDirectory);
     page.on("console", (message) => this.#recordLog("console", message.type(), message.text()));
     page.on("pageerror", (error) => this.#recordLog("pageerror", "error", error instanceof Error ? error.message : String(error)));
     page.on("requestfailed", (request3) => this.#recordLog("requestfailed", "error", `${safeUrl(request3.url())} ${request3.failure()?.errorText ?? "unknown failure"}`));
@@ -53487,7 +53710,7 @@ class PuppeteerBrowserSession {
         throw new Error("Browser close must be handled by the manager");
     }
     this.#actions.push({
-      digest: createHash4("sha256").update(JSON.stringify(result)).digest("hex"),
+      digest: createHash5("sha256").update(JSON.stringify(result)).digest("hex"),
       operation: command2.operation,
       timestamp: new Date().toISOString(),
       url: safeUrl(this.#page.url())
@@ -53498,21 +53721,21 @@ class PuppeteerBrowserSession {
     if (this.#closed)
       return { status: "closed" };
     this.#closed = true;
-    const receiptPath = join7(this.#evidenceDirectory, "session.json");
+    const receiptPath = join8(this.#evidenceDirectory, "session.json");
     const url = safeUrl(this.#page.url());
     try {
       await this.#browser.close();
       const result = { status: "closed" };
       this.#actions.push({
-        digest: createHash4("sha256").update(JSON.stringify(result)).digest("hex"),
+        digest: createHash5("sha256").update(JSON.stringify(result)).digest("hex"),
         operation: "close",
         timestamp: new Date().toISOString(),
         url
       });
-      await writeFile2(receiptPath, `${JSON.stringify({ actions: this.#actions, logs: this.#logs }, null, 2)}
+      await writeFile3(receiptPath, `${JSON.stringify({ actions: this.#actions, logs: this.#logs }, null, 2)}
 `, { encoding: "utf8", flag: "wx" });
     } finally {
-      await rm5(this.#profileDirectory, { force: true, recursive: true });
+      await rm6(this.#profileDirectory, { force: true, recursive: true });
     }
     return { receiptDigest: await fileDigest2(receiptPath), receiptPath, status: "closed" };
   }
@@ -53540,12 +53763,12 @@ class PuppeteerBrowserSession {
     return { title: this.#redact(await this.#page.title()), url: safeUrl(this.#page.url()) };
   }
   async#screenshot(fullPage) {
-    const path14 = join7(this.#evidenceDirectory, `screenshot-${Date.now()}-${randomUUID2()}.png`);
+    const path14 = join8(this.#evidenceDirectory, `screenshot-${Date.now()}-${randomUUID3()}.png`);
     await this.#page.screenshot({ fullPage, path: path14, type: "png" });
     return { fullPage, path: path14, sha256: await fileDigest2(path14) };
   }
   async#uploadPath(value) {
-    const path14 = resolve9(this.#projectDirectory, value);
+    const path14 = resolve10(this.#projectDirectory, value);
     const scoped = relative4(this.#projectDirectory, path14);
     if (isAbsolute4(scoped) || scoped === ".." || scoped.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) {
       throw new Error("Browser upload path escapes the project directory");
@@ -53584,7 +53807,7 @@ async function optionalTarget(page, command2) {
         return element;
       await element.dispose();
     }
-    await new Promise((resolve10) => setTimeout(resolve10, 100));
+    await new Promise((resolve11) => setTimeout(resolve11, 100));
   }
   throw new Error("Browser target was not found within 15000ms");
 }
@@ -53728,10 +53951,10 @@ async function resolveBrowserExecutable(configured) {
 function browserCandidates(platform, environment2) {
   if (platform === "win32") {
     return [
-      environment2.PROGRAMFILES && join7(environment2.PROGRAMFILES, "Microsoft", "Edge", "Application", "msedge.exe"),
-      environment2["PROGRAMFILES(X86)"] && join7(environment2["PROGRAMFILES(X86)"], "Microsoft", "Edge", "Application", "msedge.exe"),
-      environment2.LOCALAPPDATA && join7(environment2.LOCALAPPDATA, "Google", "Chrome", "Application", "chrome.exe"),
-      environment2.PROGRAMFILES && join7(environment2.PROGRAMFILES, "Google", "Chrome", "Application", "chrome.exe")
+      environment2.PROGRAMFILES && join8(environment2.PROGRAMFILES, "Microsoft", "Edge", "Application", "msedge.exe"),
+      environment2["PROGRAMFILES(X86)"] && join8(environment2["PROGRAMFILES(X86)"], "Microsoft", "Edge", "Application", "msedge.exe"),
+      environment2.LOCALAPPDATA && join8(environment2.LOCALAPPDATA, "Google", "Chrome", "Application", "chrome.exe"),
+      environment2.PROGRAMFILES && join8(environment2.PROGRAMFILES, "Google", "Chrome", "Application", "chrome.exe")
     ].filter((value) => Boolean(value));
   }
   if (platform === "darwin") {
@@ -53762,7 +53985,7 @@ function truncate(value, maximum = 60000) {
 [TRUNCATED]`;
 }
 async function fileDigest2(path14) {
-  return createHash4("sha256").update(await readFile2(path14)).digest("hex");
+  return createHash5("sha256").update(await readFile3(path14)).digest("hex");
 }
 function required2(value, message) {
   if (value === undefined)
@@ -53826,11 +54049,11 @@ var plane = new LocalControlPlane({
   stopOwnedProcessOnDispose: false
 });
 var dataDirectory = process.env.ZCODE_CYCLE_DATA_DIR ?? resolveDataDirectory(process.platform, process.env);
-var registryPath = join8(dataDirectory, "runtime", "role-sessions.json");
+var registryPath = join9(dataDirectory, "runtime", "role-sessions.json");
 var allowedOrigins = process.env.ZCODE_CYCLE_BROWSER_ALLOWED_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean);
 var browserManager = new BrowserManager({
   ...allowedOrigins !== undefined && allowedOrigins.length > 0 ? { allowedOrigins } : {},
-  artifactDirectory: join8(dataDirectory, "browser"),
+  artifactDirectory: join9(dataDirectory, "browser"),
   create: (input2) => new ManagedBrowserSessionFactory({
     ...process.env.ZCODE_CYCLE_BROWSER ? { browserExecutable: process.env.ZCODE_CYCLE_BROWSER } : {},
     headless: process.env.ZCODE_CYCLE_BROWSER_HEADLESS !== "false",
@@ -53838,20 +54061,20 @@ var browserManager = new BrowserManager({
   }).create(input2),
   maxSessions: 2
 });
-var browserEvidence = new BrowserEvidenceRegistry(join8(dataDirectory, "browser"));
+var browserEvidence = new BrowserEvidenceRegistry(join9(dataDirectory, "browser"));
 async function readRegistry() {
   try {
-    return JSON.parse(await readFile3(registryPath, "utf8"));
+    return JSON.parse(await readFile4(registryPath, "utf8"));
   } catch {
     return {};
   }
 }
 async function writeRegistry(registry) {
-  await mkdir6(dirname6(registryPath), { recursive: true });
+  await mkdir7(dirname6(registryPath), { recursive: true });
   const temporary = `${registryPath}.tmp`;
-  await writeFile3(temporary, JSON.stringify(registry, null, 1), "utf8");
-  await rm6(registryPath, { force: true });
-  await rename3(temporary, registryPath);
+  await writeFile4(temporary, JSON.stringify(registry, null, 1), "utf8");
+  await rm7(registryPath, { force: true });
+  await rename4(temporary, registryPath);
 }
 function text(value) {
   return typeof value === "string" ? value : JSON.stringify(value ?? null);
@@ -53889,6 +54112,21 @@ async function callTool(name, rawArgs) {
       return plane.goal(projectKey, args.operation);
     case "cycle_admission":
       return plane.admission(projectKey, text(args.workflow_id), text(args.workspace), args.operation === "renew" || args.operation === "release" ? args.operation : "acquire");
+    case "cycle_role_profiles": {
+      const operation = args.operation === "install" || args.operation === "repair" || args.operation === "configure" || args.operation === "remove" ? args.operation : "status";
+      const pluginRoot = process.env.ZCODE_PLUGIN_ROOT || process.env.CLAUDE_PLUGIN_ROOT;
+      if (!pluginRoot)
+        throw new Error("cycle_role_profiles requires ZCODE_PLUGIN_ROOT");
+      return manageRoleProfiles({
+        operation,
+        pluginRoot,
+        projectRoot: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
+        ...typeof args.confirmation === "string" ? { confirmation: args.confirmation } : {},
+        ...typeof args.model === "string" ? { model: args.model } : {},
+        ...typeof args.role === "string" ? { role: args.role } : {},
+        ...typeof args.thought_level === "string" ? { thoughtLevel: args.thought_level } : {}
+      });
+    }
     case "cycle_role_register": {
       const sessionId = text(args.session_id);
       const role = text(args.role);
@@ -53897,6 +54135,7 @@ async function callTool(name, rawArgs) {
       }
       const registry = await readRegistry();
       registry[sessionId] = {
+        project_directory: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
         project_key: projectKey,
         registered_at_unix_millis: Date.now(),
         role,
@@ -54142,6 +54381,29 @@ var TOOLS = {
         workflow_id: { type: "string" }
       },
       required: ["session_id", "role", "project_key"],
+      additionalProperties: false
+    }
+  },
+  cycle_role_profiles: {
+    description: "Inspect or explicitly install, repair, configure or remove the five managed Cycle role profiles under the current project's .zcode/agents directory. Mutations require the operation-specific confirmation token and a session restart.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        operation: { enum: ["status", "install", "repair", "configure", "remove"] },
+        confirmation: { type: "string" },
+        role: {
+          enum: [
+            "architect",
+            "executor",
+            "functional-reviewer",
+            "security-reviewer",
+            "arbiter"
+          ]
+        },
+        model: { type: "string" },
+        thought_level: { enum: ["low", "medium", "high", "max"] }
+      },
+      required: ["operation"],
       additionalProperties: false
     }
   },

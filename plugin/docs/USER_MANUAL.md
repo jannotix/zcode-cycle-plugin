@@ -14,11 +14,11 @@ declared done that the control plane did not verify.
 1. In ZCode: Settings → Plugin Management → Discover → `+` → add the
    repository `jannotix/zcode-cycle-plugin` as a marketplace (or a local
    directory clone of it).
-2. Install `zcode-cycle` and restart the session. On Windows, quit from
-   the tray — closing the window keeps the app running and plugins will
-   not register.
-3. Open a project, select the `zcode-cycle:cycle` agent, run
-   `/cycle:setup`.
+2. Install `zcode-cycle`, open the project and run `/cycle:setup install`.
+   This writes five managed profiles under `.zcode/agents` and refuses any
+   unowned conflicting file.
+3. Start a new session, then run `/cycle:setup`. On Windows, quit from the
+   tray if a normal restart does not reload plugin or project profiles.
 
 Requirements: ZCode Desktop with plugin support, a git repository for
 the project you govern, and Node.js for the bundled bridge. The
@@ -34,9 +34,9 @@ the project you govern, and Node.js for the bundled bridge. The
 | Security reviewer | Read-only. Security, trust boundaries, architecture. Blocking findings need a reproducible path. |
 | Arbiter | Read-only. Final approval from the original request plus evidence plus reviews. The only role that can approve. |
 
-Read-only roles physically lack edit and shell tools, and the PreToolUse
-hook audits and enforces every governed session's tool use into the
-project ledger.
+Read-only roles physically lack edit and shell tools in the managed project
+profiles. The PreToolUse hook enforces those identities again; an executor
+cannot mutate without one unique active workflow registration.
 
 ## Modes and routing
 
@@ -45,8 +45,8 @@ well-understood changes take the quick route (verification and
 arbitration); risk signals — authentication, cryptography, migrations,
 dependencies, public interfaces, deployment, large refactors — take the
 full route with both independent reviews. `quick` and `full` force a
-route; a critical downgrade is refused without explicit approval. A
-normal conversation with the Cycle agent stays read-only until you arm a
+route; a critical downgrade is refused without explicit approval. A normal
+conversation in the main orchestrator session stays read-only until you arm a
 run or express implementation intent.
 
 ## The governed flow
@@ -110,8 +110,9 @@ control live runs.
 Everything durable — control-plane database, ledger keys, worktrees,
 browser evidence, role registry — lives under your user data directory
 (`%LOCALAPPDATA%\ZCode Cycle` on Windows, `~/.local/share/zcode-cycle`
-on Linux), never inside the ZCode installation or your repository.
-Uninstalling the plugin preserves all project data.
+on Linux), never inside the ZCode installation or your repository. The five
+non-secret role configuration files live in `.zcode/agents`; remove them with
+`/cycle:setup remove` before uninstalling. Uninstalling preserves audit data.
 
 ## License
 

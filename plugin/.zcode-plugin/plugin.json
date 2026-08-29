@@ -15,6 +15,5 @@
   "license": "FSL-1.1-MIT",
   "keywords": ["delivery", "verification", "quality-gates", "multi-agent", "zcode"],
   "commands": "commands",
-  "skills": "skills",
-  "agents": "agents"
+  "skills": "skills"
 }

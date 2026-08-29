@@ -56,13 +56,43 @@ try {
     "provenance.intoto.json",
     "bin/native-manifest.json",
     "mcp/dist/server.js",
+    "mcp/dist/role-profiles.js",
   ]
   for (const path of required) assert.equal((await stat(join(pluginRoot, path))).isFile(), true, path)
 
   const product = JSON.parse(await readFile(join(pluginRoot, ".zcode-plugin", "plugin.json"), "utf8"))
   const nativeManifest = JSON.parse(await readFile(join(pluginRoot, "bin", "native-manifest.json"), "utf8"))
   assert.equal(product.version, "1.0.1")
+  assert.equal(Object.hasOwn(product, "agents"), false)
   assert.equal(nativeManifest.product_version, product.version)
+
+  const { manageRoleProfiles } = await import(
+    `${pathToFileURL(join(pluginRoot, "mcp", "dist", "role-profiles.js")).href}?profiles=${Date.now()}`
+  )
+  const roleOptions = { pluginRoot, projectRoot: projectDirectory }
+  assert.equal((await manageRoleProfiles({ ...roleOptions, operation: "status" })).ready, false)
+  assert.equal(
+    (
+      await manageRoleProfiles({
+        ...roleOptions,
+        operation: "install",
+        confirmation: "INSTALL_ZCODE_CYCLE_ROLE_PROFILES",
+      })
+    ).ready,
+    true,
+  )
+  const architectProfile = join(projectDirectory, ".zcode", "agents", "zcode-cycle-architect.md")
+  await writeFile(architectProfile, `${await readFile(architectProfile, "utf8")}\nforced drift\n`)
+  assert.equal(
+    (
+      await manageRoleProfiles({
+        ...roleOptions,
+        operation: "repair",
+        confirmation: "REPAIR_ZCODE_CYCLE_ROLE_PROFILES",
+      })
+    ).ready,
+    true,
+  )
 
   const environment = {
     ...process.env,
@@ -115,11 +145,20 @@ try {
   assert.equal(guard.status, 0)
   assert.equal(JSON.parse(guard.stdout).hookSpecificOutput.permissionDecision, "deny")
 
+  const removedProfiles = await manageRoleProfiles({
+    ...roleOptions,
+    operation: "remove",
+    confirmation: "REMOVE_ZCODE_CYCLE_ROLE_PROFILES",
+  })
+  assert.equal(removedProfiles.ready, false)
+  assert.equal(removedProfiles.profiles.every((profile) => profile.state === "missing"), true)
+
   const receipt = {
     archiveSha,
     health,
     materializedMode,
     platform: process.platform,
+    roleProfiles: { installed: true, removed: true, repaired: true },
     version: product.version,
   }
   const receiptText = `${JSON.stringify(receipt)}\n`

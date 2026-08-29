@@ -1,8 +1,8 @@
 # Per-Role Model Configuration
 
 ZCode Cycle is model-agnostic. Every role inherits your active session
-model unless you assign a specific one; assignments live in your local
-installation as user-scope agent overrides and never leave your machine.
+model unless you assign a specific one; assignments are constrained edits to
+the managed project profiles and never leave the project.
 
 ## Read assignments
 
@@ -11,10 +11,11 @@ inherit) and reasoning effort.
 
 ## Assign a model
 
-`/cycle:models <role> <provider/model>` where role is one of
+`/cycle:models <role> <provider/model|inherit> [low|medium|high|max]` where role is one of
 `architect`, `executor`, `functional-reviewer`, `security-reviewer`,
 `arbiter`. The provider/model identifier is the one your ZCode
-installation resolves. The override applies after a session restart.
+installation resolves. The tool preserves the security-critical prompt and
+tool list; the override applies in a new session.
 
 ## Choosing models
 

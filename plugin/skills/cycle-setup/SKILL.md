@@ -1,6 +1,6 @@
 ---
 name: cycle-setup
-description: Use when initializing ZCode Cycle in a workspace or after changes to the installation. Guides the first-run checks - control plane health, doctor diagnostics, role agent resolution, data directory placement - and what the user must fix before workflows can run.
+description: Use when initializing Cycle for Zcode in a workspace or after installation changes. Checks the control plane, managed project role profiles, current-session role resolution and data placement without hiding restart requirements.
 ---
 
 # ZCode Cycle Setup
@@ -12,15 +12,22 @@ Run these checks in order and report facts, not guesses.
    native package differ; tell the user to reinstall matching versions.
 2. Call `cycle_control` with operation `doctor` for the current project.
    Report every diagnostic the control plane returns.
-3. Verify role agent resolution: the session must be able to dispatch
+3. Call `cycle_role_profiles` with operation `status`. All five entries must
+   be `current`. Missing profiles require the explicit command
+   `/cycle:setup install`; managed drift requires `/cycle:setup repair`;
+   an unowned conflict is never overwritten and must be resolved by the user.
+4. Verify current-session role resolution: the Agent tool must list
    `zcode-cycle:architect`, `zcode-cycle:executor`,
    `zcode-cycle:functional-reviewer`, `zcode-cycle:security-reviewer` and
-   `zcode-cycle:arbiter`. If any is missing, the plugin was not loaded at
-   session start — tell the user to restart the session (on Windows, quit
-   from the tray, not just the window).
-4. Report the data directory (from the doctor output) and confirm it is
+   `zcode-cycle:arbiter`. If any is missing, the project profiles were not
+   loaded at session start — tell the user to start a new session (on
+   Windows, quit from the tray if a normal restart does not reload them).
+5. Report the data directory (from the doctor output) and confirm it is
    outside any application installation directory.
-5. Close with a numbered list of required user actions, or state that
+6. Close with a numbered list of required user actions, or state that
    setup is complete and `/cycle:run` arms the next request.
 
-Never modify project files during setup.
+The status form never modifies project files. Install, repair and removal are
+allowed only when the user invoked that exact setup subcommand; the command
+supplies the corresponding confirmation token. Never treat a plain
+`/cycle:setup` as permission to write or delete role profiles.
