@@ -2,16 +2,18 @@ import { createHash, createHmac, randomUUID } from "node:crypto";
 import { constants, createReadStream, existsSync } from "node:fs";
 import { access, chmod, copyFile, lstat, mkdir, readFile, rename, rm } from "node:fs/promises";
 import { createConnection } from "node:net";
-import { join, posix, win32 } from "node:path";
+import { join, posix, resolve, win32 } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { createRequire } from "node:module";
+import { productVersion } from "./version.js";
 const AUTH_DOMAIN = Buffer.from("zcode-cycle-ipc-auth-v1");
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const CANDIDATE_OPERATION_TIMEOUT_MILLIS = 30 * 60_000;
 const VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 24 * 60 * 60_000;
 const HEALTH_WAIT_MS = 15_000;
 const MAX_NATIVE_BINARY_BYTES = 256 * 1024 * 1024;
+const MAX_NATIVE_MANIFEST_BYTES = 64 * 1024;
 const require = createRequire(import.meta.url);
 export class ControlPlaneError extends Error {
     constructor(message, options) {
@@ -25,6 +27,7 @@ export class LocalControlPlane {
     #dataDirectory;
     #endpoint;
     #environment;
+    #expectedProductVersion;
     #expectedProtocolVersion;
     #platform;
     #secretPath;
@@ -42,6 +45,7 @@ export class LocalControlPlane {
         this.#secretPath = join(this.#dataDirectory, "runtime", "ipc.secret");
         this.#endpoint =
             platform === "win32" ? "" : join(this.#dataDirectory, "runtime", "workflow.sock");
+        this.#expectedProductVersion = options.expectedProductVersion ?? productVersion();
         this.#expectedProtocolVersion = options.expectedProtocolVersion ?? 1;
         this.#stopOwnedProcessOnDispose = options.stopOwnedProcessOnDispose ?? false;
     }
@@ -750,6 +754,9 @@ export class LocalControlPlane {
             if (report.protocol_version !== this.#expectedProtocolVersion) {
                 throw new ControlPlaneError(`workflowd protocol ${report.protocol_version} is incompatible with plugin protocol ${this.#expectedProtocolVersion}`);
             }
+            if (report.product_version !== this.#expectedProductVersion) {
+                throw new ControlPlaneError(`workflowd ${report.product_version} is incompatible with plugin ${this.#expectedProductVersion}`);
+            }
             return report;
         }
         finally {
@@ -838,9 +845,10 @@ export async function prepareNativeBinary(options) {
         sourceInfo.size > MAX_NATIVE_BINARY_BYTES) {
         throw new ControlPlaneError(`workflowd binary is not a regular file: ${source}`);
     }
+    const sourceDigest = await fileDigest(source);
+    await verifyNativeManifest(options, source, sourceDigest, sourceInfo.size);
     if (options.platform === "win32")
         return source;
-    const sourceDigest = await fileDigest(source);
     const executable = "workflowd";
     const targetDirectory = join(options.dataDirectory, "runtime", "native", `${options.platform}-${options.architecture}`, sourceDigest);
     const target = join(targetDirectory, executable);
@@ -887,6 +895,44 @@ export async function prepareNativeBinary(options) {
         throw new ControlPlaneError(`materialized workflowd is not executable: ${target}`, { cause });
     });
     return target;
+}
+async function verifyNativeManifest(options, source, sourceDigest, sourceSize) {
+    const pluginRoot = options.environment.ZCODE_PLUGIN_ROOT || options.environment.CLAUDE_PLUGIN_ROOT;
+    if (!pluginRoot)
+        return;
+    const manifestPath = join(pluginRoot, "bin", "native-manifest.json");
+    const manifestInfo = await lstat(manifestPath).catch((cause) => {
+        throw new ControlPlaneError(`native manifest is unavailable: ${manifestPath}`, { cause });
+    });
+    if (!manifestInfo.isFile() ||
+        manifestInfo.isSymbolicLink() ||
+        manifestInfo.size <= 0 ||
+        manifestInfo.size > MAX_NATIVE_MANIFEST_BYTES) {
+        throw new ControlPlaneError(`native manifest is not a regular bounded file: ${manifestPath}`);
+    }
+    let manifest;
+    try {
+        manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    }
+    catch (cause) {
+        throw new ControlPlaneError(`native manifest is invalid: ${manifestPath}`, { cause });
+    }
+    let target;
+    try {
+        const targets = asRecord(manifest.targets);
+        target = asRecord(targets[`${options.platform}-${options.architecture}`]);
+    }
+    catch (cause) {
+        throw new ControlPlaneError(`native manifest has no valid target: ${manifestPath}`, { cause });
+    }
+    const declaredPath = typeof target.path === "string" ? resolve(pluginRoot, target.path) : "";
+    if (manifest.schema_version !== 1 ||
+        manifest.product_version !== productVersion() ||
+        declaredPath !== resolve(source) ||
+        target.sha256 !== sourceDigest ||
+        target.size !== sourceSize) {
+        throw new ControlPlaneError(`workflowd does not match its native manifest: ${source}`);
+    }
 }
 function packagedBinaryPath(platform, architecture, environment) {
     // Distribution installs ship per-platform binaries under bin/<platform>-<arch>/.

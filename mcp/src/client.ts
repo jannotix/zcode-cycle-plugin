@@ -2,10 +2,12 @@ import { createHash, createHmac, randomUUID } from "node:crypto"
 import { constants, createReadStream, existsSync } from "node:fs"
 import { access, chmod, copyFile, lstat, mkdir, readFile, rename, rm } from "node:fs/promises"
 import { createConnection, type Socket } from "node:net"
-import { join, posix, win32 } from "node:path"
+import { join, posix, resolve, win32 } from "node:path"
 import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { once } from "node:events"
 import { createRequire } from "node:module"
+
+import { productVersion } from "./version.js"
 
 const AUTH_DOMAIN = Buffer.from("zcode-cycle-ipc-auth-v1")
 const MAX_FRAME_BYTES = 8 * 1024 * 1024
@@ -13,6 +15,7 @@ const CANDIDATE_OPERATION_TIMEOUT_MILLIS = 30 * 60_000
 const VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 24 * 60 * 60_000
 const HEALTH_WAIT_MS = 15_000
 const MAX_NATIVE_BINARY_BYTES = 256 * 1024 * 1024
+const MAX_NATIVE_MANIFEST_BYTES = 64 * 1024
 const require = createRequire(import.meta.url)
 
 export interface ControlPlaneHealth {
@@ -26,6 +29,7 @@ export interface ControlPlaneOptions {
   readonly binaryPath?: string
   readonly dataDirectory?: string
   readonly environment?: NodeJS.ProcessEnv
+  readonly expectedProductVersion?: string
   readonly expectedProtocolVersion?: number
   readonly platform?: NodeJS.Platform
   readonly stopOwnedProcessOnDispose?: boolean
@@ -352,6 +356,7 @@ export class LocalControlPlane {
   readonly #dataDirectory: string
   readonly #endpoint: string
   readonly #environment: NodeJS.ProcessEnv
+  readonly #expectedProductVersion: string
   readonly #expectedProtocolVersion: number
   readonly #platform: NodeJS.Platform
   readonly #secretPath: string
@@ -370,6 +375,7 @@ export class LocalControlPlane {
     this.#secretPath = join(this.#dataDirectory, "runtime", "ipc.secret")
     this.#endpoint =
       platform === "win32" ? "" : join(this.#dataDirectory, "runtime", "workflow.sock")
+    this.#expectedProductVersion = options.expectedProductVersion ?? productVersion()
     this.#expectedProtocolVersion = options.expectedProtocolVersion ?? 1
     this.#stopOwnedProcessOnDispose = options.stopOwnedProcessOnDispose ?? false
   }
@@ -1224,6 +1230,11 @@ export class LocalControlPlane {
           `workflowd protocol ${report.protocol_version} is incompatible with plugin protocol ${this.#expectedProtocolVersion}`,
         )
       }
+      if (report.product_version !== this.#expectedProductVersion) {
+        throw new ControlPlaneError(
+          `workflowd ${report.product_version} is incompatible with plugin ${this.#expectedProductVersion}`,
+        )
+      }
       return report
     } finally {
       socket.destroy()
@@ -1344,9 +1355,10 @@ export async function prepareNativeBinary(options: NativeBinaryOptions): Promise
     throw new ControlPlaneError(`workflowd binary is not a regular file: ${source}`)
   }
 
+  const sourceDigest = await fileDigest(source)
+  await verifyNativeManifest(options, source, sourceDigest, sourceInfo.size)
   if (options.platform === "win32") return source
 
-  const sourceDigest = await fileDigest(source)
   const executable = "workflowd"
   const targetDirectory = join(
     options.dataDirectory,
@@ -1399,6 +1411,53 @@ export async function prepareNativeBinary(options: NativeBinaryOptions): Promise
     throw new ControlPlaneError(`materialized workflowd is not executable: ${target}`, { cause })
   })
   return target
+}
+
+async function verifyNativeManifest(
+  options: NativeBinaryOptions,
+  source: string,
+  sourceDigest: string,
+  sourceSize: number,
+): Promise<void> {
+  const pluginRoot = options.environment.ZCODE_PLUGIN_ROOT || options.environment.CLAUDE_PLUGIN_ROOT
+  if (!pluginRoot) return
+
+  const manifestPath = join(pluginRoot, "bin", "native-manifest.json")
+  const manifestInfo = await lstat(manifestPath).catch((cause: unknown) => {
+    throw new ControlPlaneError(`native manifest is unavailable: ${manifestPath}`, { cause })
+  })
+  if (
+    !manifestInfo.isFile() ||
+    manifestInfo.isSymbolicLink() ||
+    manifestInfo.size <= 0 ||
+    manifestInfo.size > MAX_NATIVE_MANIFEST_BYTES
+  ) {
+    throw new ControlPlaneError(`native manifest is not a regular bounded file: ${manifestPath}`)
+  }
+
+  let manifest: Record<string, unknown>
+  try {
+    manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>
+  } catch (cause) {
+    throw new ControlPlaneError(`native manifest is invalid: ${manifestPath}`, { cause })
+  }
+  let target: Record<string, unknown>
+  try {
+    const targets = asRecord(manifest.targets)
+    target = asRecord(targets[`${options.platform}-${options.architecture}`])
+  } catch (cause) {
+    throw new ControlPlaneError(`native manifest has no valid target: ${manifestPath}`, { cause })
+  }
+  const declaredPath = typeof target.path === "string" ? resolve(pluginRoot, target.path) : ""
+  if (
+    manifest.schema_version !== 1 ||
+    manifest.product_version !== productVersion() ||
+    declaredPath !== resolve(source) ||
+    target.sha256 !== sourceDigest ||
+    target.size !== sourceSize
+  ) {
+    throw new ControlPlaneError(`workflowd does not match its native manifest: ${source}`)
+  }
 }
 
 function packagedBinaryPath(
