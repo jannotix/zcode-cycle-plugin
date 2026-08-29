@@ -56,4 +56,4 @@ packages/*/bin/
 !plugin/**
 
 # Local build staging for the assembler; shipped binaries live in plugin/bin/.
-bin/
+/bin/
