@@ -75,7 +75,7 @@ legal opinion.
 1. **Version and history** - `1.0.0` is marked withdrawn; all installable
    manifests say `1.0.1`; the historical tag is unchanged.
 2. **Linux runtime** - the installed daemon is materialized atomically under
-   plugin data, hash-verified, mode `0755`, and runs on the declared glibc
+   plugin data, hash-verified, mode `0700`, and runs on the declared glibc
    baseline. A `0644` archive entry is a required regression case.
 3. **Role boundaries** - read-only roles lack mutating, shell and subagent
    tools; malformed hook input denies matched high-risk calls; registry and

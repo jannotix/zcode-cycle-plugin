@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { constants, existsSync } from "node:fs";
-import { access, readFile } from "node:fs/promises";
+import { constants, createReadStream, existsSync } from "node:fs";
+import { access, chmod, copyFile, lstat, mkdir, readFile, rename, rm } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { join, posix, win32 } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -11,6 +11,7 @@ const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const CANDIDATE_OPERATION_TIMEOUT_MILLIS = 30 * 60_000;
 const VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 24 * 60 * 60_000;
 const HEALTH_WAIT_MS = 15_000;
+const MAX_NATIVE_BINARY_BYTES = 256 * 1024 * 1024;
 const require = createRequire(import.meta.url);
 export class ControlPlaneError extends Error {
     constructor(message, options) {
@@ -23,6 +24,7 @@ export class LocalControlPlane {
     #binaryPath;
     #dataDirectory;
     #endpoint;
+    #environment;
     #expectedProtocolVersion;
     #platform;
     #secretPath;
@@ -30,10 +32,12 @@ export class LocalControlPlane {
     #ownedProcess;
     constructor(options = {}) {
         const platform = options.platform ?? process.platform;
+        const environment = options.environment ?? process.env;
         this.#platform = platform;
         this.#architecture = process.arch;
+        this.#environment = environment;
         this.#dataDirectory =
-            options.dataDirectory ?? resolveDataDirectory(platform, options.environment ?? process.env);
+            options.dataDirectory ?? resolveDataDirectory(platform, environment);
         this.#binaryPath = options.binaryPath;
         this.#secretPath = join(this.#dataDirectory, "runtime", "ipc.secret");
         this.#endpoint =
@@ -65,7 +69,13 @@ export class LocalControlPlane {
         if (this.#ownedProcess === undefined ||
             this.#ownedProcess.exitCode !== null ||
             this.#ownedProcess.signalCode !== null) {
-            const binaryPath = this.#binaryPath ?? packagedBinaryPath(this.#platform, this.#architecture);
+            const binaryPath = this.#binaryPath ??
+                (await prepareNativeBinary({
+                    architecture: this.#architecture,
+                    dataDirectory: this.#dataDirectory,
+                    environment: this.#environment,
+                    platform: this.#platform,
+                }));
             await access(binaryPath, constants.X_OK).catch((cause) => {
                 throw new ControlPlaneError(`workflowd binary is unavailable: ${binaryPath}`, { cause });
             });
@@ -817,9 +827,70 @@ export function nativePackageName(platform, architecture) {
     }
     return `@zcode-cycle/native-${target}`;
 }
-function packagedBinaryPath(platform, architecture) {
+export async function prepareNativeBinary(options) {
+    const source = packagedBinaryPath(options.platform, options.architecture, options.environment);
+    const sourceInfo = await lstat(source).catch((cause) => {
+        throw new ControlPlaneError(`workflowd binary is unavailable: ${source}`, { cause });
+    });
+    if (!sourceInfo.isFile() ||
+        sourceInfo.isSymbolicLink() ||
+        sourceInfo.size <= 0 ||
+        sourceInfo.size > MAX_NATIVE_BINARY_BYTES) {
+        throw new ControlPlaneError(`workflowd binary is not a regular file: ${source}`);
+    }
+    if (options.platform === "win32")
+        return source;
+    const sourceDigest = await fileDigest(source);
+    const executable = "workflowd";
+    const targetDirectory = join(options.dataDirectory, "runtime", "native", `${options.platform}-${options.architecture}`, sourceDigest);
+    const target = join(targetDirectory, executable);
+    await mkdir(targetDirectory, { mode: 0o700, recursive: true });
+    const targetDirectoryInfo = await lstat(targetDirectory);
+    if (!targetDirectoryInfo.isDirectory() || targetDirectoryInfo.isSymbolicLink()) {
+        throw new ControlPlaneError(`workflowd runtime directory is unsafe: ${targetDirectory}`);
+    }
+    await chmod(targetDirectory, 0o700);
+    try {
+        const targetInfo = await lstat(target);
+        if (!targetInfo.isFile() || targetInfo.isSymbolicLink()) {
+            throw new ControlPlaneError(`materialized workflowd is not a regular file: ${target}`);
+        }
+        const existingDigest = await fileDigest(target);
+        if (existingDigest !== sourceDigest) {
+            throw new ControlPlaneError(`materialized workflowd digest mismatch: ${target}`);
+        }
+        await chmod(target, 0o700);
+        await access(target, constants.X_OK);
+        return target;
+    }
+    catch (error) {
+        if (error instanceof ControlPlaneError || asNodeError(error).code !== "ENOENT")
+            throw error;
+    }
+    const temporary = `${target}.tmp-${process.pid}-${randomUUID()}`;
+    try {
+        await copyFile(source, temporary, constants.COPYFILE_EXCL);
+        await chmod(temporary, 0o700);
+        const copiedDigest = await fileDigest(temporary);
+        if (copiedDigest !== sourceDigest) {
+            throw new ControlPlaneError("workflowd changed while it was materialized");
+        }
+        await rename(temporary, target);
+    }
+    finally {
+        await rm(temporary, { force: true }).catch(() => undefined);
+    }
+    if ((await fileDigest(target)) !== sourceDigest) {
+        throw new ControlPlaneError(`materialized workflowd digest mismatch: ${target}`);
+    }
+    await access(target, constants.X_OK).catch((cause) => {
+        throw new ControlPlaneError(`materialized workflowd is not executable: ${target}`, { cause });
+    });
+    return target;
+}
+function packagedBinaryPath(platform, architecture, environment) {
     // Distribution installs ship per-platform binaries under bin/<platform>-<arch>/.
-    const pluginRoot = process.env.ZCODE_PLUGIN_ROOT;
+    const pluginRoot = environment.ZCODE_PLUGIN_ROOT || environment.CLAUDE_PLUGIN_ROOT;
     if (pluginRoot !== undefined && pluginRoot !== "") {
         const executable = platform === "win32" ? "workflowd.exe" : "workflowd";
         const scoped = join(pluginRoot, "bin", `${platform}-${architecture}`, executable);
@@ -836,6 +907,12 @@ function packagedBinaryPath(platform, architecture) {
     catch (cause) {
         throw new ControlPlaneError(`required native package ${packageName} is not installed; reinstall zcode-cycle for this platform`, { cause });
     }
+}
+async function fileDigest(path) {
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(path))
+        hash.update(chunk);
+    return hash.digest("hex");
 }
 async function readSecret(path) {
     try {
