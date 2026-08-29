@@ -7,7 +7,7 @@
   "license": "FSL-1.1-MIT",
   "author": "Gianluca Iannotta",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "bun scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

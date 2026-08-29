@@ -1,4 +1,4 @@
-import { copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { join } from "node:path"
 
@@ -43,9 +43,8 @@ await cp(join(root, "bin", "workflowd.exe"), join(output, "bin", "win32-x64", "w
 await cp(join(root, "bin", "workflowd"), join(output, "bin", "linux-x64", "workflowd"))
 await writeNativeManifest(output)
 
-// Runtime dependencies (puppeteer-core and transitive) resolve from the
-// plugin's own node_modules; install production dependencies into the
-// assembled copy so the distribution is self-contained.
+// The MCP build bundles every runtime dependency into dist/. The runtime
+// package only marks ESM semantics; no package manager runs during install.
 const mcpPackage = JSON.parse(await readFile(join(root, "mcp", "package.json"), "utf8")) as Record<
   string,
   unknown
@@ -53,24 +52,11 @@ const mcpPackage = JSON.parse(await readFile(join(root, "mcp", "package.json"), 
 const dependencyFree: Record<string, unknown> = { ...mcpPackage }
 delete dependencyFree.devDependencies
 delete dependencyFree.scripts
+delete dependencyFree.dependencies
 await writeFile(
   join(output, "mcp", "package.json"),
   `${JSON.stringify(dependencyFree, null, 2)}\n`,
   "utf8",
 )
-await copyFile(join(root, "mcp", "bun.lock"), join(output, "mcp", "bun.lock"))
-const install = Bun.spawn(
-  ["bun", "install", "--production", "--frozen-lockfile", "--ignore-scripts"],
-  {
-    cwd: join(output, "mcp"),
-    stderr: "inherit",
-    stdout: "inherit",
-  },
-)
-if ((await install.exited) !== 0) throw new Error("dependency installation for the plugin failed")
-await Promise.all([
-  rm(join(output, "mcp", "bun.lock"), { force: true }),
-  rm(join(output, "mcp", "node_modules", ".bin"), { force: true, recursive: true }),
-])
 
 console.log(`assembled ${output}`)

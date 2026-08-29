@@ -55,7 +55,7 @@ never downloaded or executed from a remote URL at runtime.
 - slash commands and five workflow skills;
 - a `PreToolUse` role guard and a `PostToolUse` audit hook;
 - one local stdio MCP server;
-- the TypeScript MCP/browser bridge and its locked runtime dependencies;
+- a self-contained MCP/browser bridge built from the locked npm dependency graph;
 - platform-bound `workflowd` binaries, user documentation and legal notices.
 
 ## Permissions and side effects

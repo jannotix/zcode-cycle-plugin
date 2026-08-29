@@ -70,7 +70,10 @@ for (const item of cargoPackages.values()) {
   })
 }
 
-const npmPackages = await installedNpmPackages(join(pluginDirectory, "mcp", "node_modules"))
+// The shipped MCP is a self-contained bundle: derive its auditable runtime
+// closure from the frozen build lock, then resolve license metadata from the
+// build environment. No node_modules tree is copied into the plugin.
+const npmPackages = await runtimeNpmPackages(bunLock, join(ROOT, "mcp", "node_modules"))
 for (const item of npmPackages) {
   const specifier = `${item.name}@${item.version}`
   const integrity = npmIntegrity.get(specifier)
@@ -286,6 +289,45 @@ async function installedNpmPackages(nodeModules) {
       }
     }
   }
+}
+
+async function runtimeNpmPackages(lock, nodeModules) {
+  const packages = lock.packages ?? {}
+  const rootDependencies = Object.keys(lock.workspaces?.[""]?.dependencies ?? {})
+  const pending = [...rootDependencies]
+  const visitedKeys = new Set()
+  const requiredSpecifiers = new Set()
+
+  while (pending.length > 0) {
+    const key = pending.pop()
+    if (visitedKeys.has(key)) continue
+    const entry = packages[key]
+    if (!Array.isArray(entry) || typeof entry[0] !== "string") {
+      throw new Error(`runtime dependency is absent from bun.lock: ${key}`)
+    }
+    visitedKeys.add(key)
+    requiredSpecifiers.add(entry[0])
+
+    const dependencies = entry[2]?.dependencies ?? {}
+    for (const dependency of Object.keys(dependencies)) {
+      const nestedKey = `${key}/${dependency}`
+      if (packages[nestedKey] !== undefined) pending.push(nestedKey)
+      else if (packages[dependency] !== undefined) pending.push(dependency)
+      else throw new Error(`locked runtime dependency cannot be resolved: ${key} -> ${dependency}`)
+    }
+  }
+
+  const installed = await installedNpmPackages(nodeModules)
+  const bySpecifier = new Map(installed.map((item) => [`${item.name}@${item.version}`, item]))
+  const resolved = []
+  for (const specifier of requiredSpecifiers) {
+    const item = bySpecifier.get(specifier)
+    if (!item) throw new Error(`locked runtime package is not installed for license collection: ${specifier}`)
+    resolved.push(item)
+  }
+  return resolved.sort((left, right) =>
+    `${left.name}@${left.version}`.localeCompare(`${right.name}@${right.version}`),
+  )
 }
 
 function escapeTable(value) {

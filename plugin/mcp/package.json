@@ -5,12 +5,5 @@
   "type": "module",
   "description": "ZCode Cycle MCP bridge to the workflowd control plane",
   "license": "FSL-1.1-MIT",
-  "author": "Gianluca Iannotta",
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "puppeteer-core": "25.6.0"
-  }
+  "author": "Gianluca Iannotta"
 }

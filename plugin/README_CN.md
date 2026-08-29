@@ -48,7 +48,7 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 - 斜杠命令和五个工作流 Skill；
 - `PreToolUse` 角色保护 Hook 与 `PostToolUse` 审计 Hook；
 - 一个本地 stdio MCP 服务；
-- TypeScript MCP/浏览器桥及锁定的运行时依赖；
+- 根据锁定的 npm 依赖图构建的自包含 MCP/浏览器桥；
 - 平台限定的 `workflowd` 二进制文件、用户文档和法律声明。
 
 ## 权限与副作用

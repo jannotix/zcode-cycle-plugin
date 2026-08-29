@@ -51,7 +51,7 @@ packages/*/bin/
 *.map
 *.tgz
 *.zip
-# The assembled distribution plugin ships in-repo, dependencies included.
+# The assembled distribution plugin ships in-repo with a self-contained MCP bundle.
 !plugin/
 !plugin/**
 
