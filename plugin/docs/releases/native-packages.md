@@ -15,7 +15,7 @@ Per release, for each certified target:
 ```text
 cargo build --release -p workflowd
 bun scripts/release/package-native.ts --target win32-x64 --binary target/release/workflowd.exe --output target/native-packages
-cd target/native-packages && npm publish zcode-cycle-native-win32-x64-1.0.0.tgz
+cd target/native-packages && npm publish zcode-cycle-native-win32-x64-1.0.1.tgz
 ```
 
 Repeat with `--target linux-x64` and the Linux binary. The packaging
