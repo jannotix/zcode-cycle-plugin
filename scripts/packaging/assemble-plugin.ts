@@ -20,6 +20,7 @@ const copy = [
   ["README_CN.md", "README_CN.md"],
   ["CHANGELOG.md", "CHANGELOG.md"],
   ["SECURITY.md", "SECURITY.md"],
+  ["THIRD-PARTY-RUST-LICENSES.html", "THIRD-PARTY-RUST-LICENSES.html"],
   ["docs", "docs"],
   ["agents", "agents"],
   ["commands", "commands"],

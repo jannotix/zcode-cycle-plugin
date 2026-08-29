@@ -1,0 +1,27 @@
+accepted = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-1-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
+ignore-build-dependencies = false
+ignore-dev-dependencies = true
+ignore-transitive-dependencies = false
+workarounds = ["rustix", "wasmtime"]
+private = { ignore = true }
+
+[winx]
+accepted = ["Apache-2.0 WITH LLVM-exception"]
+
+[winx.clarify]
+license = "Apache-2.0 WITH LLVM-exception"
+
+[[winx.clarify.files]]
+path = "LICENSE"
+checksum = "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
