@@ -19,7 +19,12 @@
         "zh-CN": "面向 ZCode 的证据门控软件交付：架构师、执行器、两名独立审查者和最终裁决者。"
       },
       "version": "1.0.1",
-      "category": "developer-tools"
+      "author": {
+        "name": "Gianluca Iannotta",
+        "url": "https://github.com/jannotix"
+      },
+      "category": "developer-tools",
+      "keywords": ["delivery", "verification", "quality-gates", "multi-agent", "zcode"]
     }
   ]
 }

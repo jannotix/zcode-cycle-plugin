@@ -1,62 +1,164 @@
 # Cycle for Zcode
 
-ZCode Cycle is a native ZCode plugin for evidence-gated software delivery. It
-coordinates an architect, an executor, two independent reviewers and an
-independent final arbiter over a deterministic control plane: requests are
-decomposed into bounded tasks, implemented in isolated worktrees, verified
-against real evidence, and approved only by an arbiter that sees the original
-user request, the exact candidate and the raw verification output — never the
-executor's own summary of its work.
+Cycle for Zcode is a local evidence-gated delivery plugin for ZCode. It
+separates architecture, implementation, functional review, security review and
+final arbitration, while a deterministic Rust control plane owns workflow
+state, candidate bytes, verification evidence and delivery.
 
-The problem it solves: single-agent sessions self-confirm. The same context
-interprets a request, implements it, reviews its own assumptions and declares
-itself done. ZCode Cycle separates those responsibilities and requires real
-verification before anything is called complete.
+## Release status
 
-## Install
+- `1.0.1` is an unreleased production candidate. Do not distribute it until
+  the exact Windows/Linux artifact has completed the release matrix.
+- `1.0.0` is withdrawn and must not be installed. Its historical tag is kept
+  for auditability and is not reused.
 
-Add this repository as a plugin marketplace in ZCode (Settings → Plugin
-Management → Discover → `+`), install `zcode-cycle`, restart the session —
-on Windows, quit from the tray — then open a project, select the
-`zcode-cycle:cycle` agent and run `/cycle:setup`. The control-plane daemon
-ships with the plugin for Windows x64 and Linux x64.
+## Supported scope for 1.0.1
 
-[Complete user manual](docs/USER_MANUAL.md) · [Getting started](docs/guides/getting-started.md) · [Command reference](docs/commands/reference.md) · [Threat model](docs/security/threat-model.md)
+| Platform | Status |
+|---|---|
+| Windows 11 x64 | Certification target |
+| Linux x64, Ubuntu 22.04 and 24.04 | Certification target |
+| macOS x64 / arm64 | Compatible but untested only after native build gates pass |
+| Windows/Linux ARM64 | Unsupported |
 
-## Repository layout
+The certification target is the current ZCode Desktop release recorded in the
+release receipt. A newer ZCode version invalidates host-integration receipts
+until the live matrix is repeated.
 
-- `plugin/` — the assembled, self-contained distribution plugin (what the
-  marketplace installs): agents, commands, skills, hooks, the MCP bridge with
-  its dependencies, the user documentation and the per-platform `workflowd`
-  binaries.
-- `crates/` — the Rust control plane: state machine, framed IPC, SQLite
-  store, tamper-evident ledger, project memory, incremental code
-  intelligence, and the `workflowd` daemon.
-- `mcp/` — the MCP bridge between the ZCode session and the daemon.
-- `packages/` — platform-bound npm packages carrying the prebuilt `workflowd`
-  binary (Windows x64 and Linux x64 are the certified targets; macOS builds
-  are compiled but not certified).
-- `scripts/` — packaging and release tooling.
-- `tests/qualification/` — the cross-platform deterministic battery.
-- `.github/workflows/` — continuous integration: formatting, clippy with
-  denied warnings, the full test suite on Windows and Linux, native package
-  assembly and the qualification battery.
+## Installation
 
-## Development
+Production users should install the plugin only from the official ZCode public
+marketplace after version `1.0.1` is accepted and published. Official
+installation matters because public role enforcement depends on ZCode loading
+the plugin hooks from a trusted source.
 
-Requires a stable Rust toolchain (see `rust-toolchain.toml`), Node.js and Bun.
+For development and certification, add a **local directory marketplace** in
+Settings -> Plugins -> Create -> Add marketplace, select this repository, then
+install `zcode-cycle`. Restart the Agent runtime if ZCode asks, select the
+`zcode-cycle:cycle` agent and run `/cycle:setup`.
+
+Requirements:
+
+- ZCode Desktop with plugin support;
+- Node.js 22 or later available to plugin processes;
+- Git and the build/test tools required by the governed project;
+- Windows x64 or a supported Linux x64 distribution;
+- Chrome, Edge or Chromium when a change requires managed browser evidence.
+
+The platform `workflowd` daemon ships inside the verified plugin archive. It is
+never downloaded or executed from a remote URL at runtime.
+
+## What the plugin installs
+
+- six ZCode agents: orchestrator, architect, executor, two reviewers and
+  arbiter;
+- slash commands and five workflow skills;
+- a `PreToolUse` role guard and a `PostToolUse` audit hook;
+- one local stdio MCP server;
+- the TypeScript MCP/browser bridge and its locked runtime dependencies;
+- platform-bound `workflowd` binaries, user documentation and legal notices.
+
+## Permissions and side effects
+
+Cycle is intentionally capable of changing a project, but only after the user
+arms a governed run.
+
+### Files and Git
+
+- Normal conversation, setup, architecture and review are read-only.
+- The executor modifies an isolated Git worktree within declared write scopes.
+- The executor may stage and commit those worktree changes. It cannot delegate,
+  push, tag, switch branches, create another worktree, rewrite history or run
+  destructive Git cleanup through the Cycle hook.
+- The control plane freezes exact candidate bytes, verifies them and promotes
+  only the approved paths onto the recorded base revision.
+- Export, cancellation with data loss, external browser origins and publication
+  remain explicit user decisions. Cycle does not weaken ZCode confirmations.
+
+### Command execution
+
+The control plane runs verification commands declared in the validated plan.
+Commands use direct argument vectors rather than an interactive shell; unsafe
+operators, blocked programs and destructive forms are rejected. Commands run
+with the user's operating-system privileges. Use ZCode in an isolated
+development environment and review high-risk actions as its Terms recommend.
+
+### Network and browser
+
+- Cycle has no telemetry, account service, update service or remote backend.
+- The MCP bridge and daemon communicate only through a local authenticated pipe
+  or Unix socket.
+- Managed browser sessions use an isolated temporary profile. Loopback origins
+  are allowed; every external origin requires explicit approval. Browser
+  requests then reach that approved origin directly.
+- ZCode and any model/provider selected by the user operate under their own
+  terms and privacy policies. Cycle never reads or stores provider credentials.
+
+### Local data
+
+Workflow state, the tamper-evident ledger, signing keys, worktrees, browser
+evidence and project memory are stored outside the application installation:
+
+| Platform | Default |
+|---|---|
+| Windows | `%LOCALAPPDATA%\ZCode Cycle` |
+| Linux | `$XDG_DATA_HOME/zcode-cycle` or `~/.local/share/zcode-cycle` |
+| macOS | `~/Library/Application Support/ZCode Cycle` |
+
+Uninstalling the plugin leaves this audit data intact. Delete it only as a
+separate, explicit data-destruction decision after taking any required backup.
+
+## How delivery works
+
+1. `/cycle:run auto|quick|full` captures the user's next request verbatim.
+2. The architect produces a requirement-linked, bounded task graph.
+3. The executor implements and commits tasks in an isolated worktree.
+4. The control plane freezes the candidate and runs mandatory gates.
+5. Full mode dispatches both shell-free independent reviewers.
+6. The arbiter judges the original request, exact candidate and raw evidence.
+7. Only an approved candidate is promoted. Rejection drives a bounded repair
+   loop; interruption is recovered by `/cycle:resume`.
+
+See [the user manual](docs/USER_MANUAL.md), [command reference](docs/commands/reference.md),
+[threat model](docs/security/threat-model.md) and
+[release plan](docs/releases/production-release-plan.md).
+
+## Update, rollback and removal
+
+- Never reuse a published version. Refresh the marketplace, update to a higher
+  semantic version and restart the Agent runtime.
+- Release certification includes upgrade from the previous public version and
+  rollback with preserved data. A newer database schema may open only in the
+  documented safe read-only mode.
+- Remove the plugin in ZCode. Remove the data directory separately only if the
+  ledger, memory, evidence and recovery state are no longer required.
+
+## Development checks
 
 ```text
 cargo fmt --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cd mcp && bun install && bun run build
-bun scripts/packaging/assemble-plugin.ts
+cargo test --workspace --all-features --no-fail-fast
+cd mcp && bun install --frozen-lockfile && bun run typecheck && bun run build && bun run test
 node tests/qualification/battery.mjs 1
 ```
 
-## License
+The public release also requires the official marketplace validator/build,
+20/20 deterministic batteries on both certified platforms, clean-install/live
+ZCode checks, SBOM/notices/provenance, and signed Windows binaries.
 
-Copyright 2026 Gianluca Iannotta. Licensed under FSL-1.1-MIT; each version
-becomes available under the MIT License on the second anniversary of its
-release date. See `LICENSE` and `NOTICE`.
+## Security and legal
+
+Report plugin vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Report ZCode host vulnerabilities through ZCode's own private reporting channel.
+
+Copyright 2026 Gianluca Iannotta. Licensed under FSL-1.1-MIT; each released
+version becomes available under the MIT License two years after its release
+date. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+Cycle for Zcode is an independent integration. It is not affiliated with,
+sponsored by or endorsed by ZCode or its operator. ZCode names and trademarks
+belong to their respective owners.
+
+Development disclosure: changes prepared for `1.0.1` include AI-assisted code
+and documentation and require human owner review before publication.
