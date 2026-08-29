@@ -13,6 +13,7 @@ import { BrowserEvidenceRegistry } from "./browser/browser-evidence.js"
 import { BrowserManager } from "./browser/browser-manager.js"
 import { ManagedBrowserSessionFactory } from "./browser/managed-browser-session.js"
 import { attestForVerification, browserRun } from "./browser/browser-ops.js"
+import { productVersion } from "./version.js"
 
 // Role session registry: the bridge writes it, the PreToolUse hook reads it.
 // The agents' tool whitelists are the primary role boundary; this is the
@@ -33,7 +34,7 @@ const READ_ONLY_ROLES = new Set([
 ])
 const MUTATING_TOOLS = new Set(["Edit", "Write", "ApplyPatch", "MultiEdit"])
 
-const SERVER_INFO = { name: "zcode-cycle", version: "1.0.0" }
+const SERVER_INFO = { name: "zcode-cycle", version: productVersion() }
 const PROTOCOL_VERSION = "2025-06-18"
 
 const plane = new LocalControlPlane({

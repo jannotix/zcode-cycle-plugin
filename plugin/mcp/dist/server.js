@@ -6,6 +6,7 @@ import { BrowserEvidenceRegistry } from "./browser/browser-evidence.js";
 import { BrowserManager } from "./browser/browser-manager.js";
 import { ManagedBrowserSessionFactory } from "./browser/managed-browser-session.js";
 import { attestForVerification, browserRun } from "./browser/browser-ops.js";
+import { productVersion } from "./version.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const READ_ONLY_ROLES = new Set([
     "architect",
@@ -14,7 +15,7 @@ const READ_ONLY_ROLES = new Set([
     "arbiter",
 ]);
 const MUTATING_TOOLS = new Set(["Edit", "Write", "ApplyPatch", "MultiEdit"]);
-const SERVER_INFO = { name: "zcode-cycle", version: "1.0.0" };
+const SERVER_INFO = { name: "zcode-cycle", version: productVersion() };
 const PROTOCOL_VERSION = "2025-06-18";
 const plane = new LocalControlPlane({
     ...(process.env.ZCODE_CYCLE_BINARY
