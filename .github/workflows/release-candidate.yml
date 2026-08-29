@@ -88,14 +88,18 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Rust quality
+        shell: bash
         run: |
+          set -euo pipefail
           cargo fmt --check
           cargo clippy --workspace --all-targets --all-features -- -D warnings
           cargo test --workspace --all-features --no-fail-fast
 
       - name: MCP quality and audit
         working-directory: mcp
+        shell: bash
         run: |
+          set -euo pipefail
           bun install --frozen-lockfile
           bun run typecheck
           bun run build
@@ -103,9 +107,11 @@ jobs:
           bun audit --production
 
       - name: Marketplace and role boundaries
+        shell: bash
         run: |
+          set -euo pipefail
           node scripts/validate-marketplace.mjs
-          node --test tests/qualification/hook-guard.test.mjs
+          node --test tests/qualification/*.test.mjs
 
       - name: Build release daemon
         run: cargo build --release --locked -p workflowd
@@ -217,6 +223,9 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
+      - name: Install pinned cargo-about
+        run: cargo install cargo-about --version 0.9.2 --locked
+
       - name: Download Windows native candidate
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
@@ -232,10 +241,14 @@ jobs:
       - name: Build MCP from the admitted source
         working-directory: mcp
         run: |
+          set -euo pipefail
           bun install --frozen-lockfile
           bun run typecheck
           bun run build
           bun run test
+
+      - name: Generate Rust license evidence
+        run: node scripts/release/generate-rust-licenses.mjs
 
       - name: Stage native bytes for assembly
         shell: bash

@@ -88,8 +88,8 @@ jobs:
       - name: ZCode marketplace contract
         run: node scripts/validate-marketplace.mjs
 
-      - name: Role boundary regression
-        run: node --test tests/qualification/hook-guard.test.mjs
+      - name: Role and release-evidence regression
+        run: node --test tests/qualification/*.test.mjs
 
       - name: Build release daemon
         run: cargo build --release --locked -p workflowd
@@ -135,8 +135,21 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
+      - name: Install pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Install pinned cargo-audit
         run: cargo install cargo-audit --version 0.22.2 --locked
 
       - name: Audit locked Rust dependencies
         run: cargo audit
+
+      - name: Install pinned cargo-about
+        run: cargo install cargo-about --version 0.9.2 --locked
+
+      - name: Verify Rust license evidence is reproducible
+        run: |
+          node scripts/release/generate-rust-licenses.mjs target/THIRD-PARTY-RUST-LICENSES.html
+          cmp THIRD-PARTY-RUST-LICENSES.html target/THIRD-PARTY-RUST-LICENSES.html
