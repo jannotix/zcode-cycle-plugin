@@ -10,6 +10,8 @@ target/
 .superpowers/
 coverage/
 .coverage/
+__pycache__/
+*.pyc
 test-results/
 playwright-report/
 fuzz/artifacts/

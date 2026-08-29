@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
-import { chmod, mkdtemp, mkdir, readFile, rm, stat } from "node:fs/promises"
+import { chmod, mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -115,9 +115,17 @@ try {
   assert.equal(guard.status, 0)
   assert.equal(JSON.parse(guard.stdout).hookSpecificOutput.permissionDecision, "deny")
 
-  process.stdout.write(
-    `${JSON.stringify({ archiveSha, health, materializedMode, platform: process.platform, version: product.version })}\n`,
-  )
+  const receipt = {
+    archiveSha,
+    health,
+    materializedMode,
+    platform: process.platform,
+    version: product.version,
+  }
+  const receiptText = `${JSON.stringify(receipt)}\n`
+  const receiptPath = values.get("receipt")
+  if (receiptPath) await writeFile(resolve(receiptPath), receiptText, "utf8")
+  process.stdout.write(receiptText)
 } finally {
   // Windows can briefly retain executable handles after process exit.
   await new Promise((resolveDelay) => setTimeout(resolveDelay, 100))
