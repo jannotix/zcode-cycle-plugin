@@ -3,11 +3,12 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|ApplyPatch|Bash",
+        "matcher": "Edit|Write|MultiEdit|ApplyPatch|NotebookEdit|Bash|Shell|Task|Agent",
         "hooks": [
           {
-            "type": "command",
-            "command": "node \"${ZCODE_PLUGIN_ROOT}/hooks/pre-tool-use.js\"",
+            "type": "process",
+            "command": "node",
+            "args": ["${ZCODE_PLUGIN_ROOT}/hooks/pre-tool-use.js"],
             "timeoutMs": 5000,
             "statusMessage": "ZCode Cycle: checking role boundaries"
           }
@@ -18,8 +19,9 @@
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "node \"${ZCODE_PLUGIN_ROOT}/hooks/post-tool-use.js\"",
+            "type": "process",
+            "command": "node",
+            "args": ["${ZCODE_PLUGIN_ROOT}/hooks/post-tool-use.js"],
             "timeoutMs": 5000,
             "statusMessage": "ZCode Cycle: recording tool audit"
           }

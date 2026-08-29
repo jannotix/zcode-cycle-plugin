@@ -28,7 +28,10 @@ remains out of scope.
    governed session's tool use into the ledger. Interactive browser
    actions are executor-only. No dispatched role can launch a workflow;
    arbitration is only accepted by the daemon in the arbitration state
-   for the exact frozen candidate digest.
+   for the exact frozen candidate digest. No role may delegate to another
+   subagent. The executor may add and commit its authorized worktree changes,
+   but the hook rejects Git operations that switch or rewrite history,
+   destroy candidate state, create another worktree, tag or publish.
 4. **Browser.** Isolated profile per session; loopback only by default;
    external origins blocked (including background requests) until
    explicit user approval; uploads confined to the project directory;
@@ -47,6 +50,10 @@ remains out of scope.
   destructive verbs; secret scanning runs over changed content; manual
   memories cannot claim verified confidence and must cite ledger events.
 - Promotion is fast-forward only onto the recorded base revision.
+- A malformed payload delivered to the high-risk PreToolUse hook is denied.
+  Host and registry role identities must agree. Valid calls from sessions
+  unrelated to Cycle are left to ZCode's own permission and confirmation
+  policy; Cycle never weakens or bypasses that policy.
 
 ## Assumptions
 
