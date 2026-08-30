@@ -92,7 +92,23 @@ jobs:
         run: node --test tests/qualification/*.test.mjs
 
       - name: Build release daemon
+        env:
+          RUSTFLAGS: ${{ runner.os == 'Windows' && '-C link-arg=/Brepro' || '' }}
         run: cargo build --release --locked -p workflowd
+
+      - name: Verify reproducible Windows relink
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RUSTFLAGS: -C link-arg=/Brepro
+        run: |
+          $first = (Get-FileHash -LiteralPath '${{ matrix.binary }}' -Algorithm SHA256).Hash
+          Remove-Item -LiteralPath '${{ matrix.binary }}' -Force
+          cargo build --release --locked -p workflowd
+          $second = (Get-FileHash -LiteralPath '${{ matrix.binary }}' -Algorithm SHA256).Hash
+          if ($first -ne $second) {
+            throw "Windows release relink is not reproducible: $first != $second"
+          }
 
       - name: Runtime smoke
         run: node scripts/release/smoke-runtime.mjs
