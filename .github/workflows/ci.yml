@@ -86,7 +86,9 @@ jobs:
         run: bun audit --production
 
       - name: ZCode marketplace contract
-        run: node scripts/validate-marketplace.mjs
+        run: |
+          node scripts/packaging/verify-plugin-source-sync.mjs
+          node scripts/validate-marketplace.mjs
 
       - name: Role and release-evidence regression
         run: node --test tests/qualification/*.test.mjs

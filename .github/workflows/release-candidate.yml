@@ -282,7 +282,9 @@ jobs:
         run: bun scripts/release/generate-supply-chain.mjs --plugin plugin --source-sha ${{ needs.admission.outputs.sha }}
 
       - name: Validate assembled marketplace content
-        run: node scripts/validate-marketplace.mjs
+        run: |
+          node scripts/packaging/verify-plugin-source-sync.mjs
+          node scripts/validate-marketplace.mjs
 
       - name: Build official-format immutable ZIP
         run: python scripts/packaging/package-plugin.py --plugin plugin --output sealed/zcode-cycle-${{ env.VERSION }}.zip

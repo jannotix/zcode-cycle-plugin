@@ -52247,7 +52247,8 @@ import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypt
 import { lstat as lstat2, mkdir as mkdir2, readFile as readFile2, rename as rename2, rm as rm2, writeFile } from "node:fs/promises";
 import { dirname, join as join2, resolve as resolve2 } from "node:path";
 var MAX_PROFILE_BYTES = 256 * 1024;
-var MODEL = /^(?:inherit|[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+)$/u;
+var MODEL_REF = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+$/u;
+var CUSTOM_MODEL_REF = /^custom:(?:[A-Za-z0-9._+\/-]|%[0-9A-Fa-f]{2})+:(?:[A-Za-z0-9._:+\/-]|%[0-9A-Fa-f]{2})+$/u;
 var THOUGHT_LEVELS = new Set(["low", "medium", "high", "max"]);
 var ROLE_PROFILES = [
   { file: "architect.md", role: "architect" },
@@ -52301,8 +52302,9 @@ async function manageRoleProfiles(options) {
       rejectStates(records, new Set(["missing", "managed-drift", "conflict"]), "configure");
       const role = canonicalRole(options.role);
       const model = options.model ?? "inherit";
-      if (!MODEL.test(model))
-        throw new Error("role-profile model must be inherit or provider/model");
+      if (!validModel(model)) {
+        throw new Error("role-profile model must be inherit, provider/model or a ZCode custom:provider:model value");
+      }
       const thoughtLevel = options.thoughtLevel ?? "high";
       if (!THOUGHT_LEVELS.has(thoughtLevel)) {
         throw new Error("role-profile thought level must be low, medium, high or max");
@@ -52396,10 +52398,13 @@ function configuredProfile(content, template, role) {
     return null;
   const model = /^model:\s*(\S+)\s*$/mu.exec(content)?.[1];
   const thoughtLevel = /^thoughtLevel:\s*(\S+)\s*$/mu.exec(content)?.[1];
-  if (!model || !MODEL.test(model) || !thoughtLevel || !THOUGHT_LEVELS.has(thoughtLevel))
+  if (!model || !validModel(model) || !thoughtLevel || !THOUGHT_LEVELS.has(thoughtLevel))
     return null;
   const normalized = content.replace(/^model:.*$/mu, "model: inherit").replace(/^thoughtLevel:.*$/mu, "thoughtLevel: high");
   return normalized === template ? { model, thought_level: thoughtLevel } : null;
+}
+function validModel(value) {
+  return value === "inherit" || MODEL_REF.test(value) || CUSTOM_MODEL_REF.test(value);
 }
 function rejectStates(records, denied, action) {
   const blocked = records.filter((record2) => denied.has(record2.state));
