@@ -9,7 +9,7 @@
     },
     "win32-x64": {
       "path": "bin/win32-x64/workflowd.exe",
-      "sha256": "95fd2c968bad225f17a8621abfe8b8da7d7cafef36c32bdfe028a5559db74eb2",
+      "sha256": "c714873bac506c696d4cff1002aab034528215781e87b6e3f1c47f3baa16887e",
       "size": 37723136
     }
   }
