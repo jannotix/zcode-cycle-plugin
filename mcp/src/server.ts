@@ -9,10 +9,6 @@ import {
   type HistoryOperation,
   type MemoryOperation,
 } from "./client.js"
-import { BrowserEvidenceRegistry } from "./browser/browser-evidence.js"
-import { BrowserManager } from "./browser/browser-manager.js"
-import { ManagedBrowserSessionFactory } from "./browser/managed-browser-session.js"
-import { attestForVerification, browserRun } from "./browser/browser-ops.js"
 import { architecturePlanSchema, validateArchitecturePlan } from "./architecture-plan.js"
 import { manageRoleProfiles } from "./role-profiles.js"
 import { productVersion } from "./version.js"
@@ -59,19 +55,25 @@ const allowedOrigins = process.env.ZCODE_CYCLE_BROWSER_ALLOWED_ORIGINS?.split(",
   .map((origin) => origin.trim())
   .filter(Boolean)
 
-const browserManager = new BrowserManager({
-  ...(allowedOrigins !== undefined && allowedOrigins.length > 0 ? { allowedOrigins } : {}),
-  artifactDirectory: join(dataDirectory, "browser"),
-  create: (input) =>
-    new ManagedBrowserSessionFactory({
-      ...(process.env.ZCODE_CYCLE_BROWSER ? { browserExecutable: process.env.ZCODE_CYCLE_BROWSER } : {}),
-      headless: process.env.ZCODE_CYCLE_BROWSER_HEADLESS !== "false",
-      projectDirectory: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
-    }).create(input),
-  maxSessions: 2,
-})
+interface BrowserRuntime {
+  attest(args: Record<string, unknown>): Promise<readonly unknown[]>
+  dispose(): Promise<void>
+  run(input: {
+    readonly command: Record<string, unknown>
+    readonly registration: { role: string } | undefined
+    readonly sessionId: string
+  }): Promise<unknown>
+}
 
-const browserEvidence = new BrowserEvidenceRegistry(join(dataDirectory, "browser"))
+let browserRuntimePromise: Promise<BrowserRuntime> | undefined
+
+function browserRuntime(): Promise<BrowserRuntime> {
+  browserRuntimePromise ??= import(new URL("./browser-runtime.js", import.meta.url).href).then(
+    (module: { createBrowserRuntime(options: object): BrowserRuntime }) =>
+      module.createBrowserRuntime({ allowedOrigins, dataDirectory }),
+  )
+  return browserRuntimePromise
+}
 
 async function readRegistry(): Promise<Record<string, RoleRegistration>> {
   try {
@@ -257,10 +259,9 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
         )
       }
       let attestations = Array.isArray(args.attestations) ? args.attestations : []
-      attestations = [
-        ...attestations,
-        ...(await attestForVerification(args, browserEvidence)),
-      ]
+      if (Array.isArray(args.browser_session_ids) && args.browser_session_ids.length > 0) {
+        attestations = [...attestations, ...(await (await browserRuntime()).attest(args))]
+      }
       return plane.verifyCandidate(
         projectKey,
         workflowId,
@@ -274,11 +275,9 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
       if (!sessionId || !text(args.operation)) {
         throw new Error("cycle_browser requires session_id and operation")
       }
-      return browserRun({
+      return (await browserRuntime()).run({
         command: args,
-        manager: browserManager,
         registration: (await readRegistry())[sessionId],
-        registry: browserEvidence,
         sessionId,
       })
     }
@@ -780,9 +779,11 @@ async function main(): Promise<void> {
     })
   })
   process.stdin.on("close", () => {
-    void Promise.allSettled([plane.dispose(), browserManager.dispose()]).finally(() =>
-      process.exit(0),
-    )
+    const disposeBrowser = browserRuntimePromise?.then((runtime) => runtime.dispose())
+    void Promise.allSettled([
+      plane.dispose(),
+      ...(disposeBrowser === undefined ? [] : [disposeBrowser]),
+    ]).finally(() => process.exit(0))
   })
 }
 
