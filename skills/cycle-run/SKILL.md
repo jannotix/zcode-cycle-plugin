@@ -17,6 +17,11 @@ the role returns. The installed `zcode-cycle:<role>` project profile is the
 host identity used by the fail-closed Hook; the token binds audit and browser
 evidence to the workflow. Never reuse a token or invent a host session id.
 The token itself must be a UUID; labels such as `orchestrator-main` are invalid.
+Every role dispatch is fail closed: if the exact `zcode-cycle:<role>` profile
+cannot start for any reason (including an unsupported model or thought level),
+cancel or block the workflow and report the configuration error. Never retry
+with `general-purpose`, another profile, another model, or an unregistered
+session. A substitute agent is not evidence for the configured role.
 
 ## 0. Capture and start
 
