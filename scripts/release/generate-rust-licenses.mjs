@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process"
-import { readFile, stat, writeFile } from "node:fs/promises"
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const ROOT = resolve(dirname(dirname(dirname(fileURLToPath(import.meta.url)))))
 const output = resolve(process.argv[2] ?? join(ROOT, "THIRD-PARTY-RUST-LICENSES.html"))
+await mkdir(dirname(output), { recursive: true })
 const child = spawn(
   "cargo",
   [
