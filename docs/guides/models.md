@@ -11,10 +11,13 @@ inherit) and reasoning effort.
 
 ## Assign a model
 
-`/cycle:models <role> <provider/model|inherit> [low|medium|high|max]` where role is one of
+`/cycle:models <role> <model-ref|inherit> [low|medium|high|max]` where role is one of
 `architect`, `executor`, `functional-reviewer`, `security-reviewer`,
-`arbiter`. The provider/model identifier is the one your ZCode
-installation resolves. The tool preserves the security-critical prompt and
+`arbiter`. A model ref is either `provider/model` or the exact
+`custom:provider:model` value exposed by ZCode. Built-in subscription models
+use values such as `custom:builtin:zai-coding-plan:GLM-5.3`; never infer a
+shorter alias. The identifier must be one your ZCode installation resolves.
+The tool preserves the security-critical prompt and
 tool list; the override applies in a new session.
 
 ## Choosing models

@@ -32,7 +32,7 @@ control, recovery and expert use.
 
 | Command | What it does |
 |---|---|
-| `/cycle:models [role] [provider/model\|inherit] [thought-level]` | Inspect or safely configure a managed project role profile |
+| `/cycle:models [role] [model-ref\|inherit] [thought-level]` | Inspect or safely configure a managed project role profile |
 | `/cycle:permissions` | Show the immutable role boundaries and enforcement layers |
 | `/cycle:limits` | Show adaptive admission and repair limits |
 

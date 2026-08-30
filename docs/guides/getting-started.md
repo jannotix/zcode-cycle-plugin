@@ -27,8 +27,9 @@
 ## Model configuration
 
 Roles inherit your session model by default. Assign per-role models
-with `/cycle:models <role> <provider/model|inherit> [thought-level]` — for
-example `/cycle:models architect zai/GLM-5.3 high`. Assignments are constrained
+with `/cycle:models <role> <model-ref|inherit> [thought-level]` — for
+example `/cycle:models architect custom:builtin:zai-coding-plan:GLM-5.3 high`.
+Assignments are constrained
 changes to managed project profiles and apply in a new session. `/cycle:models`
 with no arguments shows every effective assignment.
 

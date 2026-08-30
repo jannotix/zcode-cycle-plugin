@@ -39,14 +39,27 @@ test("managed project role profiles install, configure, repair and remove fail c
     const configured = await manageRoleProfiles(
       options(projectRoot, "configure", {
         confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
-        model: "zai/GLM-5.3",
+        model: "custom:builtin:zai-coding-plan:GLM-5.3",
         role: "architect",
         thoughtLevel: "max",
       }),
     )
     const architect = configured.profiles.find((profile) => profile.role === "architect")
-    assert.equal(architect.model, "zai/GLM-5.3")
+    assert.equal(architect.model, "custom:builtin:zai-coding-plan:GLM-5.3")
     assert.equal(architect.thought_level, "max")
+
+    for (const model of ["custom:builtin:", "custom::GLM-5.3", "custom:builtin:zai plan"]) {
+      await assert.rejects(
+        manageRoleProfiles(
+          options(projectRoot, "configure", {
+            confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+            model,
+            role: "executor",
+          }),
+        ),
+        /custom:provider:model/u,
+      )
+    }
 
     const architectPath = join(projectRoot, ".zcode", "agents", "zcode-cycle-architect.md")
     await writeFile(architectPath, `${await readFile(architectPath, "utf8")}\nunauthorized drift\n`)

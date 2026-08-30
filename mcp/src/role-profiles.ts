@@ -3,7 +3,8 @@ import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 
 const MAX_PROFILE_BYTES = 256 * 1024
-const MODEL = /^(?:inherit|[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+)$/u
+const MODEL_REF = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+$/u
+const CUSTOM_MODEL_REF = /^custom:(?:[A-Za-z0-9._+\/-]|%[0-9A-Fa-f]{2})+:(?:[A-Za-z0-9._:+\/-]|%[0-9A-Fa-f]{2})+$/u
 const THOUGHT_LEVELS = new Set(["low", "medium", "high", "max"])
 
 const ROLE_PROFILES = [
@@ -91,7 +92,11 @@ export async function manageRoleProfiles(options: RoleProfileOptions): Promise<o
       rejectStates(records, new Set(["missing", "managed-drift", "conflict"]), "configure")
       const role = canonicalRole(options.role)
       const model = options.model ?? "inherit"
-      if (!MODEL.test(model)) throw new Error("role-profile model must be inherit or provider/model")
+      if (!validModel(model)) {
+        throw new Error(
+          "role-profile model must be inherit, provider/model or a ZCode custom:provider:model value",
+        )
+      }
       const thoughtLevel = options.thoughtLevel ?? "high"
       if (!THOUGHT_LEVELS.has(thoughtLevel)) {
         throw new Error("role-profile thought level must be low, medium, high or max")
@@ -200,11 +205,15 @@ function configuredProfile(
   if (!content.includes(marker(role))) return null
   const model = /^model:\s*(\S+)\s*$/mu.exec(content)?.[1]
   const thoughtLevel = /^thoughtLevel:\s*(\S+)\s*$/mu.exec(content)?.[1]
-  if (!model || !MODEL.test(model) || !thoughtLevel || !THOUGHT_LEVELS.has(thoughtLevel)) return null
+  if (!model || !validModel(model) || !thoughtLevel || !THOUGHT_LEVELS.has(thoughtLevel)) return null
   const normalized = content
     .replace(/^model:.*$/mu, "model: inherit")
     .replace(/^thoughtLevel:.*$/mu, "thoughtLevel: high")
   return normalized === template ? { model, thought_level: thoughtLevel } : null
+}
+
+function validModel(value: string): boolean {
+  return value === "inherit" || MODEL_REF.test(value) || CUSTOM_MODEL_REF.test(value)
 }
 
 function rejectStates(records: readonly ProfileRecord[], denied: ReadonlySet<ProfileState>, action: string): void {
