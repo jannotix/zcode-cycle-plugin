@@ -88,17 +88,24 @@ try {
     true,
   )
   const architectProfile = join(projectDirectory, ".zcode", "agents", "zcode-cycle-architect.md")
+  await manageRoleProfiles({
+    ...roleOptions,
+    operation: "configure",
+    confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+    model: "custom:builtin:zai-coding-plan:GLM-5.3",
+    role: "architect",
+    thoughtLevel: "max",
+  })
   await writeFile(architectProfile, `${await readFile(architectProfile, "utf8")}\nforced drift\n`)
-  assert.equal(
-    (
-      await manageRoleProfiles({
-        ...roleOptions,
-        operation: "repair",
-        confirmation: "REPAIR_ZCODE_CYCLE_ROLE_PROFILES",
-      })
-    ).ready,
-    true,
-  )
+  const repairedProfiles = await manageRoleProfiles({
+    ...roleOptions,
+    operation: "repair",
+    confirmation: "REPAIR_ZCODE_CYCLE_ROLE_PROFILES",
+  })
+  assert.equal(repairedProfiles.ready, true)
+  const repairedArchitect = repairedProfiles.profiles.find((profile) => profile.role === "architect")
+  assert.equal(repairedArchitect.model, "custom:builtin:zai-coding-plan:GLM-5.3")
+  assert.equal(repairedArchitect.thought_level, "max")
 
   const environment = {
     ...process.env,

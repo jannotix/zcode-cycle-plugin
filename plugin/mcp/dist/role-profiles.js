@@ -96,7 +96,10 @@ async function manageRoleProfiles(options) {
       rejectStates(records, new Set(["conflict"]), "repair");
       for (const record of records) {
         if (record.state !== "current") {
-          await writeAtomic(record.target, templates.get(record.role), record.state !== "missing");
+          const template = templates.get(record.role);
+          const settings = record.state === "managed-drift" && record.content ? extractManagedSettings(record.content, record.role) : null;
+          const repaired = settings ? template.replace(/^model:.*$/mu, `model: ${settings.model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${settings.thought_level}`) : template;
+          await writeAtomic(record.target, repaired, record.state !== "missing");
           changed = true;
         }
       }
@@ -198,14 +201,24 @@ async function inspectProfile(directory, role, file, template) {
   };
 }
 function configuredProfile(content, template, role) {
-  if (!content.includes(marker(role)))
-    return null;
-  const model = /^model:\s*(\S+)\s*$/mu.exec(content)?.[1];
-  const thoughtLevel = /^thoughtLevel:\s*(\S+)\s*$/mu.exec(content)?.[1];
-  if (!model || !validModel(model) || !thoughtLevel || !THOUGHT_LEVELS.has(thoughtLevel))
+  const settings = extractManagedSettings(content, role);
+  if (!settings)
     return null;
   const normalized = content.replace(/^model:.*$/mu, "model: inherit").replace(/^thoughtLevel:.*$/mu, "thoughtLevel: high");
-  return normalized === template ? { model, thought_level: thoughtLevel } : null;
+  return normalized === template ? settings : null;
+}
+function extractManagedSettings(content, role) {
+  if (!content.includes(marker(role)))
+    return null;
+  const models = [...content.matchAll(/^model:\s*(\S+)\s*$/gmu)].map((match) => match[1]);
+  const thoughtLevels = [...content.matchAll(/^thoughtLevel:\s*(\S+)\s*$/gmu)].map((match) => match[1]);
+  if (models.length !== 1 || thoughtLevels.length !== 1)
+    return null;
+  const model = models[0];
+  const thoughtLevel = thoughtLevels[0];
+  if (!validModel(model) || !THOUGHT_LEVELS.has(thoughtLevel))
+    return null;
+  return { model, thought_level: thoughtLevel };
 }
 function validModel(value) {
   return value === "inherit" || MODEL_REF.test(value) || CUSTOM_MODEL_REF.test(value);

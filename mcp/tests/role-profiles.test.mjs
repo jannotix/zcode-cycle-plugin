@@ -80,7 +80,14 @@ test("managed project role profiles install, configure, repair and remove fail c
       }),
     )
     assert.equal(repaired.ready, true)
-    assert.equal(repaired.profiles.find((profile) => profile.role === "architect").model, "inherit")
+    assert.equal(
+      repaired.profiles.find((profile) => profile.role === "architect").model,
+      "custom:builtin:zai-coding-plan:GLM-5.3",
+    )
+    assert.equal(
+      repaired.profiles.find((profile) => profile.role === "architect").thought_level,
+      "max",
+    )
 
     await assert.rejects(
       manageRoleProfiles(options(projectRoot, "remove")),
