@@ -1,6 +1,6 @@
 ---
 description: Inspect or safely configure a managed project role profile
-argument-hint: "[role] [model-ref|inherit] [low|medium|high|max]"
+argument-hint: "[role] [model-ref|inherit] [nothink|low|medium|high|max]"
 ---
 
 Handle model assignment with arguments: $ARGUMENTS
@@ -10,7 +10,8 @@ each role's effective model and thought level. Refuse configuration until all
 five profiles are `current`.
 
 With `role model-ref [thought-level]`: call `cycle_role_profiles` with
-operation `configure`, the exact role/model, thought level (default `high`)
+operation `configure`, the exact role/model, thought level (default `high`;
+`nothink` is supported for non-reasoning ZCode models)
 and confirmation `CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE`. `inherit`, a standard
 `provider/model`, or ZCode's exact `custom:provider:model` value are valid.
 Never invent or shorten a model ref. The tool preserves the security-critical prompt and tool list.

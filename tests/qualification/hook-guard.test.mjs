@@ -129,7 +129,7 @@ test("an executor profile cannot mutate outside a uniquely registered workflow",
   assert.match(denied(run(input, registered)), /ambiguous/u)
 })
 
-test("an active workflow locks main-session mutation but still permits role dispatch", () => {
+test("an active workflow locks mutation and permits only exact Cycle role dispatch", () => {
   const registry = {
     "workflow:active": {
       kind: "workflow_lock",
@@ -144,8 +144,32 @@ test("an active workflow locks main-session mutation but still permits role disp
       denied(run({ sessionId: "main", toolName, toolInput: {} }, registry)),
       /mutation-locked/u,
     )
-  for (const toolName of ["Read", "Task", "Agent"])
-    allowed(run({ sessionId: "main", toolName, toolInput: {} }, registry))
+  allowed(run({ sessionId: "main", toolName: "Read", toolInput: {} }, registry))
+  for (const toolName of ["Task", "Agent"]) {
+    allowed(
+      run(
+        {
+          sessionId: "main",
+          toolName,
+          toolInput: { subagent_type: "zcode-cycle:architect" },
+        },
+        registry,
+      ),
+    )
+    assert.match(
+      denied(
+        run(
+          {
+            sessionId: "main",
+            toolName,
+            toolInput: { subagent_type: "general-purpose" },
+          },
+          registry,
+        ),
+      ),
+      /only an exact zcode-cycle role/u,
+    )
+  }
 
   registry.executor = {
     kind: "role",

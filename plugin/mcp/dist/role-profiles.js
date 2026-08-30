@@ -53,7 +53,7 @@ import { dirname, join, resolve } from "node:path";
 var MAX_PROFILE_BYTES = 256 * 1024;
 var MODEL_REF = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+$/u;
 var CUSTOM_MODEL_REF = /^custom:(?:[A-Za-z0-9._+\/-]|%[0-9A-Fa-f]{2})+:(?:[A-Za-z0-9._:+\/-]|%[0-9A-Fa-f]{2})+$/u;
-var THOUGHT_LEVELS = new Set(["low", "medium", "high", "max"]);
+var THOUGHT_LEVELS = new Set(["nothink", "low", "medium", "high", "max"]);
 var ROLE_PROFILES = [
   { file: "architect.md", role: "architect" },
   { file: "executor.md", role: "executor" },
@@ -114,7 +114,7 @@ async function manageRoleProfiles(options) {
       }
       const thoughtLevel = options.thoughtLevel ?? "high";
       if (!THOUGHT_LEVELS.has(thoughtLevel)) {
-        throw new Error("role-profile thought level must be low, medium, high or max");
+        throw new Error("role-profile thought level must be nothink, low, medium, high or max");
       }
       const record = records.find((item) => item.role === role);
       const configured = record.content.replace(/^model:.*$/mu, `model: ${model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${thoughtLevel}`);

@@ -61,6 +61,18 @@ test("managed project role profiles install, configure, repair and remove fail c
       )
     }
 
+    const turbo = await manageRoleProfiles(
+      options(projectRoot, "configure", {
+        confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+        model: "custom:builtin:zai-coding-plan:GLM-5-Turbo",
+        role: "executor",
+        thoughtLevel: "nothink",
+      }),
+    )
+    const executor = turbo.profiles.find((profile) => profile.role === "executor")
+    assert.equal(executor.model, "custom:builtin:zai-coding-plan:GLM-5-Turbo")
+    assert.equal(executor.thought_level, "nothink")
+
     const architectPath = join(projectRoot, ".zcode", "agents", "zcode-cycle-architect.md")
     await writeFile(architectPath, `${await readFile(architectPath, "utf8")}\nunauthorized drift\n`)
     const drifted = await manageRoleProfiles(options(projectRoot, "status"))

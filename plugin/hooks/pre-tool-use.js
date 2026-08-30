@@ -330,6 +330,22 @@ async function main() {
   const role = registeredRole ?? hostRole
   if (role === null) {
     const workflowLocks = workflowLocksForProject(registry)
+    if (workflowLocks.length > 0 && DELEGATION_TOOLS.has(toolName)) {
+      const requestedRole = roleFromAgent({
+        agent_type:
+          input.toolInput?.subagent_type ??
+          input.toolInput?.agent_type ??
+          input.tool_input?.subagent_type ??
+          input.tool_input?.agent_type,
+      })
+      if (requestedRole === null) {
+        deny(
+          "an active Cycle workflow may dispatch only an exact zcode-cycle role profile",
+          null,
+        )
+        return
+      }
+    }
     if (workflowLocks.length > 0 && DENIED_FOR_READ_ONLY.has(toolName)) {
       deny(
         "the main orchestrator is mutation-locked while a Cycle workflow is active; dispatch a registered executor",
