@@ -33,12 +33,18 @@ const projectDirectory = join(root, "project")
 await Promise.all([mkdir(extract), mkdir(projectDirectory)])
 
 try {
-  const unpack = spawnSync("tar", ["-xf", archive, "-C", extract], {
+  const extractor =
+    process.platform === "win32"
+      ? { command: "tar", arguments: ["-xf", archive, "-C", extract] }
+      : { command: "unzip", arguments: ["-q", archive, "-d", extract] }
+  const unpack = spawnSync(extractor.command, extractor.arguments, {
     encoding: "utf8",
     shell: false,
   })
   if (unpack.error) throw unpack.error
-  if (unpack.status !== 0) throw new Error(unpack.stderr || "archive extraction failed")
+  if (unpack.status !== 0) {
+    throw new Error(unpack.stderr || `${extractor.command} archive extraction failed`)
+  }
 
   const pluginRoot = join(extract, "zcode-cycle")
   const required = [
