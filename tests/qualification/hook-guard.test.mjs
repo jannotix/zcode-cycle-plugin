@@ -129,6 +129,35 @@ test("an executor profile cannot mutate outside a uniquely registered workflow",
   assert.match(denied(run(input, registered)), /ambiguous/u)
 })
 
+test("an active workflow locks main-session mutation but still permits role dispatch", () => {
+  const registry = {
+    "workflow:active": {
+      kind: "workflow_lock",
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 1,
+      workflow_id: "active",
+    },
+  }
+  for (const toolName of ["Write", "Edit", "MultiEdit", "ApplyPatch", "NotebookEdit", "Bash", "Shell"])
+    assert.match(
+      denied(run({ sessionId: "main", toolName, toolInput: {} }, registry)),
+      /mutation-locked/u,
+    )
+  for (const toolName of ["Read", "Task", "Agent"])
+    allowed(run({ sessionId: "main", toolName, toolInput: {} }, registry))
+
+  registry.executor = {
+    kind: "role",
+    project_directory: ROOT,
+    project_key: "project",
+    registered_at_unix_millis: 2,
+    role: "executor",
+    workflow_id: "active",
+  }
+  allowed(run({ sessionId: "executor", toolName: "Write", toolInput: {} }, registry))
+})
+
 test("forbidden Git remains denied through options, paths, assignments and command chains", () => {
   const registry = {
     executor: {

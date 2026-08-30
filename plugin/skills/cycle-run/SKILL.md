@@ -23,7 +23,11 @@ The token itself must be a UUID; labels such as `orchestrator-main` are invalid.
 When armed (or on explicit implementation intent), take the user's request
 message **verbatim** — the whole message, never your summary — and call
 `cycle_start` with it. Record the returned `workflowId`, `mode` (quick or
-full) and `requestDigest`. Report the route and the repair budget (five).
+full) and `requestDigest`. Require `orchestrator_locked: true`; otherwise stop
+fail closed. From this point until terminal cleanup the main session never
+uses Edit, Write, ApplyPatch, MultiEdit, NotebookEdit, Bash or Shell — all
+implementation is performed by a registered executor. Report the route and
+the repair budget (five).
 
 ## 1. Architecture
 
@@ -47,16 +51,20 @@ permit worktree creation until the plan has been accepted and stored.
    and powershell are blocked) runnable from the repository root.
 4. Before calling `cycle_submit_architecture`, require exactly the documented
    plan fields: no `plan_id`, string requirements, `description` tasks, short
-   IDs or missing `request_digest`. Submit only a schema-valid graph. Rejected:
-   send the exact validation reason back to the architect and repeat (at most
-   five attempts; then `cycle_report_execution` `blocked` and stop).
-5. Revoke the architect role token.
+   IDs or missing `request_digest`. Continue only with a schema-valid graph.
+5. Call `cycle_submit_architecture` with the architect token as
+   `role_session_id`. Revoke the architect role token only after the accepted
+   receipt. Rejected: send the exact validation reason back to the architect
+   and repeat (at most five attempts; then `cycle_report_execution` `blocked`
+   and stop).
 
 ## 2. Worktree
 
 Only after `cycle_submit_architecture` returns `accepted: true`, call
 `cycle_prepare_worktree` and record the returned `path` and `baseRevision`.
 All execution happens inside that path, never in the project directory.
+The main session is mutation-locked and must dispatch the executor into the
+returned path; it never implements a "quick" change in place.
 
 ## 3. Execution
 
@@ -106,15 +114,17 @@ All execution happens inside that path, never in the project directory.
    parallel — each with the verbatim original request, the plan, the
    candidate manifest, the verification evidence and, when present, the
    project standards file content.
-3. Collect both verdict JSONs and `cycle_submit_review` each. Revoke both
-   tokens.
+3. Collect both verdict JSONs and `cycle_submit_review` each with its matching
+   reviewer token as `role_session_id`. Revoke both tokens only after accepted
+   receipts.
 
 ## 6. Arbitration
 
 1. Create and register an arbiter role token.
 2. Dispatch `zcode-cycle:arbiter` with the verbatim original request, the
    candidate manifest, the raw evidence records and both review verdicts.
-3. `cycle_submit_arbitration` with its verdict JSON.
+3. `cycle_submit_arbitration` with its verdict JSON and the arbiter token as
+   `role_session_id`.
    - Approved: `cycle_promote_candidate` with the project directory, then
      report the delivered paths and the final state. Audit an
      `approved_candidate_delivered` observation. Done.

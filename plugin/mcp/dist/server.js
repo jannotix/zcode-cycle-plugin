@@ -1610,6 +1610,50 @@ async function writeRegistry(registry) {
   await rm3(registryPath, { force: true });
   await rename3(temporary, registryPath);
 }
+function isRoleRegistration(value) {
+  return value !== undefined && value.kind !== "workflow_lock" && typeof value.role === "string";
+}
+function isWorkflowLock(value) {
+  return value?.kind === "workflow_lock";
+}
+function workflowLockKey(workflowId) {
+  return `workflow:${workflowId}`;
+}
+async function lockWorkflow(projectKey, workflowId) {
+  const registry = await readRegistry();
+  registry[workflowLockKey(workflowId)] = {
+    kind: "workflow_lock",
+    project_directory: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
+    project_key: projectKey,
+    registered_at_unix_millis: Date.now(),
+    workflow_id: workflowId
+  };
+  await writeRegistry(registry);
+}
+async function unlockWorkflow(workflowId) {
+  const registry = await readRegistry();
+  delete registry[workflowLockKey(workflowId)];
+  for (const [key, value] of Object.entries(registry)) {
+    if (isRoleRegistration(value) && value.workflow_id === workflowId)
+      delete registry[key];
+  }
+  await writeRegistry(registry);
+}
+function terminalWorkflowState(value) {
+  if (typeof value !== "object" || value === null)
+    return false;
+  const record2 = value;
+  const state = record2.state ?? record2.workflowState;
+  return state === "completed" || state === "cancelled";
+}
+async function requireRoleSession(args, expectedRoles, projectKey, workflowId) {
+  const sessionId = text2(args.role_session_id);
+  const registration = (await readRegistry())[sessionId];
+  if (!UUID3.test(sessionId) || !isRoleRegistration(registration) || !expectedRoles.has(registration.role) || registration.project_key !== projectKey || registration.workflow_id !== workflowId) {
+    throw new Error(`role-bound submission requires an active ${[...expectedRoles].join(" or ")} role_session_id`);
+  }
+  return registration;
+}
 function text2(value) {
   return typeof value === "string" ? value : JSON.stringify(value ?? null);
 }
@@ -1621,16 +1665,34 @@ async function callTool(name, rawArgs) {
       return { ...await plane.health(), data_directory: dataDirectory };
     case "cycle_start": {
       const preference = args.preference === "quick" || args.preference === "full" || args.preference === "auto" ? args.preference : undefined;
-      return plane.startWorkflow({
+      const started = await plane.startWorkflow({
         originalRequest: text2(args.original_request),
         ...preference !== undefined ? { preference } : {},
         projectKey,
         ...Array.isArray(args.affected_paths) ? { affectedPaths: args.affected_paths.map(String) } : {},
         ...Array.isArray(args.attachment_hashes) ? { attachmentHashes: args.attachment_hashes.map(String) } : {}
       });
+      try {
+        await lockWorkflow(projectKey, started.workflowId);
+      } catch (error) {
+        await plane.control(projectKey, "cancel", started.workflowId).catch(() => {
+          return;
+        });
+        throw error;
+      }
+      return {
+        ...started,
+        next_phase: "architecture",
+        orchestrator_locked: true
+      };
     }
-    case "cycle_control":
-      return plane.control(projectKey, args.operation ?? "status", typeof args.workflow_id === "string" ? args.workflow_id : undefined);
+    case "cycle_control": {
+      const workflowId = typeof args.workflow_id === "string" ? args.workflow_id : undefined;
+      const result = await plane.control(projectKey, args.operation ?? "status", workflowId);
+      if (workflowId !== undefined && terminalWorkflowState(result))
+        await unlockWorkflow(workflowId);
+      return result;
+    }
     case "cycle_audit": {
       const observation = args.observation;
       if (typeof observation !== "object" || observation === null) {
@@ -1668,12 +1730,20 @@ async function callTool(name, rawArgs) {
         throw new Error("cycle_role_register requires a UUID session_id and a known role");
       }
       const registry = await readRegistry();
+      const workflowId = typeof args.workflow_id === "string" ? args.workflow_id : null;
+      if (workflowId !== null) {
+        const lock = registry[workflowLockKey(workflowId)];
+        if (!isWorkflowLock(lock) || lock.project_key !== projectKey) {
+          throw new Error("cycle_role_register requires an active workflow lock");
+        }
+      }
       registry[sessionId] = {
+        kind: "role",
         project_directory: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
         project_key: projectKey,
         registered_at_unix_millis: Date.now(),
         role,
-        workflow_id: typeof args.workflow_id === "string" ? args.workflow_id : null
+        workflow_id: workflowId
       };
       await writeRegistry(registry);
       return { registered: sessionId, role };
@@ -1681,13 +1751,16 @@ async function callTool(name, rawArgs) {
     case "cycle_role_revoke": {
       const sessionId = text2(args.session_id);
       const registry = await readRegistry();
-      const revoked = registry[sessionId] ?? null;
-      delete registry[sessionId];
+      const revoked = isRoleRegistration(registry[sessionId]) ? registry[sessionId] : null;
+      if (revoked !== null)
+        delete registry[sessionId];
       await writeRegistry(registry);
       return { revoked };
     }
-    case "cycle_role_list":
-      return readRegistry();
+    case "cycle_role_list": {
+      const registry = await readRegistry();
+      return Object.fromEntries(Object.entries(registry).filter(([, value]) => isRoleRegistration(value)));
+    }
     case "cycle_code_index": {
       const projectDirectory = text2(args.project_directory);
       const workflowId = text2(args.workflow_id);
@@ -1702,6 +1775,7 @@ async function callTool(name, rawArgs) {
         throw new Error("cycle_submit_architecture requires workflow_id and a plan object");
       }
       const plan = validateArchitecturePlan(args.plan);
+      await requireRoleSession(args, new Set(["architect"]), projectKey, workflowId);
       await plane.submitArchitecture(projectKey, workflowId, plan);
       return { accepted: true, workflow_id: workflowId };
     }
@@ -1748,9 +1822,10 @@ async function callTool(name, rawArgs) {
       if (!sessionId || !text2(args.operation)) {
         throw new Error("cycle_browser requires session_id and operation");
       }
+      const registration = (await readRegistry())[sessionId];
       return (await browserRuntime()).run({
         command: args,
-        registration: (await readRegistry())[sessionId],
+        registration: isRoleRegistration(registration) ? registration : undefined,
         sessionId
       });
     }
@@ -1761,6 +1836,7 @@ async function callTool(name, rawArgs) {
       if (!workflowId || !candidateId || typeof verdict !== "object" || verdict === null) {
         throw new Error("cycle_submit_review requires workflow_id, candidate_id and verdict");
       }
+      await requireRoleSession(args, new Set(["functional_reviewer", "security_reviewer"]), projectKey, workflowId);
       return plane.submitReview(projectKey, workflowId, candidateId, verdict);
     }
     case "cycle_submit_arbitration": {
@@ -1770,6 +1846,7 @@ async function callTool(name, rawArgs) {
       if (!workflowId || !candidateId || typeof verdict !== "object" || verdict === null) {
         throw new Error("cycle_submit_arbitration requires workflow_id, candidate_id and verdict");
       }
+      await requireRoleSession(args, new Set(["arbiter"]), projectKey, workflowId);
       return plane.submitArbitration(projectKey, workflowId, candidateId, verdict);
     }
     case "cycle_report_execution": {
@@ -1787,7 +1864,10 @@ async function callTool(name, rawArgs) {
       if (!workflowId || !candidateId || !projectDirectory) {
         throw new Error("cycle_promote_candidate requires workflow_id, candidate_id and project_directory");
       }
-      return plane.promoteCandidate(projectKey, workflowId, candidateId, projectDirectory);
+      const result = await plane.promoteCandidate(projectKey, workflowId, candidateId, projectDirectory);
+      if (terminalWorkflowState(result))
+        await unlockWorkflow(workflowId);
+      return result;
     }
     default:
       throw new Error(`unknown tool: ${name}`);
@@ -1799,7 +1879,7 @@ var TOOLS = {
     inputSchema: { type: "object", properties: {}, additionalProperties: false }
   },
   cycle_start: {
-    description: "Start a governed workflow for the exact original user request. Returns the workflow id, the deterministic route (quick or full) and the immutable request digest.",
+    description: "Start a governed workflow for the exact original user request. Returns the workflow id, deterministic route and immutable request digest, and locks main-session mutation until terminal cleanup; dispatch registered roles for all implementation.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1894,7 +1974,7 @@ var TOOLS = {
     }
   },
   cycle_role_register: {
-    description: "Register a dispatched role session (architect, executor, functional_reviewer, security_reviewer, arbiter) so the PreToolUse hook enforces its boundaries and audits its tool use.",
+    description: "Register a dispatched role session (architect, executor, functional_reviewer, security_reviewer, arbiter) against an active workflow lock so the PreToolUse hook enforces its boundaries and audits its tool use.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2005,20 +2085,21 @@ var TOOLS = {
     }
   },
   cycle_submit_architecture: {
-    description: "Submit the architect's task graph for validation and state transition. The daemon rejects invalid graphs and out-of-order submissions.",
+    description: "Submit the architect's task graph with its active architect role_session_id. The bridge and daemon reject unbound roles, invalid graphs and out-of-order submissions.",
     inputSchema: {
       type: "object",
       properties: {
         project_key: { type: "string" },
         workflow_id: { type: "string" },
+        role_session_id: { type: "string" },
         plan: architecturePlanSchema
       },
-      required: ["project_key", "workflow_id", "plan"],
+      required: ["project_key", "workflow_id", "role_session_id", "plan"],
       additionalProperties: false
     }
   },
   cycle_prepare_worktree: {
-    description: "Prepare the isolated git worktree for execution and record its base revision.",
+    description: "After an accepted architecture, prepare the isolated git worktree and record its base revision. The main session is mutation-locked: dispatch a registered executor into the returned path and never edit project_directory.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2076,30 +2157,32 @@ var TOOLS = {
     }
   },
   cycle_submit_review: {
-    description: "Submit an independent review verdict (functional or security reviewer) for the frozen candidate.",
+    description: "Submit an independent review verdict with the active functional or security reviewer role_session_id.",
     inputSchema: {
       type: "object",
       properties: {
         project_key: { type: "string" },
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
+        role_session_id: { type: "string" },
         verdict: { type: "object" }
       },
-      required: ["project_key", "workflow_id", "candidate_id", "verdict"],
+      required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false
     }
   },
   cycle_submit_arbitration: {
-    description: "Submit the arbiter's final verdict. Only valid after verification (and reviews in full mode); the daemon refuses out-of-order arbitration.",
+    description: "Submit the arbiter's final verdict with its active arbiter role_session_id. Only valid after verification (and reviews in full mode).",
     inputSchema: {
       type: "object",
       properties: {
         project_key: { type: "string" },
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
+        role_session_id: { type: "string" },
         verdict: { type: "object" }
       },
-      required: ["project_key", "workflow_id", "candidate_id", "verdict"],
+      required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false
     }
   },

@@ -48,13 +48,14 @@ const DEFER_REASONS = new Set([
   "recovery_backpressure",
 ])
 
-async function hookDecision(dataDir, input) {
+async function hookDecision(dataDir, input, projectDirectory) {
   const result = await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [process.env.F6_HOOK ?? `${ROOT}/hooks/pre-tool-use.js`], {
       env: {
         ...process.env,
         ZCODE_CYCLE_DATA_DIR: dataDir,
         ZCODE_PLUGIN_ROOT: process.env.F6_PLUGIN_ROOT ?? `${ROOT}`,
+        ...(projectDirectory ? { ZCODE_PROJECT_DIR: projectDirectory } : {}),
       },
       stdio: ["pipe", "pipe", "ignore"],
     })
@@ -313,7 +314,8 @@ async function main() {
       check(
         "mcp publishes the strict architecture schema",
         architectureTool?.inputSchema?.properties?.plan?.additionalProperties === false &&
-          architectureTool.inputSchema.properties.plan.required.includes("request_digest"),
+          architectureTool.inputSchema.properties.plan.required.includes("request_digest") &&
+          architectureTool.inputSchema.required.includes("role_session_id"),
         architectureTool,
       )
       const malformedArchitecture = await request("tools/call", {
@@ -353,6 +355,132 @@ async function main() {
         invalidRoleToken.isError === true && /UUID session_id/u.test(invalidRoleToken.content?.[0]?.text ?? ""),
         invalidRoleToken,
       )
+
+      const mcpRegistryPath = join(dataDir, "runtime", "role-sessions.json")
+      const lockedStartCall = await request("tools/call", {
+        name: "cycle_start",
+        arguments: {
+          original_request: "Add one bounded fixture behavior with a test",
+          preference: "quick",
+          project_key: "battery-lock-project",
+        },
+      })
+      const lockedStart = JSON.parse(lockedStartCall.content?.[0]?.text ?? "null")
+      const lockedRegistry = JSON.parse(await readFile(mcpRegistryPath, "utf8"))
+      check(
+        "mcp start creates a main-session mutation lock",
+        lockedStartCall.isError === false &&
+          lockedStart?.orchestrator_locked === true &&
+          lockedRegistry[`workflow:${lockedStart.workflowId}`]?.kind === "workflow_lock",
+        { lockedStart, lockedRegistry },
+      )
+      const lockedMain = await hookDecision(
+        dataDir,
+        {
+          sessionId: "main-session",
+          toolName: "Write",
+          toolInput: { file_path: "x.txt", content: "unsafe" },
+        },
+        fixture,
+      )
+      check(
+        "hook denies main-session mutation during an active workflow",
+        lockedMain.hookSpecificOutput?.permissionDecision === "deny" &&
+          /mutation-locked/u.test(lockedMain.hookSpecificOutput?.permissionDecisionReason ?? ""),
+        lockedMain,
+      )
+
+      const lockedTaskId = randomUUID()
+      const lockedPlan = {
+        assumptions: [],
+        integration_checks: ["Run the fixture test from the repository root."],
+        request_digest: lockedStart.requestDigest,
+        requirements: [
+          {
+            acceptance_criteria: ["The bounded behavior is covered by a passing test."],
+            id: "REQ-LOCK-1",
+            statement: "Implement the bounded fixture behavior.",
+          },
+        ],
+        risks: [],
+        tasks: [
+          {
+            acceptance_criteria: ["The fixture test passes."],
+            dependencies: [],
+            id: lockedTaskId,
+            objective: "Implement and test the bounded behavior.",
+            requirement_ids: ["REQ-LOCK-1"],
+            title: "Implement bounded behavior",
+            verification_commands: ["node test.js"],
+            write_scopes: ["utils.js", "test.js"],
+          },
+        ],
+      }
+      const unboundArchitecture = await request("tools/call", {
+        name: "cycle_submit_architecture",
+        arguments: {
+          plan: lockedPlan,
+          project_key: "battery-lock-project",
+          workflow_id: lockedStart.workflowId,
+        },
+      })
+      check(
+        "mcp rejects architecture without an architect role token",
+        unboundArchitecture.isError === true &&
+          /architect role_session_id/u.test(unboundArchitecture.content?.[0]?.text ?? ""),
+        unboundArchitecture,
+      )
+      const architectToken = randomUUID()
+      const boundArchitect = await request("tools/call", {
+        name: "cycle_role_register",
+        arguments: {
+          project_key: "battery-lock-project",
+          role: "architect",
+          session_id: architectToken,
+          workflow_id: lockedStart.workflowId,
+        },
+      })
+      const acceptedArchitecture = await request("tools/call", {
+        name: "cycle_submit_architecture",
+        arguments: {
+          plan: lockedPlan,
+          project_key: "battery-lock-project",
+          role_session_id: architectToken,
+          workflow_id: lockedStart.workflowId,
+        },
+      })
+      const lockedWorktree = await request("tools/call", {
+        name: "cycle_prepare_worktree",
+        arguments: {
+          project_directory: fixture,
+          project_key: "battery-lock-project",
+          workflow_id: lockedStart.workflowId,
+        },
+      })
+      check(
+        "bound architect unlocks isolated worktree preparation",
+        boundArchitect.isError === false &&
+          acceptedArchitecture.isError === false &&
+          lockedWorktree.isError === false,
+        { boundArchitect, acceptedArchitecture, lockedWorktree },
+      )
+      const lockedCancel = await request("tools/call", {
+        name: "cycle_control",
+        arguments: {
+          operation: "cancel",
+          project_key: "battery-lock-project",
+          workflow_id: lockedStart.workflowId,
+        },
+      })
+      const afterLockedCancel = JSON.parse(await readFile(mcpRegistryPath, "utf8"))
+      check(
+        "terminal cleanup removes workflow lock and bound roles",
+        lockedCancel.isError === false &&
+          afterLockedCancel[`workflow:${lockedStart.workflowId}`] === undefined &&
+          afterLockedCancel[architectToken] === undefined,
+        { lockedCancel, afterLockedCancel },
+      )
+
       const roleToken = randomUUID()
       const registerRole = await request("tools/call", {
         name: "cycle_role_register",

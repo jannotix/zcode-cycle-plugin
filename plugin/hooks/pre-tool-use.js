@@ -151,6 +151,19 @@ function registrationForHostRole(registry, role) {
     : { ambiguous: candidates.length > 1, registration: undefined }
 }
 
+function workflowLocksForProject(registry) {
+  const projectDirectory = process.env.ZCODE_PROJECT_DIR
+  if (!projectDirectory) return []
+  return Object.values(registry).filter(
+    (item) =>
+      typeof item === "object" &&
+      item !== null &&
+      item.kind === "workflow_lock" &&
+      typeof item.workflow_id === "string" &&
+      sameProject(item.project_directory, projectDirectory),
+  )
+}
+
 function auditAsync(observation) {
   const pluginRoot = process.env.ZCODE_PLUGIN_ROOT || process.env.CLAUDE_PLUGIN_ROOT
   if (!pluginRoot) return
@@ -316,6 +329,14 @@ async function main() {
 
   const role = registeredRole ?? hostRole
   if (role === null) {
+    const workflowLocks = workflowLocksForProject(registry)
+    if (workflowLocks.length > 0 && DENIED_FOR_READ_ONLY.has(toolName)) {
+      deny(
+        "the main orchestrator is mutation-locked while a Cycle workflow is active; dispatch a registered executor",
+        null,
+      )
+      return
+    }
     decision("allow")
     return
   }
