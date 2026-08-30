@@ -16,6 +16,7 @@ and include the token in the dispatched prompt. Revoke that exact token after
 the role returns. The installed `zcode-cycle:<role>` project profile is the
 host identity used by the fail-closed Hook; the token binds audit and browser
 evidence to the workflow. Never reuse a token or invent a host session id.
+The token itself must be a UUID; labels such as `orchestrator-main` are invalid.
 
 ## 0. Capture and start
 
@@ -26,12 +27,17 @@ full) and `requestDigest`. Report the route and the repair budget (five).
 
 ## 1. Architecture
 
+Quick and full modes both require a validated architecture plan. A quick
+workflow enters `quick_execution` immediately, but that state does **not**
+permit worktree creation until the plan has been accepted and stored.
+
 1. Create and register an architect role token.
 2. `cycle_code_index` for the workflow; pass the paths and scopes summary
    to the architect as context. Include the project standards file
    (`.zcode-cycle/standards.md` in the project root) when it exists.
-3. Dispatch `zcode-cycle:architect` with the verbatim request and the code
-   context. Interrogate the returned graph before submitting: every risk
+3. Dispatch `zcode-cycle:architect` with the verbatim request, the exact
+   `requestDigest` returned by `cycle_start`, and the code context. Interrogate
+   the returned graph before submitting: every risk
    and ambiguity the architect recorded gets a forcing question answered
    or explicitly accepted by the user; unresolved material ambiguity goes
    back to the architect, not forward to execution. Protocol requirements
@@ -39,14 +45,17 @@ full) and `requestDigest`. Report the route and the repair budget (five).
    `write_scopes` are repository-relative; `verification_commands` are
    single commands (no `&&`, `||`, `;`, pipes or redirections; git, sh
    and powershell are blocked) runnable from the repository root.
-4. `cycle_submit_architecture` with the graph. Rejected: send the daemon's
-   reason back to the architect and repeat (at most five attempts; then
-   `cycle_report_execution` `blocked` and stop).
+4. Before calling `cycle_submit_architecture`, require exactly the documented
+   plan fields: no `plan_id`, string requirements, `description` tasks, short
+   IDs or missing `request_digest`. Submit only a schema-valid graph. Rejected:
+   send the exact validation reason back to the architect and repeat (at most
+   five attempts; then `cycle_report_execution` `blocked` and stop).
 5. Revoke the architect role token.
 
 ## 2. Worktree
 
-`cycle_prepare_worktree` — record the returned `path` and `baseRevision`.
+Only after `cycle_submit_architecture` returns `accepted: true`, call
+`cycle_prepare_worktree` and record the returned `path` and `baseRevision`.
 All execution happens inside that path, never in the project directory.
 
 ## 3. Execution

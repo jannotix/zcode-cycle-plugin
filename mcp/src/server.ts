@@ -13,6 +13,7 @@ import { BrowserEvidenceRegistry } from "./browser/browser-evidence.js"
 import { BrowserManager } from "./browser/browser-manager.js"
 import { ManagedBrowserSessionFactory } from "./browser/managed-browser-session.js"
 import { attestForVerification, browserRun } from "./browser/browser-ops.js"
+import { architecturePlanSchema, validateArchitecturePlan } from "./architecture-plan.js"
 import { manageRoleProfiles } from "./role-profiles.js"
 import { productVersion } from "./version.js"
 
@@ -175,8 +176,8 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
     case "cycle_role_register": {
       const sessionId = text(args.session_id)
       const role = text(args.role)
-      if (!sessionId || ![...READ_ONLY_ROLES, "executor"].includes(role)) {
-        throw new Error("cycle_role_register requires session_id and a known role")
+      if (!UUID.test(sessionId) || ![...READ_ONLY_ROLES, "executor"].includes(role)) {
+        throw new Error("cycle_role_register requires a UUID session_id and a known role")
       }
       const registry = await readRegistry()
       registry[sessionId] = {
@@ -209,15 +210,11 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
     }
     case "cycle_submit_architecture": {
       const workflowId = text(args.workflow_id)
-      const plan = args.plan
-      if (!workflowId || typeof plan !== "object" || plan === null) {
+      if (!workflowId) {
         throw new Error("cycle_submit_architecture requires workflow_id and a plan object")
       }
-      await plane.submitArchitecture(
-        projectKey,
-        workflowId,
-        plan as Parameters<typeof plane.submitArchitecture>[2],
-      )
+      const plan = validateArchitecturePlan(args.plan)
+      await plane.submitArchitecture(projectKey, workflowId, plan)
       return { accepted: true, workflow_id: workflowId }
     }
     case "cycle_prepare_worktree": {
@@ -450,7 +447,7 @@ const TOOLS: Record<string, ToolDefinition> = {
     inputSchema: {
       type: "object",
       properties: {
-        session_id: { type: "string" },
+        session_id: { type: "string", pattern: UUID.source },
         role: {
           enum: [
             "architect",
@@ -567,7 +564,7 @@ const TOOLS: Record<string, ToolDefinition> = {
       properties: {
         project_key: { type: "string" },
         workflow_id: { type: "string" },
-        plan: { type: "object" },
+        plan: architecturePlanSchema,
       },
       required: ["project_key", "workflow_id", "plan"],
       additionalProperties: false,

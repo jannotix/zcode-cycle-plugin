@@ -169,6 +169,40 @@ async function main() {
       const released = await plane.admission(projectKey, start.workflowId, fixture, "release")
       check("admission release", released !== null && released !== undefined, released)
 
+      const taskId = randomUUID()
+      await plane.submitArchitecture(projectKey, start.workflowId, {
+        assumptions: [],
+        integration_checks: ["Run the fixture test from the repository root."],
+        request_digest: start.requestDigest,
+        requirements: [
+          {
+            acceptance_criteria: ["The string utility exposes the requested behavior."],
+            id: "REQ-1",
+            statement: "Add the requested string utility behavior with a test.",
+          },
+        ],
+        risks: [],
+        tasks: [
+          {
+            acceptance_criteria: ["The fixture test passes."],
+            dependencies: [],
+            id: taskId,
+            objective: "Implement and test the bounded utility change.",
+            requirement_ids: ["REQ-1"],
+            title: "Implement utility change",
+            verification_commands: ["node test.js"],
+            write_scopes: ["utils.js", "test.js"],
+          },
+        ],
+      })
+      check("quick architecture accepted", true, { taskId })
+      const worktree = await plane.prepareWorktree(projectKey, fixture, start.workflowId)
+      check(
+        "quick worktree follows accepted architecture",
+        worktree.path.length > 0 && /^[0-9a-f]{40,64}$/u.test(worktree.baseRevision),
+        worktree,
+      )
+
       const paused = await plane.control(projectKey, "pause", start.workflowId)
       check("pause accepted", paused !== null && paused !== undefined, paused)
       const resumed = await plane.control(projectKey, "resume", start.workflowId)
@@ -275,6 +309,27 @@ async function main() {
         ),
         listed.tools.map((t) => t.name),
       )
+      const architectureTool = listed.tools.find((tool) => tool.name === "cycle_submit_architecture")
+      check(
+        "mcp publishes the strict architecture schema",
+        architectureTool?.inputSchema?.properties?.plan?.additionalProperties === false &&
+          architectureTool.inputSchema.properties.plan.required.includes("request_digest"),
+        architectureTool,
+      )
+      const malformedArchitecture = await request("tools/call", {
+        name: "cycle_submit_architecture",
+        arguments: {
+          project_key: "battery-architecture-project",
+          workflow_id: randomUUID(),
+          plan: { plan_id: "short", requirements: ["string"], tasks: [{ id: "T1" }] },
+        },
+      })
+      check(
+        "mcp rejects malformed architecture before IPC",
+        malformedArchitecture.isError === true &&
+          /must contain exactly/u.test(malformedArchitecture.content?.[0]?.text ?? ""),
+        malformedArchitecture,
+      )
       const healthCall = await request("tools/call", {
         name: "cycle_health",
         arguments: {},
@@ -284,6 +339,37 @@ async function main() {
         "mcp health reports the authoritative data directory",
         healthCall.isError === false && mcpHealth?.data_directory === dataDir,
         healthCall,
+      )
+      const invalidRoleToken = await request("tools/call", {
+        name: "cycle_role_register",
+        arguments: {
+          project_key: "battery-role-project",
+          role: "executor",
+          session_id: "orchestrator-main",
+        },
+      })
+      check(
+        "mcp rejects non-UUID role tokens",
+        invalidRoleToken.isError === true && /UUID session_id/u.test(invalidRoleToken.content?.[0]?.text ?? ""),
+        invalidRoleToken,
+      )
+      const roleToken = randomUUID()
+      const registerRole = await request("tools/call", {
+        name: "cycle_role_register",
+        arguments: {
+          project_key: "battery-role-project",
+          role: "architect",
+          session_id: roleToken,
+        },
+      })
+      const revokeRole = await request("tools/call", {
+        name: "cycle_role_revoke",
+        arguments: { session_id: roleToken },
+      })
+      check(
+        "mcp registers and revokes a UUID role token",
+        registerRole.isError === false && revokeRole.isError === false,
+        { registerRole, revokeRole },
       )
       const installProfiles = await request("tools/call", {
         name: "cycle_role_profiles",

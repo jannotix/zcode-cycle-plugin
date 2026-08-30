@@ -3035,17 +3035,17 @@ function convertPrintParameterToInches(parameter, lengthUnit = "in") {
   if (isNumber(parameter)) {
     pixels = parameter;
   } else if (isString(parameter)) {
-    const text = parameter;
-    let unit = text.substring(text.length - 2).toLowerCase();
+    const text2 = parameter;
+    let unit = text2.substring(text2.length - 2).toLowerCase();
     let valueText = "";
     if (unit in unitToPixels) {
-      valueText = text.substring(0, text.length - 2);
+      valueText = text2.substring(0, text2.length - 2);
     } else {
       unit = "px";
-      valueText = text;
+      valueText = text2;
     }
     const value = Number(valueText);
-    assert(!isNaN(value), "Failed to parse parameter value: " + text);
+    assert(!isNaN(value), "Failed to parse parameter value: " + text2);
     pixels = value * unitToPixels[unit];
   } else {
     throw new Error("page.pdf() Cannot handle parameter type: " + typeof parameter);
@@ -4139,11 +4139,11 @@ var init_PQueryHandler = __esm(() => {
 });
 
 // node_modules/puppeteer-core/lib/third_party/parsel-js/parsel-js.js
-function gobbleParens(text, offset) {
+function gobbleParens(text2, offset) {
   let nesting = 0;
   let result = "";
-  for (;offset < text.length; offset++) {
-    const char = text[offset];
+  for (;offset < text2.length; offset++) {
+    const char = text2[offset];
     switch (char) {
       case "(":
         ++nesting;
@@ -4159,11 +4159,11 @@ function gobbleParens(text, offset) {
   }
   return result;
 }
-function tokenizeBy(text, grammar = TOKENS) {
-  if (!text) {
+function tokenizeBy(text2, grammar = TOKENS) {
+  if (!text2) {
     return [];
   }
-  const tokens = [text];
+  const tokens = [text2];
   for (const [type, pattern] of Object.entries(grammar)) {
     for (let i = 0;i < tokens.length; i++) {
       const token = tokens[i];
@@ -4384,14 +4384,14 @@ function parsePSelectors(selector) {
   }
   return [selectors, isPureCSS, hasPseudoClasses, hasAria];
 }
-var ESCAPE_REGEXP, unquote = (text) => {
-  if (text.length <= 1) {
-    return text;
+var ESCAPE_REGEXP, unquote = (text2) => {
+  if (text2.length <= 1) {
+    return text2;
   }
-  if ((text[0] === '"' || text[0] === "'") && text.endsWith(text[0])) {
-    text = text.slice(1, -1);
+  if ((text2[0] === '"' || text2[0] === "'") && text2.endsWith(text2[0])) {
+    text2 = text2.slice(1, -1);
   }
-  return text.replace(ESCAPE_REGEXP, (match) => {
+  return text2.replace(ESCAPE_REGEXP, (match) => {
     return match[1];
   });
 };
@@ -6145,9 +6145,9 @@ var init_ElementHandle = __esm(() => {
           return element.focus();
         });
       }
-      async type(text, options) {
+      async type(text2, options) {
         await this.focus();
-        await this.frame.page().keyboard.type(text, options);
+        await this.frame.page().keyboard.type(text2, options);
       }
       async press(key, options) {
         await this.focus();
@@ -6993,12 +6993,12 @@ var init_Frame = __esm(() => {
           __disposeResources7(env_7);
         }
       }
-      async type(selector, text, options) {
+      async type(selector, text2, options) {
         const env_8 = { stack: [], error: undefined, hasError: false };
         try {
           const handle = __addDisposableResource7(env_8, await this.$(selector), false);
           assert(handle, `No element found for selector: ${selector}`);
-          await handle.type(text, options);
+          await handle.type(text2, options);
         } catch (e_8) {
           env_8.error = e_8;
           env_8.hasError = true;
@@ -7932,8 +7932,8 @@ var init_Page = __esm(() => {
       tap(selector) {
         return this.mainFrame().tap(selector);
       }
-      type(selector, text, options) {
-        return this.mainFrame().type(selector, text, options);
+      type(selector, text2, options) {
+        return this.mainFrame().type(selector, text2, options);
       }
       async waitForSelector(selector, options = {}) {
         return await this.mainFrame().waitForSelector(selector, options);
@@ -8961,9 +8961,9 @@ class ConsoleMessage {
   #frame;
   #rawStackTrace;
   #targetId;
-  constructor(type, text, args, stackTraceLocations, frame, rawStackTrace, targetId) {
+  constructor(type, text2, args, stackTraceLocations, frame, rawStackTrace, targetId) {
     this.#type = type;
-    this.#text = text;
+    this.#text = text2;
     this.#args = args;
     this.#stackTraceLocations = stackTraceLocations;
     this.#frame = frame;
@@ -9564,8 +9564,8 @@ class JSCoverage {
       if (!url && this.#reportAnonymousScripts) {
         url = "debugger://VM" + entry.scriptId;
       }
-      const text = this.#scriptSources.get(entry.scriptId);
-      if (text === undefined || url === undefined) {
+      const text2 = this.#scriptSources.get(entry.scriptId);
+      if (text2 === undefined || url === undefined) {
         continue;
       }
       const flattenRanges = [];
@@ -9574,9 +9574,9 @@ class JSCoverage {
       }
       const ranges = convertToDisjointRanges(flattenRanges);
       if (!this.#includeRawScriptCoverage) {
-        coverage.push({ url, ranges, text });
+        coverage.push({ url, ranges, text: text2 });
       } else {
-        coverage.push({ url, ranges, text, rawScriptCoverage: entry });
+        coverage.push({ url, ranges, text: text2, rawScriptCoverage: entry });
       }
     }
     return coverage;
@@ -9663,10 +9663,10 @@ class CSSCoverage {
     for (const styleSheetId of this.#stylesheetURLs.keys()) {
       const url = this.#stylesheetURLs.get(styleSheetId);
       assert(typeof url !== "undefined", `Stylesheet URL is undefined (styleSheetId=${styleSheetId})`);
-      const text = this.#stylesheetSources.get(styleSheetId);
-      assert(typeof text !== "undefined", `Stylesheet text is undefined (styleSheetId=${styleSheetId})`);
+      const text2 = this.#stylesheetSources.get(styleSheetId);
+      assert(typeof text2 !== "undefined", `Stylesheet text is undefined (styleSheetId=${styleSheetId})`);
       const ranges = convertToDisjointRanges(styleSheetIdToCoverage.get(styleSheetId) || []);
-      coverage.push({ url, ranges, text });
+      coverage.push({ url, ranges, text: text2 });
     }
     return coverage;
   }
@@ -14059,15 +14059,15 @@ var init_Input2 = __esm(() => {
       const autoRepeat = this.#pressedKeys.has(description.code);
       this.#pressedKeys.add(description.code);
       this._modifiers |= this.#modifierBit(description.key);
-      const text = options.text === undefined ? description.text : options.text;
+      const text2 = options.text === undefined ? description.text : options.text;
       await this.#client.send("Input.dispatchKeyEvent", {
-        type: text ? "keyDown" : "rawKeyDown",
+        type: text2 ? "keyDown" : "rawKeyDown",
         modifiers: this._modifiers,
         windowsVirtualKeyCode: description.keyCode,
         code: description.code,
         key: description.key,
-        text,
-        unmodifiedText: text,
+        text: text2,
+        unmodifiedText: text2,
         autoRepeat,
         location: description.location,
         isKeypad: description.location === 3,
@@ -14151,9 +14151,9 @@ var init_Input2 = __esm(() => {
     charIsKey(char) {
       return !!_keyDefinitions[char];
     }
-    async type(text, options = {}) {
+    async type(text2, options = {}) {
       const delay = options.delay || undefined;
-      for (const char of text) {
+      for (const char of text2) {
         if (this.charIsKey(char)) {
           await this.press(char, { delay });
         } else {
@@ -15162,14 +15162,14 @@ var init_Page2 = __esm(() => {
       this.emit("error", new Error("Page crashed!"));
     }
     #onLogEntryAdded(event) {
-      const { level, text, args, source: source2, url, lineNumber, stackTrace } = event.entry;
+      const { level, text: text2, args, source: source2, url, lineNumber, stackTrace } = event.entry;
       if (args) {
         args.map((arg) => {
           releaseObject(this.#primaryTargetClient, arg, this.logger);
         });
       }
       if (source2 !== "worker") {
-        this.emit("console", new ConsoleMessage(convertConsoleMessageLevel(level), text, [], [{ url, lineNumber }], undefined, stackTrace, this.#primaryTarget._targetId));
+        this.emit("console", new ConsoleMessage(convertConsoleMessageLevel(level), text2, [], [{ url, lineNumber }], undefined, stackTrace, this.#primaryTarget._targetId));
       }
     }
     mainFrame() {
@@ -22334,7 +22334,7 @@ class ActionDispatcher {
     source2.pressed.add(key);
     const { modifiers } = source2;
     const unmodifiedText = getKeyEventUnmodifiedText(key, source2, isGrapheme);
-    const text = getKeyEventText(code ?? "", source2) ?? unmodifiedText;
+    const text2 = getKeyEventText(code ?? "", source2) ?? unmodifiedText;
     let command;
     if (this.#isMacOS && source2.meta) {
       switch (code) {
@@ -22358,11 +22358,11 @@ class ActionDispatcher {
     }
     const promises = [
       this.#context.cdpTarget.cdpClient.sendCommand("Input.dispatchKeyEvent", {
-        type: text ? "keyDown" : "rawKeyDown",
+        type: text2 ? "keyDown" : "rawKeyDown",
         windowsVirtualKeyCode: KeyToKeyCode[key],
         key,
         code,
-        text,
+        text: text2,
         unmodifiedText,
         autoRepeat: repeat,
         isSystemKey: source2.alt || undefined,
@@ -22408,13 +22408,13 @@ class ActionDispatcher {
     source2.pressed.delete(key);
     const { modifiers } = source2;
     const unmodifiedText = getKeyEventUnmodifiedText(key, source2, isGrapheme);
-    const text = getKeyEventText(code ?? "", source2) ?? unmodifiedText;
+    const text2 = getKeyEventText(code ?? "", source2) ?? unmodifiedText;
     return this.#context.cdpTarget.cdpClient.sendCommand("Input.dispatchKeyEvent", {
       type: "keyUp",
       windowsVirtualKeyCode: KeyToKeyCode[key],
       key,
       code,
-      text,
+      text: text2,
       unmodifiedText,
       location: location < 3 ? location : undefined,
       isSystemKey: source2.alt || undefined,
@@ -27357,7 +27357,7 @@ class LogManager {
         return;
       }
       for (const browsingContext of realm.associatedBrowsingContexts) {
-        this.#eventManager.registerPromiseEvent(_a3.#getExceptionText(params, realm).then((text) => ({
+        this.#eventManager.registerPromiseEvent(_a3.#getExceptionText(params, realm).then((text2) => ({
           kind: "success",
           value: {
             type: "event",
@@ -27365,7 +27365,7 @@ class LogManager {
             params: {
               level: "error",
               source: realm.source,
-              text,
+              text: text2,
               timestamp: Math.round(params.timestamp),
               stackTrace: getBidiStackTrace(params.exceptionDetails.stackTrace),
               type: "javascript"
@@ -33573,11 +33573,11 @@ function getStackTraceLocations(stackTrace) {
   return stackTraceLocations;
 }
 function getConsoleMessage(entry, args, frame, targetId) {
-  const text = args.reduce((value, arg) => {
+  const text2 = args.reduce((value, arg) => {
     const parsedValue = arg instanceof BidiJSHandle && arg.isPrimitiveValue ? BidiDeserializer.deserialize(arg.remoteValue()) : arg.toString();
     return `${value} ${parsedValue}`;
   }, "").slice(1);
-  return new ConsoleMessage(convertConsoleMessageLevel2(entry.method), text, args, getStackTraceLocations(entry.stackTrace), frame, undefined, targetId);
+  return new ConsoleMessage(convertConsoleMessageLevel2(entry.method), text2, args, getStackTraceLocations(entry.stackTrace), frame, undefined, targetId);
 }
 function isConsoleLogEntry(event) {
   return event.type === "console";
@@ -34872,9 +34872,9 @@ var init_Input3 = __esm(() => {
         }
       ]);
     }
-    async type(text, options = {}) {
+    async type(text2, options = {}) {
       const { delay = 0 } = options;
-      const values = [...text].map(getBidiKeyValue);
+      const values = [...text2].map(getBidiKeyValue);
       const actions = [];
       if (delay <= 0) {
         for (const value of values) {
@@ -40554,9 +40554,9 @@ function downloadFile(url, destinationPath, progressCallback, expectedHash) {
   });
 }
 async function getJSON(url) {
-  const text = await getText(url);
+  const text2 = await getText(url);
   try {
-    return JSON.parse(text);
+    return JSON.parse(text2);
   } catch {
     throw new Error("Could not parse JSON from " + url.toString());
   }
@@ -42412,12 +42412,12 @@ function generatePax(header) {
   if (paxEntries.length === 0)
     return null;
   const paxBody = encoder.encode(paxEntries.map(([key, value]) => {
-    const record = `${key}=${value}
+    const record2 = `${key}=${value}
 `;
-    const partLength = encoder.encode(record).length + 1;
+    const partLength = encoder.encode(record2).length + 1;
     let totalLength = partLength + String(partLength).length;
     totalLength = partLength + String(totalLength).length;
-    return `${totalLength} ${record}`;
+    return `${totalLength} ${record2}`;
   }).join(""));
   return {
     paxHeader: createTarHeader({
@@ -44768,10 +44768,10 @@ class UI {
     });
     return this.rows[this.rows.length - 1];
   }
-  colFromString(text) {
+  colFromString(text2) {
     return {
-      text,
-      padding: this.measurePadding(text)
+      text: text2,
+      padding: this.measurePadding(text2)
     };
   }
   measurePadding(str) {
@@ -48162,17 +48162,17 @@ function usage(yargs, shim2) {
   };
   return self2;
 }
-function isIndentedText(text) {
-  return typeof text === "object";
+function isIndentedText(text2) {
+  return typeof text2 === "object";
 }
-function addIndentation(text, indent) {
-  return isIndentedText(text) ? { text: text.text, indentation: text.indentation + indent } : { text, indentation: indent };
+function addIndentation(text2, indent) {
+  return isIndentedText(text2) ? { text: text2.text, indentation: text2.indentation + indent } : { text: text2, indentation: indent };
 }
-function getIndentation(text) {
-  return isIndentedText(text) ? text.indentation : 0;
+function getIndentation(text2) {
+  return isIndentedText(text2) ? text2.indentation : 0;
 }
-function getText2(text) {
-  return isIndentedText(text) ? text.text : text;
+function getText2(text2) {
+  return isIndentedText(text2) ? text2.text : text2;
 }
 var init_usage = __esm(() => {
   init_obj_filter();
@@ -52019,6 +52019,229 @@ function parseArbitrationReceipt(value) {
   return receipt;
 }
 
+// src/architecture-plan.ts
+var MAX_ITEMS = 256;
+var MAX_TEXT_BYTES = 4096;
+var KEY = /^[A-Za-z0-9._-]{1,64}$/u;
+var SHA2562 = /^[0-9a-f]{64}$/u;
+var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+var text = { type: "string", minLength: 1, maxLength: MAX_TEXT_BYTES };
+var textList = { type: "array", items: text, maxItems: MAX_ITEMS };
+var architecturePlanSchema = {
+  type: "object",
+  properties: {
+    assumptions: textList,
+    integration_checks: { ...textList, minItems: 1 },
+    request_digest: { type: "string", pattern: "^[0-9a-f]{64}$" },
+    requirements: {
+      type: "array",
+      minItems: 1,
+      maxItems: MAX_ITEMS,
+      items: {
+        type: "object",
+        properties: {
+          acceptance_criteria: { ...textList, minItems: 1 },
+          id: { type: "string", pattern: "^[A-Za-z0-9._-]{1,64}$" },
+          statement: text
+        },
+        required: ["acceptance_criteria", "id", "statement"],
+        additionalProperties: false
+      }
+    },
+    risks: textList,
+    tasks: {
+      type: "array",
+      minItems: 1,
+      maxItems: MAX_ITEMS,
+      items: {
+        type: "object",
+        properties: {
+          acceptance_criteria: { ...textList, minItems: 1 },
+          dependencies: {
+            type: "array",
+            items: { type: "string", pattern: UUID2.source },
+            maxItems: MAX_ITEMS
+          },
+          id: { type: "string", pattern: UUID2.source },
+          objective: text,
+          requirement_ids: {
+            type: "array",
+            minItems: 1,
+            maxItems: MAX_ITEMS,
+            items: { type: "string", pattern: KEY.source }
+          },
+          title: text,
+          verification_commands: { ...textList, minItems: 1 },
+          write_scopes: { ...textList, minItems: 1 }
+        },
+        required: [
+          "acceptance_criteria",
+          "dependencies",
+          "id",
+          "objective",
+          "requirement_ids",
+          "title",
+          "verification_commands",
+          "write_scopes"
+        ],
+        additionalProperties: false
+      }
+    }
+  },
+  required: [
+    "assumptions",
+    "integration_checks",
+    "request_digest",
+    "requirements",
+    "risks",
+    "tasks"
+  ],
+  additionalProperties: false
+};
+function validateArchitecturePlan(value) {
+  const plan = record(value, "architecture plan");
+  exactKeys(plan, ["assumptions", "integration_checks", "request_digest", "requirements", "risks", "tasks"], "architecture plan");
+  if (typeof plan.request_digest !== "string" || !SHA2562.test(plan.request_digest)) {
+    throw new Error("architecture plan request_digest must be the exact 64-character digest from cycle_start");
+  }
+  const assumptions = strings(plan.assumptions, "assumptions", false);
+  const integrationChecks = strings(plan.integration_checks, "integration_checks", true);
+  const risks = strings(plan.risks, "risks", false);
+  const requirementValues = boundedArray(plan.requirements, "requirements", true);
+  const requirementIds = new Set;
+  const requirements = requirementValues.map((value2, index) => {
+    const item = record(value2, `requirements[${index}]`);
+    exactKeys(item, ["acceptance_criteria", "id", "statement"], `requirements[${index}]`);
+    if (typeof item.id !== "string" || !KEY.test(item.id) || requirementIds.has(item.id)) {
+      throw new Error(`requirements[${index}].id must be unique and contain only A-Z, a-z, 0-9, dot, underscore or hyphen`);
+    }
+    requirementIds.add(item.id);
+    return {
+      acceptance_criteria: strings(item.acceptance_criteria, `requirements[${index}].acceptance_criteria`, true),
+      id: item.id,
+      statement: requiredText(item.statement, `requirements[${index}].statement`)
+    };
+  });
+  const taskValues = boundedArray(plan.tasks, "tasks", true);
+  const taskIds = new Set;
+  const tasks = taskValues.map((value2, index) => {
+    const item = record(value2, `tasks[${index}]`);
+    exactKeys(item, [
+      "acceptance_criteria",
+      "dependencies",
+      "id",
+      "objective",
+      "requirement_ids",
+      "title",
+      "verification_commands",
+      "write_scopes"
+    ], `tasks[${index}]`);
+    if (typeof item.id !== "string" || !UUID2.test(item.id) || taskIds.has(item.id)) {
+      throw new Error(`tasks[${index}].id must be a unique UUID`);
+    }
+    taskIds.add(item.id);
+    const requirementIdsForTask = strings(item.requirement_ids, `tasks[${index}].requirement_ids`, true);
+    if (new Set(requirementIdsForTask).size !== requirementIdsForTask.length) {
+      throw new Error(`tasks[${index}].requirement_ids contains a duplicate`);
+    }
+    for (const id of requirementIdsForTask) {
+      if (!requirementIds.has(id))
+        throw new Error(`tasks[${index}] references unknown requirement ${id}`);
+    }
+    const writeScopes = strings(item.write_scopes, `tasks[${index}].write_scopes`, true);
+    for (const scope of writeScopes) {
+      if (!safeRelative(scope))
+        throw new Error(`tasks[${index}].write_scopes contains an unsafe path: ${scope}`);
+    }
+    return {
+      acceptance_criteria: strings(item.acceptance_criteria, `tasks[${index}].acceptance_criteria`, true),
+      dependencies: strings(item.dependencies, `tasks[${index}].dependencies`, false),
+      id: item.id,
+      objective: requiredText(item.objective, `tasks[${index}].objective`),
+      requirement_ids: requirementIdsForTask,
+      title: requiredText(item.title, `tasks[${index}].title`),
+      verification_commands: strings(item.verification_commands, `tasks[${index}].verification_commands`, true),
+      write_scopes: writeScopes
+    };
+  });
+  for (const [index, task] of tasks.entries()) {
+    if (new Set(task.dependencies).size !== task.dependencies.length) {
+      throw new Error(`tasks[${index}].dependencies contains a duplicate`);
+    }
+    for (const dependency of task.dependencies) {
+      if (!UUID2.test(dependency) || !taskIds.has(dependency) || dependency === task.id) {
+        throw new Error(`tasks[${index}] has an invalid dependency ${dependency}`);
+      }
+    }
+  }
+  assertAcyclic(tasks);
+  const covered = new Set(tasks.flatMap((task) => [...task.requirement_ids]));
+  for (const id of requirementIds) {
+    if (!covered.has(id))
+      throw new Error(`architecture requirement ${id} is not covered by a task`);
+  }
+  return {
+    assumptions,
+    integration_checks: integrationChecks,
+    request_digest: plan.request_digest,
+    requirements,
+    risks,
+    tasks
+  };
+}
+function record(value, label) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  return value;
+}
+function exactKeys(value, expected, label) {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+    throw new Error(`${label} must contain exactly: ${wanted.join(", ")}`);
+  }
+}
+function boundedArray(value, label, required) {
+  if (!Array.isArray(value) || value.length > MAX_ITEMS || required && value.length === 0) {
+    throw new Error(`${label} must be ${required ? "a non-empty" : "an"} array with at most ${MAX_ITEMS} items`);
+  }
+  return value;
+}
+function strings(value, label, required) {
+  return boundedArray(value, label, required).map((item, index) => requiredText(item, `${label}[${index}]`));
+}
+function requiredText(value, label) {
+  if (typeof value !== "string" || !value.trim() || Buffer.byteLength(value) > MAX_TEXT_BYTES || value.includes("\x00")) {
+    throw new Error(`${label} must be non-empty text of at most ${MAX_TEXT_BYTES} bytes`);
+  }
+  return value;
+}
+function safeRelative(value) {
+  if (value.includes("\\") || value.startsWith("/") || /^[A-Za-z]:/u.test(value))
+    return false;
+  const segments = value.split("/");
+  return segments.every((segment) => segment && segment !== "." && segment !== "..");
+}
+function assertAcyclic(tasks) {
+  const dependencies = new Map(tasks.map((task) => [task.id, task.dependencies]));
+  const visiting = new Set;
+  const visited = new Set;
+  const visit = (id) => {
+    if (visiting.has(id))
+      throw new Error("architecture task dependencies contain a cycle");
+    if (visited.has(id))
+      return;
+    visiting.add(id);
+    for (const dependency of dependencies.get(id) ?? [])
+      visit(dependency);
+    visiting.delete(id);
+    visited.add(id);
+  };
+  for (const task of tasks)
+    visit(task.id);
+}
+
 // src/role-profiles.ts
 import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
 import { lstat as lstat2, mkdir as mkdir2, readFile as readFile2, rename as rename2, rm as rm2, writeFile } from "node:fs/promises";
@@ -52056,9 +52279,9 @@ async function manageRoleProfiles(options) {
     case "install":
       requireConfirmation(options.confirmation, "INSTALL_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["managed-drift", "conflict"]), "install");
-      for (const record of records) {
-        if (record.state === "missing") {
-          await writeAtomic(record.target, templates.get(record.role), false);
+      for (const record2 of records) {
+        if (record2.state === "missing") {
+          await writeAtomic(record2.target, templates.get(record2.role), false);
           changed = true;
         }
       }
@@ -52066,9 +52289,9 @@ async function manageRoleProfiles(options) {
     case "repair":
       requireConfirmation(options.confirmation, "REPAIR_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["conflict"]), "repair");
-      for (const record of records) {
-        if (record.state !== "current") {
-          await writeAtomic(record.target, templates.get(record.role), record.state !== "missing");
+      for (const record2 of records) {
+        if (record2.state !== "current") {
+          await writeAtomic(record2.target, templates.get(record2.role), record2.state !== "missing");
           changed = true;
         }
       }
@@ -52084,10 +52307,10 @@ async function manageRoleProfiles(options) {
       if (!THOUGHT_LEVELS.has(thoughtLevel)) {
         throw new Error("role-profile thought level must be low, medium, high or max");
       }
-      const record = records.find((item) => item.role === role);
-      const configured = record.content.replace(/^model:.*$/mu, `model: ${model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${thoughtLevel}`);
-      if (configured !== record.content) {
-        await writeAtomic(record.target, configured, true);
+      const record2 = records.find((item) => item.role === role);
+      const configured = record2.content.replace(/^model:.*$/mu, `model: ${model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${thoughtLevel}`);
+      if (configured !== record2.content) {
+        await writeAtomic(record2.target, configured, true);
         changed = true;
       }
       break;
@@ -52095,9 +52318,9 @@ async function manageRoleProfiles(options) {
     case "remove":
       requireConfirmation(options.confirmation, "REMOVE_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["conflict"]), "remove");
-      for (const record of records) {
-        if (record.state !== "missing") {
-          await rm2(record.target);
+      for (const record2 of records) {
+        if (record2.state !== "missing") {
+          await rm2(record2.target);
           changed = true;
         }
       }
@@ -52179,7 +52402,7 @@ function configuredProfile(content, template, role) {
   return normalized === template ? { model, thought_level: thoughtLevel } : null;
 }
 function rejectStates(records, denied, action) {
-  const blocked = records.filter((record) => denied.has(record.state));
+  const blocked = records.filter((record2) => denied.has(record2.state));
   if (blocked.length > 0) {
     throw new Error(`role-profile ${action} refused: ${blocked.map((item) => `${item.role}=${item.state}`).join(", ")}`);
   }
@@ -52239,7 +52462,7 @@ function report(projectRoot, records, changed) {
       state,
       ...thought_level ? { thought_level } : {}
     })),
-    ready: records.every((record) => record.state === "current"),
+    ready: records.every((record2) => record2.state === "current"),
     requires_session_restart: changed
   };
 }
@@ -52260,7 +52483,7 @@ import { createHash as createHash3 } from "node:crypto";
 import { open, readdir, realpath } from "node:fs/promises";
 import { isAbsolute, join as join3, relative, resolve as resolve3 } from "node:path";
 var MAX_RECEIPT_BYTES = 2 * 1024 * 1024;
-var SHA2562 = /^[0-9a-f]{64}$/u;
+var SHA2563 = /^[0-9a-f]{64}$/u;
 
 class BrowserEvidenceRegistry {
   #artifactDirectory;
@@ -52281,15 +52504,15 @@ class BrowserEvidenceRegistry {
     });
   }
   invalidate(sessionId) {
-    const record = this.#records.get(sessionId);
-    if (record !== undefined)
-      this.#records.set(sessionId, { ...record, invalidated: true });
+    const record2 = this.#records.get(sessionId);
+    if (record2 !== undefined)
+      this.#records.set(sessionId, { ...record2, invalidated: true });
   }
   forget(sessionId) {
     this.#records.delete(sessionId);
   }
   async attest(sessionIds, candidateDigest) {
-    if (!SHA2562.test(candidateDigest))
+    if (!SHA2563.test(candidateDigest))
       throw new Error("Candidate digest is invalid");
     const attestations = [];
     for (const sessionId of [...new Set(sessionIds)]) {
@@ -52299,13 +52522,13 @@ class BrowserEvidenceRegistry {
       if (current?.invalidated === true)
         continue;
       const records = current === undefined ? await this.#discover(sessionId) : [current];
-      for (const record of records) {
+      for (const record2 of records) {
         if (attestations.length === 32)
           return attestations;
         attestations.push({
           candidate_digest: candidateDigest,
-          receipt_digest: record.receiptDigest,
-          receipt_json: record.receiptJson,
+          receipt_digest: record2.receiptDigest,
+          receipt_json: record2.receiptJson,
           session_id: sessionId
         });
       }
@@ -52366,7 +52589,7 @@ function parseCloseReceipt(value) {
     throw new Error("Managed browser close returned a malformed receipt");
   }
   const result = value;
-  if (result.status !== "closed" || typeof result.receiptDigest !== "string" || !SHA2562.test(result.receiptDigest) || typeof result.receiptPath !== "string" || !result.receiptPath) {
+  if (result.status !== "closed" || typeof result.receiptDigest !== "string" || !SHA2563.test(result.receiptDigest) || typeof result.receiptPath !== "string" || !result.receiptPath) {
     throw new Error("Managed browser close returned a malformed receipt");
   }
   return result;
@@ -53838,7 +54061,7 @@ async function visible(element) {
   });
 }
 async function semanticTarget(page, command2) {
-  const handle = await page.evaluateHandle(({ exact, name, role, text }) => {
+  const handle = await page.evaluateHandle(({ exact, name, role, text: text2 }) => {
     const normalized = (value) => (value ?? "").replace(/\s+/gu, " ").trim();
     const matches = (actual, expected) => exact === true ? normalized(actual) === normalized(expected) : normalized(actual).includes(normalized(expected));
     const implicitRole = (element2) => {
@@ -53896,7 +54119,7 @@ async function semanticTarget(page, command2) {
         return false;
       if (name !== undefined && !matches(accessibleName(element2), name))
         return false;
-      if (text !== undefined && !matches(element2.textContent ?? "", text))
+      if (text2 !== undefined && !matches(element2.textContent ?? "", text2))
         return false;
       return true;
     }) ?? null;
@@ -53914,14 +54137,14 @@ async function semanticTarget(page, command2) {
   return element;
 }
 async function fillElement(element, value) {
-  await element.evaluate((node2, text) => {
+  await element.evaluate((node2, text2) => {
     node2.focus();
     if (node2 instanceof HTMLInputElement || node2 instanceof HTMLTextAreaElement) {
-      node2.value = text;
+      node2.value = text2;
     } else if (node2 instanceof HTMLSelectElement) {
-      node2.value = text;
+      node2.value = text2;
     } else if (node2.isContentEditable) {
-      node2.textContent = text;
+      node2.textContent = text2;
     } else {
       throw new Error("Browser fill target is not editable");
     }
@@ -54003,7 +54226,7 @@ function required2(value, message) {
 
 // src/browser/browser-ops.ts
 var INTERACTIVE_BROWSER_OPERATIONS = new Set(["click", "fill", "press", "upload"]);
-var SHA2563 = /^[0-9a-f]{64}$/u;
+var SHA2564 = /^[0-9a-f]{64}$/u;
 async function browserRun(context2) {
   const operation = String(context2.command.operation ?? "");
   if (INTERACTIVE_BROWSER_OPERATIONS.has(operation) && context2.registration?.role !== "executor") {
@@ -54034,14 +54257,14 @@ async function attestForVerification(args, registry) {
   if (sessionIds.length === 0)
     return [];
   const candidateDigest = typeof args.candidate_digest === "string" ? args.candidate_digest : "";
-  if (!SHA2563.test(candidateDigest)) {
+  if (!SHA2564.test(candidateDigest)) {
     throw new Error("browser attestation requires the frozen candidate_digest from the freeze receipt");
   }
   return registry.attest(sessionIds, candidateDigest);
 }
 
 // src/server.ts
-var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 var READ_ONLY_ROLES = new Set([
   "architect",
   "functional_reviewer",
@@ -54084,7 +54307,7 @@ async function writeRegistry(registry) {
   await rm7(registryPath, { force: true });
   await rename4(temporary, registryPath);
 }
-function text(value) {
+function text2(value) {
   return typeof value === "string" ? value : JSON.stringify(value ?? null);
 }
 async function callTool(name, rawArgs) {
@@ -54096,7 +54319,7 @@ async function callTool(name, rawArgs) {
     case "cycle_start": {
       const preference = args.preference === "quick" || args.preference === "full" || args.preference === "auto" ? args.preference : undefined;
       return plane.startWorkflow({
-        originalRequest: text(args.original_request),
+        originalRequest: text2(args.original_request),
         ...preference !== undefined ? { preference } : {},
         projectKey,
         ...Array.isArray(args.affected_paths) ? { affectedPaths: args.affected_paths.map(String) } : {},
@@ -54119,7 +54342,7 @@ async function callTool(name, rawArgs) {
     case "cycle_goal":
       return plane.goal(projectKey, args.operation);
     case "cycle_admission":
-      return plane.admission(projectKey, text(args.workflow_id), text(args.workspace), args.operation === "renew" || args.operation === "release" ? args.operation : "acquire");
+      return plane.admission(projectKey, text2(args.workflow_id), text2(args.workspace), args.operation === "renew" || args.operation === "release" ? args.operation : "acquire");
     case "cycle_role_profiles": {
       const operation = args.operation === "install" || args.operation === "repair" || args.operation === "configure" || args.operation === "remove" ? args.operation : "status";
       const pluginRoot = process.env.ZCODE_PLUGIN_ROOT || process.env.CLAUDE_PLUGIN_ROOT;
@@ -54136,10 +54359,10 @@ async function callTool(name, rawArgs) {
       });
     }
     case "cycle_role_register": {
-      const sessionId = text(args.session_id);
-      const role = text(args.role);
-      if (!sessionId || ![...READ_ONLY_ROLES, "executor"].includes(role)) {
-        throw new Error("cycle_role_register requires session_id and a known role");
+      const sessionId = text2(args.session_id);
+      const role = text2(args.role);
+      if (!UUID3.test(sessionId) || ![...READ_ONLY_ROLES, "executor"].includes(role)) {
+        throw new Error("cycle_role_register requires a UUID session_id and a known role");
       }
       const registry = await readRegistry();
       registry[sessionId] = {
@@ -54153,7 +54376,7 @@ async function callTool(name, rawArgs) {
       return { registered: sessionId, role };
     }
     case "cycle_role_revoke": {
-      const sessionId = text(args.session_id);
+      const sessionId = text2(args.session_id);
       const registry = await readRegistry();
       const revoked = registry[sessionId] ?? null;
       delete registry[sessionId];
@@ -54163,41 +54386,41 @@ async function callTool(name, rawArgs) {
     case "cycle_role_list":
       return readRegistry();
     case "cycle_code_index": {
-      const projectDirectory = text(args.project_directory);
-      const workflowId = text(args.workflow_id);
+      const projectDirectory = text2(args.project_directory);
+      const workflowId = text2(args.workflow_id);
       if (!projectDirectory || !workflowId) {
         throw new Error("cycle_code_index requires project_directory and workflow_id");
       }
       return plane.codeIndex(projectKey, workflowId, projectDirectory);
     }
     case "cycle_submit_architecture": {
-      const workflowId = text(args.workflow_id);
-      const plan = args.plan;
-      if (!workflowId || typeof plan !== "object" || plan === null) {
+      const workflowId = text2(args.workflow_id);
+      if (!workflowId) {
         throw new Error("cycle_submit_architecture requires workflow_id and a plan object");
       }
+      const plan = validateArchitecturePlan(args.plan);
       await plane.submitArchitecture(projectKey, workflowId, plan);
       return { accepted: true, workflow_id: workflowId };
     }
     case "cycle_prepare_worktree": {
-      const workflowId = text(args.workflow_id);
-      const projectDirectory = text(args.project_directory);
+      const workflowId = text2(args.workflow_id);
+      const projectDirectory = text2(args.project_directory);
       if (!workflowId || !projectDirectory) {
         throw new Error("cycle_prepare_worktree requires workflow_id and project_directory");
       }
       return plane.prepareWorktree(projectKey, projectDirectory, workflowId);
     }
     case "cycle_plan_verification": {
-      const workflowId = text(args.workflow_id);
-      const planId = UUID2.test(String(args.plan_id ?? "")) ? String(args.plan_id) : undefined;
+      const workflowId = text2(args.workflow_id);
+      const planId = UUID3.test(String(args.plan_id ?? "")) ? String(args.plan_id) : undefined;
       if (!workflowId)
         throw new Error("cycle_plan_verification requires workflow_id");
       return plane.planVerification(projectKey, workflowId, planId);
     }
     case "cycle_freeze_candidate": {
-      const workflowId = text(args.workflow_id);
-      const baseRevision = text(args.base_revision);
-      const planId = text(args.plan_id);
+      const workflowId = text2(args.workflow_id);
+      const baseRevision = text2(args.base_revision);
+      const planId = text2(args.plan_id);
       if (!workflowId || !baseRevision || !planId) {
         throw new Error("cycle_freeze_candidate requires workflow_id, base_revision and plan_id");
       }
@@ -54205,9 +54428,9 @@ async function callTool(name, rawArgs) {
       return plane.freezeCandidate(projectKey, workflowId, baseRevision, planId, evidenceIds);
     }
     case "cycle_verify_candidate": {
-      const workflowId = text(args.workflow_id);
-      const candidateId = text(args.candidate_id);
-      const planId = text(args.plan_id);
+      const workflowId = text2(args.workflow_id);
+      const candidateId = text2(args.candidate_id);
+      const planId = text2(args.plan_id);
       if (!workflowId || !candidateId || !planId) {
         throw new Error("cycle_verify_candidate requires workflow_id, candidate_id and plan_id");
       }
@@ -54219,8 +54442,8 @@ async function callTool(name, rawArgs) {
       return plane.verifyCandidate(projectKey, workflowId, candidateId, planId, attestations);
     }
     case "cycle_browser": {
-      const sessionId = text(args.session_id);
-      if (!sessionId || !text(args.operation)) {
+      const sessionId = text2(args.session_id);
+      if (!sessionId || !text2(args.operation)) {
         throw new Error("cycle_browser requires session_id and operation");
       }
       return browserRun({
@@ -54232,8 +54455,8 @@ async function callTool(name, rawArgs) {
       });
     }
     case "cycle_submit_review": {
-      const workflowId = text(args.workflow_id);
-      const candidateId = text(args.candidate_id);
+      const workflowId = text2(args.workflow_id);
+      const candidateId = text2(args.candidate_id);
       const verdict = args.verdict;
       if (!workflowId || !candidateId || typeof verdict !== "object" || verdict === null) {
         throw new Error("cycle_submit_review requires workflow_id, candidate_id and verdict");
@@ -54241,8 +54464,8 @@ async function callTool(name, rawArgs) {
       return plane.submitReview(projectKey, workflowId, candidateId, verdict);
     }
     case "cycle_submit_arbitration": {
-      const workflowId = text(args.workflow_id);
-      const candidateId = text(args.candidate_id);
+      const workflowId = text2(args.workflow_id);
+      const candidateId = text2(args.candidate_id);
       const verdict = args.verdict;
       if (!workflowId || !candidateId || typeof verdict !== "object" || verdict === null) {
         throw new Error("cycle_submit_arbitration requires workflow_id, candidate_id and verdict");
@@ -54250,7 +54473,7 @@ async function callTool(name, rawArgs) {
       return plane.submitArbitration(projectKey, workflowId, candidateId, verdict);
     }
     case "cycle_report_execution": {
-      const workflowId = text(args.workflow_id);
+      const workflowId = text2(args.workflow_id);
       const outcome = args.outcome === "plan_defect" ? "plan_defect" : "blocked";
       if (!workflowId)
         throw new Error("cycle_report_execution requires workflow_id");
@@ -54258,9 +54481,9 @@ async function callTool(name, rawArgs) {
       return { outcome, workflow_id: workflowId, workflow_state: workflowState };
     }
     case "cycle_promote_candidate": {
-      const workflowId = text(args.workflow_id);
-      const candidateId = text(args.candidate_id);
-      const projectDirectory = text(args.project_directory);
+      const workflowId = text2(args.workflow_id);
+      const candidateId = text2(args.candidate_id);
+      const projectDirectory = text2(args.project_directory);
       if (!workflowId || !candidateId || !projectDirectory) {
         throw new Error("cycle_promote_candidate requires workflow_id, candidate_id and project_directory");
       }
@@ -54375,7 +54598,7 @@ var TOOLS = {
     inputSchema: {
       type: "object",
       properties: {
-        session_id: { type: "string" },
+        session_id: { type: "string", pattern: UUID3.source },
         role: {
           enum: [
             "architect",
@@ -54488,7 +54711,7 @@ var TOOLS = {
       properties: {
         project_key: { type: "string" },
         workflow_id: { type: "string" },
-        plan: { type: "object" }
+        plan: architecturePlanSchema
       },
       required: ["project_key", "workflow_id", "plan"],
       additionalProperties: false
