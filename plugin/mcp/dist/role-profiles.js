@@ -49,7 +49,7 @@ var __require = /* @__PURE__ */ createRequire(import.meta.url);
 // src/role-profiles.ts
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 var MAX_PROFILE_BYTES = 256 * 1024;
 var MODEL = /^(?:inherit|[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+)$/u;
 var THOUGHT_LEVELS = new Set(["low", "medium", "high", "max"]);
@@ -74,6 +74,7 @@ async function manageRoleProfiles(options) {
     templates.set(profile.role, content);
   }
   const mutating = options.operation !== "status";
+  let changed = false;
   const targetDirectory = await roleProfileDirectory(projectRoot, mutating);
   const records = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(targetDirectory, profile.role, profile.file, templates.get(profile.role))));
   switch (options.operation) {
@@ -85,6 +86,7 @@ async function manageRoleProfiles(options) {
       for (const record of records) {
         if (record.state === "missing") {
           await writeAtomic(record.target, templates.get(record.role), false);
+          changed = true;
         }
       }
       break;
@@ -94,6 +96,7 @@ async function manageRoleProfiles(options) {
       for (const record of records) {
         if (record.state !== "current") {
           await writeAtomic(record.target, templates.get(record.role), record.state !== "missing");
+          changed = true;
         }
       }
       break;
@@ -110,15 +113,20 @@ async function manageRoleProfiles(options) {
       }
       const record = records.find((item) => item.role === role);
       const configured = record.content.replace(/^model:.*$/mu, `model: ${model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${thoughtLevel}`);
-      await writeAtomic(record.target, configured, true);
+      if (configured !== record.content) {
+        await writeAtomic(record.target, configured, true);
+        changed = true;
+      }
       break;
     }
     case "remove":
       requireConfirmation(options.confirmation, "REMOVE_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["conflict"]), "remove");
       for (const record of records) {
-        if (record.state !== "missing")
+        if (record.state !== "missing") {
           await rm(record.target);
+          changed = true;
+        }
       }
       break;
     default:
@@ -126,7 +134,7 @@ async function manageRoleProfiles(options) {
   }
   const afterDirectory = await roleProfileDirectory(projectRoot, false);
   const after = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(afterDirectory, profile.role, profile.file, templates.get(profile.role))));
-  return report(projectRoot, after, mutating);
+  return report(projectRoot, after, changed);
 }
 function canonicalRole(value) {
   const role = ROLE_PROFILES.find((item) => item.role === value)?.role;
@@ -221,7 +229,7 @@ async function readBoundedRegularFile(path, label) {
   return readFile(path, "utf8");
 }
 async function writeAtomic(target, content, replace) {
-  const directory = resolve(target, "..");
+  const directory = dirname(target);
   await requireSafeDirectory(directory, "project role-profile directory");
   const temporary = join(directory, `.zcode-cycle-${randomUUID()}.tmp`);
   const backup = join(directory, `.zcode-cycle-${randomUUID()}.bak`);

@@ -105,7 +105,7 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
   const projectKey = typeof args.project_key === "string" ? args.project_key : ""
   switch (name) {
     case "cycle_health":
-      return plane.health()
+      return { ...(await plane.health()), data_directory: dataDirectory }
     case "cycle_start": {
       const preference =
         args.preference === "quick" || args.preference === "full" || args.preference === "auto"
@@ -341,7 +341,7 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
 const TOOLS: Record<string, ToolDefinition> = {
   cycle_health: {
     description:
-      "Check the ZCode Cycle control plane: spawns or attaches the local workflowd daemon and returns product and protocol versions.",
+      "Check the Cycle control plane: spawns or attaches the local workflowd daemon and returns product/protocol/schema versions plus the authoritative data directory.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   cycle_start: {

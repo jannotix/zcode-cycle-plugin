@@ -275,6 +275,16 @@ async function main() {
         ),
         listed.tools.map((t) => t.name),
       )
+      const healthCall = await request("tools/call", {
+        name: "cycle_health",
+        arguments: {},
+      })
+      const mcpHealth = JSON.parse(healthCall.content?.[0]?.text ?? "null")
+      check(
+        "mcp health reports the authoritative data directory",
+        healthCall.isError === false && mcpHealth?.data_directory === dataDir,
+        healthCall,
+      )
       const installProfiles = await request("tools/call", {
         name: "cycle_role_profiles",
         arguments: {

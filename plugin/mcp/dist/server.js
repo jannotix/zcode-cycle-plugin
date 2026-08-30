@@ -45542,19 +45542,19 @@ var init_cliui = __esm(() => {
 });
 
 // node_modules/escalade/sync/index.mjs
-import { dirname as dirname3, resolve as resolve6 } from "path";
+import { dirname as dirname4, resolve as resolve6 } from "path";
 import { readdirSync, statSync } from "fs";
 function sync_default(start, callback) {
   let dir = resolve6(".", start);
   let tmp, stats = statSync(dir);
   if (!stats.isDirectory()) {
-    dir = dirname3(dir);
+    dir = dirname4(dir);
   }
   while (true) {
     tmp = callback(dir, readdirSync(dir));
     if (tmp)
       return resolve6(dir, tmp);
-    dir = dirname3(tmp = dir);
+    dir = dirname4(tmp = dir);
     if (tmp === dir)
       break;
   }
@@ -46911,7 +46911,7 @@ var require_get_caller_file = __commonJS((exports, module) => {
 import { notStrictEqual, strictEqual } from "assert";
 import { inspect } from "util";
 import { fileURLToPath as fileURLToPath2 } from "url";
-import { basename as basename2, dirname as dirname4, extname, relative as relative3, resolve as resolve9, join as join6 } from "path";
+import { basename as basename2, dirname as dirname5, extname, relative as relative3, resolve as resolve9, join as join6 } from "path";
 import { createRequire as createRequire4 } from "node:module";
 import { readFileSync as readFileSync5, readdirSync as readdirSync2 } from "node:fs";
 var import_get_caller_file, __dirname2, mainFilename, require4, esm_default;
@@ -46941,7 +46941,7 @@ var init_esm = __esm(() => {
     Parser: lib_default,
     path: {
       basename: basename2,
-      dirname: dirname4,
+      dirname: dirname5,
       extname,
       relative: relative3,
       resolve: resolve9,
@@ -52022,7 +52022,7 @@ function parseArbitrationReceipt(value) {
 // src/role-profiles.ts
 import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
 import { lstat as lstat2, mkdir as mkdir2, readFile as readFile2, rename as rename2, rm as rm2, writeFile } from "node:fs/promises";
-import { join as join2, resolve as resolve2 } from "node:path";
+import { dirname, join as join2, resolve as resolve2 } from "node:path";
 var MAX_PROFILE_BYTES = 256 * 1024;
 var MODEL = /^(?:inherit|[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+)$/u;
 var THOUGHT_LEVELS = new Set(["low", "medium", "high", "max"]);
@@ -52047,6 +52047,7 @@ async function manageRoleProfiles(options) {
     templates.set(profile.role, content);
   }
   const mutating = options.operation !== "status";
+  let changed = false;
   const targetDirectory = await roleProfileDirectory(projectRoot, mutating);
   const records = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(targetDirectory, profile.role, profile.file, templates.get(profile.role))));
   switch (options.operation) {
@@ -52058,6 +52059,7 @@ async function manageRoleProfiles(options) {
       for (const record of records) {
         if (record.state === "missing") {
           await writeAtomic(record.target, templates.get(record.role), false);
+          changed = true;
         }
       }
       break;
@@ -52067,6 +52069,7 @@ async function manageRoleProfiles(options) {
       for (const record of records) {
         if (record.state !== "current") {
           await writeAtomic(record.target, templates.get(record.role), record.state !== "missing");
+          changed = true;
         }
       }
       break;
@@ -52083,15 +52086,20 @@ async function manageRoleProfiles(options) {
       }
       const record = records.find((item) => item.role === role);
       const configured = record.content.replace(/^model:.*$/mu, `model: ${model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${thoughtLevel}`);
-      await writeAtomic(record.target, configured, true);
+      if (configured !== record.content) {
+        await writeAtomic(record.target, configured, true);
+        changed = true;
+      }
       break;
     }
     case "remove":
       requireConfirmation(options.confirmation, "REMOVE_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["conflict"]), "remove");
       for (const record of records) {
-        if (record.state !== "missing")
+        if (record.state !== "missing") {
           await rm2(record.target);
+          changed = true;
+        }
       }
       break;
     default:
@@ -52099,7 +52107,7 @@ async function manageRoleProfiles(options) {
   }
   const afterDirectory = await roleProfileDirectory(projectRoot, false);
   const after = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(afterDirectory, profile.role, profile.file, templates.get(profile.role))));
-  return report(projectRoot, after, mutating);
+  return report(projectRoot, after, changed);
 }
 function canonicalRole(value) {
   const role = ROLE_PROFILES.find((item) => item.role === value)?.role;
@@ -52194,7 +52202,7 @@ async function readBoundedRegularFile(path, label) {
   return readFile2(path, "utf8");
 }
 async function writeAtomic(target, content, replace) {
-  const directory = resolve2(target, "..");
+  const directory = dirname(target);
   await requireSafeDirectory(directory, "project role-profile directory");
   const temporary = join2(directory, `.zcode-cycle-${randomUUID2()}.tmp`);
   const backup = join2(directory, `.zcode-cycle-${randomUUID2()}.bak`);
@@ -52244,7 +52252,7 @@ function isMissing(error) {
 
 // src/server.ts
 import { mkdir as mkdir7, readFile as readFile4, rename as rename4, rm as rm7, writeFile as writeFile4 } from "node:fs/promises";
-import { dirname as dirname6, join as join9 } from "node:path";
+import { dirname as dirname7, join as join9 } from "node:path";
 import { createInterface as createInterface2 } from "node:readline";
 
 // src/browser/browser-evidence.ts
@@ -53329,7 +53337,7 @@ init_disposable();
 import { spawn as spawn4, spawnSync as spawnSync4 } from "node:child_process";
 import fs8 from "node:fs";
 import os9 from "node:os";
-import { dirname as dirname5 } from "node:path";
+import { dirname as dirname6 } from "node:path";
 import { PassThrough } from "node:stream";
 var __runInitializers22 = function(thisArg, initializers, value) {
   var useValue = arguments.length > 2;
@@ -53456,7 +53464,7 @@ var ScreenRecorder = (() => {
         filters.push(formatArgs.splice(vf, 2).at(-1) ?? "");
       }
       if (path14) {
-        fs8.mkdirSync(dirname5(path14), { recursive: overwrite });
+        fs8.mkdirSync(dirname6(path14), { recursive: overwrite });
       }
       this.#process = spawn4(ffmpegPath, [
         ["-loglevel", "error"],
@@ -54070,7 +54078,7 @@ async function readRegistry() {
   }
 }
 async function writeRegistry(registry) {
-  await mkdir7(dirname6(registryPath), { recursive: true });
+  await mkdir7(dirname7(registryPath), { recursive: true });
   const temporary = `${registryPath}.tmp`;
   await writeFile4(temporary, JSON.stringify(registry, null, 1), "utf8");
   await rm7(registryPath, { force: true });
@@ -54084,7 +54092,7 @@ async function callTool(name, rawArgs) {
   const projectKey = typeof args.project_key === "string" ? args.project_key : "";
   switch (name) {
     case "cycle_health":
-      return plane.health();
+      return { ...await plane.health(), data_directory: dataDirectory };
     case "cycle_start": {
       const preference = args.preference === "quick" || args.preference === "full" || args.preference === "auto" ? args.preference : undefined;
       return plane.startWorkflow({
@@ -54264,7 +54272,7 @@ async function callTool(name, rawArgs) {
 }
 var TOOLS = {
   cycle_health: {
-    description: "Check the ZCode Cycle control plane: spawns or attaches the local workflowd daemon and returns product and protocol versions.",
+    description: "Check the Cycle control plane: spawns or attaches the local workflowd daemon and returns product/protocol/schema versions plus the authoritative data directory.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false }
   },
   cycle_start: {
