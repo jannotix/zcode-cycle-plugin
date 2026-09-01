@@ -36,6 +36,13 @@ test("the MCP handshake stays lightweight and browser code loads on demand", asy
   for (const name of ["cycle_submit_architecture", "cycle_submit_review", "cycle_submit_arbitration"])
     assert.equal(tools.get(name).inputSchema.required.includes("role_session_id"), true, name)
   assert.match(tools.get("cycle_start").description, /locks main-session mutation/u)
+  assert.deepEqual(tools.get("cycle_role_profiles").inputSchema.properties.thought_level.enum, [
+    "low",
+    "high",
+    "max",
+    "enabled",
+    "off",
+  ])
   child.stdin.end()
   await once(child, "exit")
 })

@@ -53,7 +53,13 @@ import { dirname, join, resolve } from "node:path";
 var MAX_PROFILE_BYTES = 256 * 1024;
 var MODEL_REF = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+$/u;
 var CUSTOM_MODEL_REF = /^custom:(?:[A-Za-z0-9._+\/-]|%[0-9A-Fa-f]{2})+:(?:[A-Za-z0-9._:+\/-]|%[0-9A-Fa-f]{2})+$/u;
-var THOUGHT_LEVELS = new Set(["nothink", "low", "medium", "high", "max"]);
+var INHERIT_MODEL = "inherit";
+var INHERIT_THOUGHT_LEVEL = "high";
+var BUILTIN_ZAI_MODEL_CAPABILITIES = new Map([
+  ["custom:builtin:zai-coding-plan:GLM-5.3", new Set(["low", "high", "max"])],
+  ["custom:builtin:zai-coding-plan:GLM-5.3-Flash", new Set(["low", "high", "max"])],
+  ["custom:builtin:zai-coding-plan:GLM-5-Turbo", new Set(["enabled", "off"])]
+]);
 var ROLE_PROFILES = [
   { file: "architect.md", role: "architect" },
   { file: "executor.md", role: "executor" },
@@ -112,9 +118,12 @@ async function manageRoleProfiles(options) {
       if (!validModel(model)) {
         throw new Error("role-profile model must be inherit, provider/model or a ZCode custom:provider:model value");
       }
-      const thoughtLevel = options.thoughtLevel ?? "high";
-      if (!THOUGHT_LEVELS.has(thoughtLevel)) {
-        throw new Error("role-profile thought level must be nothink, low, medium, high or max");
+      if (!supportedModel(model)) {
+        throw new Error("role-profile model is not supported by this Cycle release; use inherit or an exact supported ZCode built-in model");
+      }
+      const thoughtLevel = options.thoughtLevel ?? defaultThoughtLevel(model);
+      if (!supportsThoughtLevel(model, thoughtLevel)) {
+        throw new Error(`role-profile thought level ${thoughtLevel} is not supported by ${model}; allowed: ${supportedThoughtLevels(model).join(", ")}`);
       }
       const record = records.find((item) => item.role === role);
       const configured = record.content.replace(/^model:.*$/mu, `model: ${model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${thoughtLevel}`);
@@ -216,12 +225,29 @@ function extractManagedSettings(content, role) {
     return null;
   const model = models[0];
   const thoughtLevel = thoughtLevels[0];
-  if (!validModel(model) || !THOUGHT_LEVELS.has(thoughtLevel))
+  if (!validModel(model) || !supportedModel(model) || !supportsThoughtLevel(model, thoughtLevel)) {
     return null;
+  }
   return { model, thought_level: thoughtLevel };
 }
 function validModel(value) {
-  return value === "inherit" || MODEL_REF.test(value) || CUSTOM_MODEL_REF.test(value);
+  return value === INHERIT_MODEL || MODEL_REF.test(value) || CUSTOM_MODEL_REF.test(value);
+}
+function supportedModel(value) {
+  return value === INHERIT_MODEL || BUILTIN_ZAI_MODEL_CAPABILITIES.has(value);
+}
+function defaultThoughtLevel(model) {
+  return model === "custom:builtin:zai-coding-plan:GLM-5-Turbo" ? "off" : INHERIT_THOUGHT_LEVEL;
+}
+function supportsThoughtLevel(model, thoughtLevel) {
+  if (model === INHERIT_MODEL)
+    return thoughtLevel === INHERIT_THOUGHT_LEVEL;
+  return BUILTIN_ZAI_MODEL_CAPABILITIES.get(model)?.has(thoughtLevel) ?? false;
+}
+function supportedThoughtLevels(model) {
+  if (model === INHERIT_MODEL)
+    return [INHERIT_THOUGHT_LEVEL];
+  return [...BUILTIN_ZAI_MODEL_CAPABILITIES.get(model) ?? []];
 }
 function rejectStates(records, denied, action) {
   const blocked = records.filter((record) => denied.has(record.state));

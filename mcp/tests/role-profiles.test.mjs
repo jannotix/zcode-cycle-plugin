@@ -61,17 +61,53 @@ test("managed project role profiles install, configure, repair and remove fail c
       )
     }
 
+    await assert.rejects(
+      manageRoleProfiles(
+        options(projectRoot, "configure", {
+          confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+          model: "anthropic/claude-sonnet",
+          role: "executor",
+        }),
+      ),
+      /not supported by this Cycle release/u,
+    )
+
     const turbo = await manageRoleProfiles(
       options(projectRoot, "configure", {
         confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
         model: "custom:builtin:zai-coding-plan:GLM-5-Turbo",
         role: "executor",
-        thoughtLevel: "nothink",
+        thoughtLevel: "off",
       }),
     )
     const executor = turbo.profiles.find((profile) => profile.role === "executor")
     assert.equal(executor.model, "custom:builtin:zai-coding-plan:GLM-5-Turbo")
-    assert.equal(executor.thought_level, "nothink")
+    assert.equal(executor.thought_level, "off")
+
+    for (const thoughtLevel of ["nothink", "low", "medium", "high", "max"]) {
+      await assert.rejects(
+        manageRoleProfiles(
+          options(projectRoot, "configure", {
+            confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+            model: "custom:builtin:zai-coding-plan:GLM-5-Turbo",
+            role: "executor",
+            thoughtLevel,
+          }),
+        ),
+        /not supported by custom:builtin:zai-coding-plan:GLM-5-Turbo/u,
+      )
+    }
+    await assert.rejects(
+      manageRoleProfiles(
+        options(projectRoot, "configure", {
+          confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+          model: "custom:builtin:zai-coding-plan:GLM-5.3",
+          role: "architect",
+          thoughtLevel: "medium",
+        }),
+      ),
+      /not supported by custom:builtin:zai-coding-plan:GLM-5.3/u,
+    )
 
     const architectPath = join(projectRoot, ".zcode", "agents", "zcode-cycle-architect.md")
     await writeFile(architectPath, `${await readFile(architectPath, "utf8")}\nunauthorized drift\n`)

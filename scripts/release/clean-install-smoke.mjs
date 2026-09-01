@@ -96,6 +96,14 @@ try {
     role: "architect",
     thoughtLevel: "max",
   })
+  await manageRoleProfiles({
+    ...roleOptions,
+    operation: "configure",
+    confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+    model: "custom:builtin:zai-coding-plan:GLM-5-Turbo",
+    role: "executor",
+    thoughtLevel: "off",
+  })
   await writeFile(architectProfile, `${await readFile(architectProfile, "utf8")}\nforced drift\n`)
   const repairedProfiles = await manageRoleProfiles({
     ...roleOptions,
@@ -106,6 +114,9 @@ try {
   const repairedArchitect = repairedProfiles.profiles.find((profile) => profile.role === "architect")
   assert.equal(repairedArchitect.model, "custom:builtin:zai-coding-plan:GLM-5.3")
   assert.equal(repairedArchitect.thought_level, "max")
+  const repairedExecutor = repairedProfiles.profiles.find((profile) => profile.role === "executor")
+  assert.equal(repairedExecutor.model, "custom:builtin:zai-coding-plan:GLM-5-Turbo")
+  assert.equal(repairedExecutor.thought_level, "off")
 
   const environment = {
     ...process.env,
