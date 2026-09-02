@@ -1,6 +1,6 @@
 {
   "name": "zcode-cycle",
-  "version": "1.0.1",
+  "version": "1.0.2-rc.1",
   "description": "Evidence-gated software delivery for ZCode with an architect, executor, two independent reviewers and final arbiter.",
   "description_i18n": {
     "en": "Evidence-gated software delivery for ZCode with an architect, executor, two independent reviewers and final arbiter.",

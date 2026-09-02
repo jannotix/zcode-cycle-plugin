@@ -2,10 +2,16 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
 
 import { ControlPlaneError, prepareNativeBinary } from "../dist/client.js"
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..")
+const PRODUCT_VERSION = JSON.parse(
+  await readFile(join(ROOT, ".zcode-plugin", "plugin.json"), "utf8"),
+).version
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "zcode-cycle-native-test-"))
@@ -19,7 +25,7 @@ async function fixture() {
     join(pluginRoot, "bin", "native-manifest.json"),
     JSON.stringify({
       schema_version: 1,
-      product_version: "1.0.1",
+      product_version: PRODUCT_VERSION,
       targets: {
         "linux-x64": {
           path: "bin/linux-x64/workflowd",

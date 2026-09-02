@@ -10,7 +10,7 @@ older ZIP do not satisfy this gate.
    `verify-release-manifest.mjs`.
 2. Record the ZIP SHA-256 before extraction. It must be the same digest used
    in every scenario and in the final receipt.
-3. Use Windows 11 x64 with ZCode Desktop `3.10.1` and bundled CLI `0.16.5`.
+3. Use Windows 11 x64 with ZCode Desktop `3.10.2.6414` and bundled CLI `0.16.5`.
    Any host update invalidates this receipt and requires a complete rerun.
 4. Use a disposable fixture repository and a disposable ZCode plugin test
    profile. Keep the withdrawn `1.0.0` isolated from production projects.
@@ -23,10 +23,10 @@ older ZIP do not satisfy this gate.
 Run each scenario from the same admitted ZIP bytes and record at least one
 digest-bound evidence file:
 
-1. `component-discovery`: install and enable 1.0.1; commands, five skills,
+1. `component-discovery`: install and enable 1.0.2; commands, five skills,
    both Hooks and the MCP server load with no Cycle diagnostic.
 2. `setup-doctor`: `/cycle:setup install`, a real new session,
-   `/cycle:setup`, health 1.0.1/protocol 1/read-write schema and doctor PASS.
+   `/cycle:setup`, health 1.0.2/protocol 1/read-write schema and doctor PASS.
 3. `quick`: complete a bounded fixture change through promotion; verify the
    candidate digest and audit-chain receipt.
 4. `full`: complete architecture, execution, both independent reviews,
@@ -43,14 +43,14 @@ digest-bound evidence file:
 9. `goal`: link completed workflows to every milestone and prove completion
    refuses missing workflow/arbiter evidence.
 10. `update-from-withdrawn-1.0.0`: in the disposable profile only, update the
-    historical 1.0.0 installation to the admitted 1.0.1 and verify data/schema
+    historical 1.0.0 installation to the admitted 1.0.2 and verify data/schema
     reconciliation.
 11. `uninstall`: run `/cycle:setup remove`, uninstall the plugin, verify plugin
     and project-profile residue is absent while audit data remains intact.
 12. `isolated-rollback-to-withdrawn-1.0.0`: test rollback mechanics only in the
     disposable profile, record the expected withdrawn warning/read-only
-    behavior, then restore and re-verify 1.0.1. The final state must be
-    `1.0.1-installed-enabled`.
+    behavior, then restore and re-verify 1.0.2. The final state must be
+    `1.0.2-installed-enabled`.
 
 ## Receipt and signature
 

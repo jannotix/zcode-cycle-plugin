@@ -5,9 +5,8 @@ import { lstat, readFile } from "node:fs/promises"
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const EXPECTED_DESKTOP = "3.10.1"
+const EXPECTED_DESKTOP = "3.10.2.6414"
 const EXPECTED_CLI = "0.16.5"
-const EXPECTED_VERSION = "1.0.1"
 const MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
 const REQUIRED_SCENARIOS = new Set([
   "component-discovery",
@@ -41,19 +40,21 @@ export async function verifyLiveCertification({
   const receipt = JSON.parse(receiptText)
 
   const releaseManifest = JSON.parse(await readFile(resolve(sealed, "release-manifest.json"), "utf8"))
+  assert.match(releaseManifest.product_version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u)
+  const expectedVersion = releaseManifest.product_version
   assert.equal(receipt.schema_version, 1)
-  assert.equal(receipt.product_version, EXPECTED_VERSION)
+  assert.equal(receipt.product_version, expectedVersion)
   assert.equal(receipt.source_git_sha, releaseManifest.source_git_sha)
   assert.match(receipt.source_git_sha, /^[0-9a-f]{40}$/u)
   assert.equal(receipt.host?.desktop_version, EXPECTED_DESKTOP)
   assert.equal(receipt.host?.cli_version, EXPECTED_CLI)
   assert.equal(receipt.host?.platform, "windows-11-x64")
   assert.match(receipt.tested_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u)
-  assert.equal(receipt.final_state, "1.0.1-installed-enabled")
+  assert.equal(receipt.final_state, `${expectedVersion}-installed-enabled`)
   assert.equal(receipt.audit_data_preserved, true)
   assert.equal(receipt.isolated_withdrawn_version_tests, true)
 
-  const archiveName = `zcode-cycle-${EXPECTED_VERSION}.zip`
+  const archiveName = `zcode-cycle-${expectedVersion}.zip`
   const archive = releaseManifest.artifacts.find((item) => item.path === archiveName)
   assert.ok(archive, `sealed manifest lacks ${archiveName}`)
   assert.equal(receipt.plugin_archive?.path, archiveName)
@@ -106,6 +107,7 @@ export async function verifyLiveCertification({
   return {
     archive_sha256: archive.sha256,
     evidence_files: evidencePaths.size,
+    product_version: expectedVersion,
     scenarios: scenarios.size,
     signer_fingerprint: signerFingerprint,
     source_git_sha: receipt.source_git_sha,
