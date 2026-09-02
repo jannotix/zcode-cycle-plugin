@@ -4,13 +4,13 @@
   "targets": {
     "linux-x64": {
       "path": "bin/linux-x64/workflowd",
-      "sha256": "bb17d028ec0d57039df3cdfe0edb8e2f39fce9743d5ac8ab3e40078098a67107",
-      "size": 38884344
+      "sha256": "5cdec64b07d776f2fae177859b2f9c7fb9547ce470c19558874e0e5aa51f0183",
+      "size": 38890744
     },
     "win32-x64": {
       "path": "bin/win32-x64/workflowd.exe",
-      "sha256": "257e0890a850eb41dca21c32dc9372804094804b0a754e8f71f4706593f0c2d4",
-      "size": 37723136
+      "sha256": "0d96232dd6fd9fa080fab4f20f05b89a575737c05485360c8ec373cfe47045fd",
+      "size": 37717504
     }
   }
 }
