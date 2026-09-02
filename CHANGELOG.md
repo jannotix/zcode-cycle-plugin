@@ -3,7 +3,7 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.2-rc.3] - Unreleased
+## [1.0.2-rc.4] - Unreleased
 
 Status: **release candidate blocked until every Windows/Linux certification
 gate passes against the same immutable plugin archive**.
@@ -28,6 +28,15 @@ gate passes against the same immutable plugin archive**.
   standard hook file.
 - The host-native `SubAgent` tool name is now matched and governed alongside
   the documented `Task` and `Agent` aliases.
+- Dispatch payloads now normalize `agentType` and `subagentType` camelCase
+  fields as well as their snake_case compatibility aliases.
+
+## [1.0.2-rc.3] - SUPERSEDED - NOT RELEASED
+
+Do not install or reuse this candidate. Its exact Desktop raw probe still
+created an unregistered architect because the host supplied the role as the
+camelCase `agentType` payload field. `1.0.2-rc.4` adds that normalization and
+the corresponding regression cases.
 
 ## [1.0.2-rc.2] - SUPERSEDED - NOT RELEASED
 
@@ -46,7 +55,7 @@ load its standard `hooks/hooks.json` from the GitHub-source installation.
 
 Do not install or reuse this candidate. Multiple local certification bytes
 were evaluated under its identity before the Desktop hook-cache behavior was
-observed. `1.0.2-rc.3` uses a new semantic version for a clean host-integrated
+observed. `1.0.2-rc.4` uses a new semantic version for a clean host-integrated
 certification; the eventual production release is `1.0.2`.
 
 ## [1.0.0] - 2026-08-21 - WITHDRAWN

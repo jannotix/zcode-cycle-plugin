@@ -193,11 +193,15 @@ test("an active workflow locks mutation and permits only exact Cycle role dispat
 })
 
 test("a Cycle role dispatch needs a unique role registration even before a workflow is locked", () => {
-  for (const tool_name of ["Agent", "SubAgent"]) {
+  for (const [tool_name, tool_input] of [
+    ["Agent", { agent_type: "zcode-cycle:architect" }],
+    ["SubAgent", { agentType: "zcode-cycle:architect" }],
+    ["SubAgent", { subagentType: "zcode-cycle:architect" }],
+  ]) {
     const input = {
       hook_event_name: "PreToolUse",
       session_id: "main-session",
-      tool_input: { agent_type: "zcode-cycle:architect" },
+      tool_input,
       tool_name,
     }
     assert.match(denied(run(input)), /unique active registration/u)

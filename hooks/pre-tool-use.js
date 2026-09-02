@@ -352,9 +352,13 @@ async function main() {
         ? roleFromAgent({
             agent_type:
               input.toolInput?.subagent_type ??
+              input.toolInput?.subagentType ??
               input.toolInput?.agent_type ??
+              input.toolInput?.agentType ??
               input.tool_input?.subagent_type ??
-              input.tool_input?.agent_type,
+              input.tool_input?.subagentType ??
+              input.tool_input?.agent_type ??
+              input.tool_input?.agentType,
           })
         : null
     if (DELEGATION_TOOLS.has(toolName) && requestedRole !== null) {

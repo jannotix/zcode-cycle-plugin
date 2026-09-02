@@ -1797,7 +1797,7 @@ dependencies = [
 
 [[package]]
 name = "workflow-code-intel"
-version = "1.0.2-rc.3"
+version = "1.0.2-rc.4"
 dependencies = [
  "ignore",
  "notify",
@@ -1836,7 +1836,7 @@ dependencies = [
 
 [[package]]
 name = "workflow-core"
-version = "1.0.2-rc.3"
+version = "1.0.2-rc.4"
 dependencies = [
  "schemars",
  "serde",
@@ -1848,7 +1848,7 @@ dependencies = [
 
 [[package]]
 name = "workflow-ipc"
-version = "1.0.2-rc.3"
+version = "1.0.2-rc.4"
 dependencies = [
  "getrandom",
  "hmac",
@@ -1864,7 +1864,7 @@ dependencies = [
 
 [[package]]
 name = "workflow-ledger"
-version = "1.0.2-rc.3"
+version = "1.0.2-rc.4"
 dependencies = [
  "ed25519-dalek",
  "getrandom",
@@ -1877,7 +1877,7 @@ dependencies = [
 
 [[package]]
 name = "workflow-memory"
-version = "1.0.2-rc.3"
+version = "1.0.2-rc.4"
 dependencies = [
  "rusqlite",
  "serde",
@@ -1890,7 +1890,7 @@ dependencies = [
 
 [[package]]
 name = "workflow-store"
-version = "1.0.2-rc.3"
+version = "1.0.2-rc.4"
 dependencies = [
  "rusqlite",
  "serde",
@@ -1902,7 +1902,7 @@ dependencies = [
 
 [[package]]
 name = "workflowd"
-version = "1.0.2-rc.3"
+version = "1.0.2-rc.4"
 dependencies = [
  "cap-std",
  "getrandom",

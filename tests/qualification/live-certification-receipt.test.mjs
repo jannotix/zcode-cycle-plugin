@@ -21,7 +21,7 @@ const SCENARIOS = [
   "uninstall",
   "isolated-rollback-to-withdrawn-1.0.0",
 ]
-const PRODUCT_VERSION = "1.0.2-rc.3"
+const PRODUCT_VERSION = "1.0.2-rc.4"
 
 test("a live ZCode receipt is bound to sealed bytes and complete evidence", async () => {
   const root = await mkdtemp(join(tmpdir(), "zcode-cycle-live-receipt-"))
