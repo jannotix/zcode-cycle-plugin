@@ -193,27 +193,29 @@ test("an active workflow locks mutation and permits only exact Cycle role dispat
 })
 
 test("a Cycle role dispatch needs a unique role registration even before a workflow is locked", () => {
-  const input = {
-    hook_event_name: "PreToolUse",
-    session_id: "main-session",
-    tool_input: { agent_type: "zcode-cycle:architect" },
-    tool_name: "Agent",
-  }
-  assert.match(denied(run(input)), /unique active registration/u)
+  for (const tool_name of ["Agent", "SubAgent"]) {
+    const input = {
+      hook_event_name: "PreToolUse",
+      session_id: "main-session",
+      tool_input: { agent_type: "zcode-cycle:architect" },
+      tool_name,
+    }
+    assert.match(denied(run(input)), /unique active registration/u)
 
-  const registered = {
-    "architect-token": {
-      project_directory: ROOT,
-      project_key: "project",
-      registered_at_unix_millis: 1,
-      role: "architect",
-      workflow_id: null,
-    },
-  }
-  allowed(run(input, registered))
+    const registered = {
+      "architect-token": {
+        project_directory: ROOT,
+        project_key: "project",
+        registered_at_unix_millis: 1,
+        role: "architect",
+        workflow_id: null,
+      },
+    }
+    allowed(run(input, registered))
 
-  registered["second-architect-token"] = { ...registered["architect-token"] }
-  assert.match(denied(run(input, registered)), /ambiguous/u)
+    registered["second-architect-token"] = { ...registered["architect-token"] }
+    assert.match(denied(run(input, registered)), /ambiguous/u)
+  }
 })
 
 test("the PreToolUse hook consumes ZCode's newline-delimited input before stdin closes", async () => {

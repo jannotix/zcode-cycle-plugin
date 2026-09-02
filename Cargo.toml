@@ -3,7 +3,7 @@ members = ["crates/workflow-code-intel", "crates/workflow-core", "crates/workflo
 resolver = "3"
 
 [workspace.package]
-version = "1.0.2-rc.2"
+version = "1.0.2-rc.3"
 authors = ["Gianluca Iannotta"]
 edition = "2024"
 rust-version = "1.97"

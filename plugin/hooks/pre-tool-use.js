@@ -25,7 +25,7 @@ const DENIED_FOR_READ_ONLY = new Set([
   "Bash",
   "Shell",
 ])
-const DELEGATION_TOOLS = new Set(["Task", "Agent"])
+const DELEGATION_TOOLS = new Set(["Task", "Agent", "SubAgent"])
 const FORBIDDEN_GIT = new Set([
   "am",
   "branch",
