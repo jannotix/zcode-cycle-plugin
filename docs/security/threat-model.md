@@ -25,9 +25,9 @@ remains out of scope.
    per-installation secret in the data directory. Only local processes
    that can read the runtime secret connect.
 3. **Roles.** Read-only roles lack edit and shell tools at the managed
-   profile level; a PreToolUse hook re-checks the qualified host identity.
-   An executor mutation additionally requires one unique active registration
-   for the current project. Interactive browser
+    profile level; a PreToolUse hook re-checks the qualified host identity.
+    Every Cycle role dispatch and every executor mutation requires one unique
+    active registration for the current project. Interactive browser
    actions are executor-only. No dispatched role can launch a workflow;
    arbitration is only accepted by the daemon in the arbitration state
    for the exact frozen candidate digest. No role may delegate to another
@@ -53,9 +53,11 @@ remains out of scope.
   memories cannot claim verified confidence and must cite ledger events.
 - Promotion is fast-forward only onto the recorded base revision.
 - A malformed payload delivered to the high-risk PreToolUse hook is denied.
-  Host and registry role identities must agree. Valid calls from sessions
-  unrelated to Cycle are left to ZCode's own permission and confirmation
-  policy; Cycle never weakens or bypasses that policy.
+  Hook input is consumed as ZCode's one-line JSON protocol and never waits for
+  stdin closure. Host and registry role identities must agree, and a raw
+  Cycle-role dispatch without a unique registration is denied. Valid calls
+  from sessions unrelated to Cycle are left to ZCode's own permission and
+  confirmation policy; Cycle never weakens or bypasses that policy.
 
 ## Assumptions
 

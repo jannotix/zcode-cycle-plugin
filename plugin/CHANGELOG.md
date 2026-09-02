@@ -11,12 +11,18 @@ gate passes against the same immutable plugin archive**.
 ### Planned
 
 - Repair Linux installation and define the supported glibc baseline.
-- Make role and hook enforcement coherent and fail closed.
 - Conform to the official ZCode marketplace contract and disclosures.
 - Add reproducible release-candidate CI, SBOM, notices, checksums and
   provenance.
 - Certify install, quick/full workflows, repair, resume, browser evidence,
   upgrade, uninstall and rollback on the exact release bytes.
+
+### Changed during candidate hardening
+
+- PreToolUse and PostToolUse hooks consume ZCode's newline-delimited protocol
+  without waiting for stdin closure.
+- A Cycle role dispatch now requires one unique active registration, so a raw
+  direct role launch cannot bypass the role/hook contract.
 
 ## [1.0.0] - 2026-08-21 - WITHDRAWN
 

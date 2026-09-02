@@ -31,6 +31,7 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 市场，选择本仓库并安装 `zcode-cycle`。在每个受治理项目中运行
 `/cycle:setup install`，新建 ZCode 会话，再运行 `/cycle:setup` 验证五个受管理角色配置。
 主会话负责编排，各角色作为子 Agent 运行。
+每次 Cycle 角色调度都必须有唯一的 Cycle 注册；绕过注册直接启动 Agent 会被拒绝。
 
 要求：
 

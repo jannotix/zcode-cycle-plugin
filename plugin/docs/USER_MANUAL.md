@@ -36,7 +36,9 @@ the project you govern, and Node.js for the bundled bridge. The
 
 Read-only roles physically lack edit and shell tools in the managed project
 profiles. The PreToolUse hook enforces those identities again; an executor
-cannot mutate without one unique active workflow registration.
+cannot mutate without one unique active workflow registration. Every Cycle
+role dispatch likewise requires a unique Cycle registration; raw direct role
+launches are denied.
 
 ## Modes and routing
 

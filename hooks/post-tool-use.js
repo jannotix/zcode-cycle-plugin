@@ -15,6 +15,7 @@ const LEDGER_ROLE = {
 }
 
 const ALL_ROLES = new Set(Object.keys(LEDGER_ROLE))
+const MAX_HOOK_INPUT_BYTES = 1024 * 1024
 
 function dataDirectory() {
   if (process.env.ZCODE_CYCLE_DATA_DIR) return process.env.ZCODE_CYCLE_DATA_DIR
@@ -31,9 +32,28 @@ function dataDirectory() {
 function readStdin() {
   return new Promise((resolve) => {
     let data = ""
+    let settled = false
     process.stdin.setEncoding("utf8")
-    process.stdin.on("data", (chunk) => (data += chunk))
-    process.stdin.on("end", () => resolve(data))
+    const settle = (value) => {
+      if (settled) return
+      settled = true
+      process.stdin.off("data", onData)
+      process.stdin.off("end", onEnd)
+      process.stdin.destroy()
+      resolve(value)
+    }
+    const onData = (chunk) => {
+      data += chunk
+      const newline = data.indexOf("\n")
+      if (newline >= 0) {
+        settle(data.slice(0, newline).replace(/\r$/u, ""))
+      } else if (Buffer.byteLength(data) > MAX_HOOK_INPUT_BYTES) {
+        settle(data)
+      }
+    }
+    const onEnd = () => settle(data)
+    process.stdin.on("data", onData)
+    process.stdin.on("end", onEnd)
   })
 }
 

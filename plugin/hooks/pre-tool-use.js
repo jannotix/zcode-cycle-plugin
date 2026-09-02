@@ -88,11 +88,28 @@ function requiredEnvironment(name) {
 function readStdin() {
   return new Promise((resolve) => {
     let data = ""
+    let settled = false
     process.stdin.setEncoding("utf8")
-    process.stdin.on("data", (chunk) => {
+    const settle = (value) => {
+      if (settled) return
+      settled = true
+      process.stdin.off("data", onData)
+      process.stdin.off("end", onEnd)
+      process.stdin.destroy()
+      resolve(value)
+    }
+    const onData = (chunk) => {
       data += chunk
-    })
-    process.stdin.on("end", () => resolve(data))
+      const newline = data.indexOf("\n")
+      if (newline >= 0) {
+        settle(data.slice(0, newline).replace(/\r$/u, ""))
+      } else if (Buffer.byteLength(data) > MAX_HOOK_INPUT_BYTES) {
+        settle(data)
+      }
+    }
+    const onEnd = () => settle(data)
+    process.stdin.on("data", onData)
+    process.stdin.on("end", onEnd)
   })
 }
 
@@ -330,14 +347,28 @@ async function main() {
   const role = registeredRole ?? hostRole
   if (role === null) {
     const workflowLocks = workflowLocksForProject(registry)
+    const requestedRole =
+      DELEGATION_TOOLS.has(toolName)
+        ? roleFromAgent({
+            agent_type:
+              input.toolInput?.subagent_type ??
+              input.toolInput?.agent_type ??
+              input.tool_input?.subagent_type ??
+              input.tool_input?.agent_type,
+          })
+        : null
+    if (DELEGATION_TOOLS.has(toolName) && requestedRole !== null) {
+      const requestedRegistration = registrationForHostRole(registry, requestedRole)
+      if (requestedRegistration.ambiguous) {
+        deny("multiple active workflow registrations made the requested Cycle role ambiguous", null)
+        return
+      }
+      if (requestedRegistration.registration === undefined) {
+        deny("a Cycle role dispatch requires a unique active registration", null)
+        return
+      }
+    }
     if (workflowLocks.length > 0 && DELEGATION_TOOLS.has(toolName)) {
-      const requestedRole = roleFromAgent({
-        agent_type:
-          input.toolInput?.subagent_type ??
-          input.toolInput?.agent_type ??
-          input.tool_input?.subagent_type ??
-          input.tool_input?.agent_type,
-      })
       if (requestedRole === null) {
         deny(
           "an active Cycle workflow may dispatch only an exact zcode-cycle role profile",

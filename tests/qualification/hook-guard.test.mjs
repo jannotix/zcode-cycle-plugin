@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
+import { once } from "node:events"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -8,6 +9,7 @@ import { fileURLToPath } from "node:url"
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const HOOK = join(ROOT, "hooks", "pre-tool-use.js")
+const POST_HOOK = join(ROOT, "hooks", "post-tool-use.js")
 
 function run(input, registry) {
   const dataDirectory = mkdtempSync(join(tmpdir(), "zcode-cycle-hook-test-"))
@@ -131,6 +133,14 @@ test("an executor profile cannot mutate outside a uniquely registered workflow",
 
 test("an active workflow locks mutation and permits only exact Cycle role dispatch", () => {
   const registry = {
+    architect: {
+      kind: "role",
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 2,
+      role: "architect",
+      workflow_id: "active",
+    },
     "workflow:active": {
       kind: "workflow_lock",
       project_directory: ROOT,
@@ -180,6 +190,73 @@ test("an active workflow locks mutation and permits only exact Cycle role dispat
     workflow_id: "active",
   }
   allowed(run({ sessionId: "executor", toolName: "Write", toolInput: {} }, registry))
+})
+
+test("a Cycle role dispatch needs a unique role registration even before a workflow is locked", () => {
+  const input = {
+    hook_event_name: "PreToolUse",
+    session_id: "main-session",
+    tool_input: { agent_type: "zcode-cycle:architect" },
+    tool_name: "Agent",
+  }
+  assert.match(denied(run(input)), /unique active registration/u)
+
+  const registered = {
+    "architect-token": {
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 1,
+      role: "architect",
+      workflow_id: null,
+    },
+  }
+  allowed(run(input, registered))
+
+  registered["second-architect-token"] = { ...registered["architect-token"] }
+  assert.match(denied(run(input, registered)), /ambiguous/u)
+})
+
+test("the PreToolUse hook consumes ZCode's newline-delimited input before stdin closes", async () => {
+  const dataDirectory = mkdtempSync(join(tmpdir(), "zcode-cycle-hook-open-stdin-"))
+  const child = spawn(process.execPath, [HOOK], {
+    env: { ...process.env, ZCODE_CYCLE_DATA_DIR: dataDirectory, ZCODE_PROJECT_DIR: ROOT },
+    stdio: ["pipe", "pipe", "pipe"],
+  })
+  try {
+    let output = ""
+    child.stdout.setEncoding("utf8")
+    child.stdout.on("data", (chunk) => (output += chunk))
+    child.stdin.write(`${JSON.stringify({ tool_name: "Write", tool_input: {} })}\n`)
+    await Promise.race([
+      once(child.stdout, "data"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("hook waited for stdin close")), 1_000)),
+    ])
+    assert.equal(JSON.parse(output).hookSpecificOutput.permissionDecision, "allow")
+  } finally {
+    child.stdin.end()
+    await once(child, "close")
+    rmSync(dataDirectory, { force: true, recursive: true })
+  }
+})
+
+test("the PostToolUse hook consumes ZCode's newline-delimited input before stdin closes", async () => {
+  const dataDirectory = mkdtempSync(join(tmpdir(), "zcode-cycle-post-hook-open-stdin-"))
+  const child = spawn(process.execPath, [POST_HOOK], {
+    env: { ...process.env, ZCODE_CYCLE_DATA_DIR: dataDirectory, ZCODE_PROJECT_DIR: ROOT },
+    stdio: ["pipe", "pipe", "pipe"],
+  })
+  try {
+    child.stdin.write(`${JSON.stringify({ session_id: "unregistered", tool_name: "Read" })}\n`)
+    const [exitCode] = await Promise.race([
+      once(child, "exit"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("post hook waited for stdin close")), 1_000)),
+    ])
+    assert.equal(exitCode, 0)
+  } finally {
+    child.stdin.end()
+    if (child.exitCode === null) await once(child, "close")
+    rmSync(dataDirectory, { force: true, recursive: true })
+  }
 })
 
 test("forbidden Git remains denied through options, paths, assignments and command chains", () => {

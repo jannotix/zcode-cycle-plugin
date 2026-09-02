@@ -37,6 +37,8 @@ Settings -> Plugins -> Create -> Add marketplace, select this repository, then
 install `zcode-cycle`. In each governed project run `/cycle:setup install`,
 start a new ZCode session, then run `/cycle:setup` to verify the five managed
 role profiles. The main session is the orchestrator; roles are sub-agents.
+Every Cycle role dispatch requires one unique Cycle registration; a raw agent
+launch that bypasses registration is denied.
 
 Requirements:
 
