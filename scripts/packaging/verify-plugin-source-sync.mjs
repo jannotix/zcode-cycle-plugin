@@ -20,7 +20,7 @@ const COPY_MAPPINGS = [
   ["agents", "agents"],
   ["commands", "commands"],
   ["skills", "skills"],
-  ["hooks/hooks.json", "hooks/hooks.json"],
+  ["hooks/cycle-hooks.json", "hooks/cycle-hooks.json"],
   ["hooks/pre-tool-use.js", "hooks/pre-tool-use.js"],
   ["hooks/post-tool-use.js", "hooks/post-tool-use.js"],
   ["mcp/dist", "mcp/dist"],

@@ -3,7 +3,7 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.2-rc.1] - Unreleased
+## [1.0.2-rc.2] - Unreleased
 
 Status: **release candidate blocked until every Windows/Linux certification
 gate passes against the same immutable plugin archive**.
@@ -23,12 +23,22 @@ gate passes against the same immutable plugin archive**.
   without waiting for stdin closure.
 - A Cycle role dispatch now requires one unique active registration, so a raw
   direct role launch cannot bypass the role/hook contract.
+- The hook configuration is declared explicitly from
+  `hooks/cycle-hooks.json`; it no longer relies on the client discovering the
+  standard hook file.
+
+## [1.0.2-rc.1] - SUPERSEDED - NOT RELEASED
+
+Do not install or reuse this candidate. The current ZCode Desktop did not
+load its standard `hooks/hooks.json` from the GitHub-source installation.
+`1.0.2-rc.2` uses an explicit, nonstandard manifest hook path for the next
+host-integrated certification.
 
 ## [1.0.1] - SUPERSEDED - NOT RELEASED
 
 Do not install or reuse this candidate. Multiple local certification bytes
 were evaluated under its identity before the Desktop hook-cache behavior was
-observed. `1.0.2-rc.1` uses a new semantic version for a clean host-integrated
+observed. `1.0.2-rc.2` uses a new semantic version for a clean host-integrated
 certification; the eventual production release is `1.0.2`.
 
 ## [1.0.0] - 2026-08-21 - WITHDRAWN
