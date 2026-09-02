@@ -30,6 +30,7 @@ assert.equal(
   "certified ZCode CLI 0.16.5 treats plugin agent components as diagnostic-only",
 )
 assert.match(manifest.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u)
+assert.equal(manifest.hooks, "hooks/cycle-hooks.json")
 assert.deepEqual(installedManifest, manifest, "source and installable plugin manifests differ")
 assert.equal(entry?.name, manifest.name)
 assert.equal(entry?.version, manifest.version)
