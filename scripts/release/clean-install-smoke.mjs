@@ -68,7 +68,7 @@ try {
 
   const product = JSON.parse(await readFile(join(pluginRoot, ".zcode-plugin", "plugin.json"), "utf8"))
   const nativeManifest = JSON.parse(await readFile(join(pluginRoot, "bin", "native-manifest.json"), "utf8"))
-  assert.equal(product.version, "1.0.1")
+  assert.match(product.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u)
   assert.equal(Object.hasOwn(product, "agents"), false)
   assert.equal(nativeManifest.product_version, product.version)
 

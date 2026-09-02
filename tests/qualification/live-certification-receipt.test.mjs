@@ -21,6 +21,7 @@ const SCENARIOS = [
   "uninstall",
   "isolated-rollback-to-withdrawn-1.0.0",
 ]
+const PRODUCT_VERSION = "1.0.2-rc.1"
 
 test("a live ZCode receipt is bound to sealed bytes and complete evidence", async () => {
   const root = await mkdtemp(join(tmpdir(), "zcode-cycle-live-receipt-"))
@@ -28,7 +29,7 @@ test("a live ZCode receipt is bound to sealed bytes and complete evidence", asyn
     const sealed = join(root, "sealed")
     const certification = join(root, "certification")
     await Promise.all([mkdir(sealed), mkdir(join(certification, "evidence"), { recursive: true })])
-    const archiveName = "zcode-cycle-1.0.1.zip"
+    const archiveName = `zcode-cycle-${PRODUCT_VERSION}.zip`
     const archive = Buffer.from("sealed plugin bytes")
     const archiveDigest = sha256(archive)
     await writeFile(join(sealed, archiveName), archive)
@@ -36,7 +37,7 @@ test("a live ZCode receipt is bound to sealed bytes and complete evidence", asyn
       join(sealed, "release-manifest.json"),
       JSON.stringify({
         schema_version: 1,
-        product_version: "1.0.1",
+        product_version: PRODUCT_VERSION,
         source_git_sha: "a".repeat(40),
         artifacts: [{ path: archiveName, sha256: archiveDigest, size: archive.length }],
       }),
@@ -46,16 +47,16 @@ test("a live ZCode receipt is bound to sealed bytes and complete evidence", asyn
     await writeFile(join(certification, ...evidencePath.split("/")), evidence)
     const receipt = {
       schema_version: 1,
-      product_version: "1.0.1",
+      product_version: PRODUCT_VERSION,
       source_git_sha: "a".repeat(40),
       plugin_archive: { path: archiveName, sha256: archiveDigest },
       host: {
-        desktop_version: "3.10.1",
+        desktop_version: "3.10.2.6414",
         cli_version: "0.16.5",
         platform: "windows-11-x64",
       },
       tested_at: "2026-08-29T12:00:00Z",
-      final_state: "1.0.1-installed-enabled",
+      final_state: `${PRODUCT_VERSION}-installed-enabled`,
       audit_data_preserved: true,
       isolated_withdrawn_version_tests: true,
       scenarios: SCENARIOS.map((id) => ({

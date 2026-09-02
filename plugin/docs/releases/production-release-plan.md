@@ -1,4 +1,4 @@
-# Cycle for Zcode 1.0.1 Production Release Plan
+# Cycle for Zcode 1.0.2 Production Release Plan
 
 Status: **BLOCKED - NOT AUTHORIZED TO PUBLISH**
 
@@ -9,11 +9,11 @@ archive digest they name.
 
 ## Product and platform scope
 
-- Product: Cycle for Zcode `1.0.1`.
-- ZCode certification target: Desktop `3.10.1`, bundled CLI `0.16.5`,
+- Product: Cycle for Zcode `1.0.2`; `1.0.2-rc.1` is the distinct host-integrated candidate.
+- ZCode certification target: Desktop `3.10.2.6414`, bundled CLI `0.16.5`,
   refreshed if ZCode changes before release sealing.
 - Certified platforms: Windows 11 x64 and Linux x64 on Ubuntu 22.04 and 24.04.
-- Windows/Linux ARM64: unsupported in `1.0.1`; the marketplace documentation
+- Windows/Linux ARM64: unsupported in `1.0.2`; the marketplace documentation
   must not imply support.
 - macOS x64/arm64: compatible but untested only after native packages are built
   successfully; macOS evidence never substitutes for a Windows/Linux gate.
@@ -72,8 +72,9 @@ legal opinion.
 
 ## Release gates
 
-1. **Version and history** - `1.0.0` is marked withdrawn; all installable
-   manifests say `1.0.1`; the historical tag is unchanged.
+1. **Version and history** - `1.0.0` is marked withdrawn and `1.0.1` is
+   marked superseded; all final installable manifests say `1.0.2`; historical
+   tags are unchanged.
 2. **Linux runtime** - the installed daemon is materialized atomically under
    plugin data, hash-verified, mode `0700`, and runs on the declared glibc
    baseline. A `0644` archive entry is a required regression case.

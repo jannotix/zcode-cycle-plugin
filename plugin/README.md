@@ -7,12 +7,14 @@ state, candidate bytes, verification evidence and delivery.
 
 ## Release status
 
-- `1.0.1` is an unreleased production candidate. Do not distribute it until
+- `1.0.2-rc.1` is an unreleased production candidate. Do not distribute it until
   the exact Windows/Linux artifact has completed the release matrix.
+- `1.0.1` is a superseded, never-published candidate. It must not be installed
+  or reused: different candidate bytes were exercised under that identity.
 - `1.0.0` is withdrawn and must not be installed. Its historical tag is kept
   for auditability and is not reused.
 
-## Supported scope for 1.0.1
+## Supported scope for 1.0.2-rc.1
 
 | Platform | Status |
 |---|---|
@@ -28,7 +30,7 @@ until the live matrix is repeated.
 ## Installation
 
 Production users should install the plugin only from the official ZCode public
-marketplace after version `1.0.1` is accepted and published. Official
+marketplace after version `1.0.2` is accepted and published. Official
 installation matters because public role enforcement depends on ZCode loading
 the plugin hooks from a trusted source.
 
@@ -167,5 +169,5 @@ Cycle for Zcode is an independent integration. It is not affiliated with,
 sponsored by or endorsed by ZCode or its operator. ZCode names and trademarks
 belong to their respective owners.
 
-Development disclosure: changes prepared for `1.0.1` include AI-assisted code
+Development disclosure: changes prepared for `1.0.2-rc.1` include AI-assisted code
 and documentation and require human owner review before publication.

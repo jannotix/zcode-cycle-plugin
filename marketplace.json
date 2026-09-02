@@ -18,7 +18,7 @@
         "en": "Evidence-gated software delivery for ZCode with an architect, executor, two independent reviewers and final arbiter.",
         "zh-CN": "面向 ZCode 的证据门控软件交付：架构师、执行器、两名独立审查者和最终裁决者。"
       },
-      "version": "1.0.1",
+      "version": "1.0.2-rc.1",
       "author": {
         "name": "Gianluca Iannotta",
         "url": "https://github.com/jannotix"
