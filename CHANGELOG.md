@@ -3,10 +3,13 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.2-rc.4] - Unreleased
+## [1.0.2] - Unreleased
 
-Status: **release candidate blocked until every Windows/Linux certification
-gate passes against the same immutable plugin archive**.
+Status: **blocked until every Windows/Linux certification gate passes against
+the same immutable plugin archive**. This is the first version of this line
+intended for publication; `1.0.2-rc.1` through `1.0.2-rc.4` were internal
+candidates and none was ever published. Their entries are kept below because
+they record why the candidate bytes changed.
 
 ### Planned
 
@@ -30,6 +33,15 @@ gate passes against the same immutable plugin archive**.
   the documented `Task` and `Agent` aliases.
 - Dispatch payloads now normalize `agentType` and `subagentType` camelCase
   fields as well as their snake_case compatibility aliases.
+- One version identity across the whole product. The workspace, the plugin
+  manifest, both marketplace documents, the MCP bridge, the four native
+  packages and the certification fixtures all read `1.0.2`; the daemon reports
+  it from the same number, and the bridge refuses a daemon that disagrees.
+
+## [1.0.2-rc.4] - SUPERSEDED - NOT RELEASED
+
+Do not install or reuse this candidate. It was the last internal candidate
+before `1.0.2` and carries different bytes under a different identity.
 
 ## [1.0.2-rc.3] - SUPERSEDED - NOT RELEASED
 

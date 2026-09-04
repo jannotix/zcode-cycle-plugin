@@ -7,8 +7,11 @@ state, candidate bytes, verification evidence and delivery.
 
 ## Release status
 
-- `1.0.2-rc.4` is an unreleased production candidate. Do not distribute it until
-  the exact Windows/Linux artifact has completed the release matrix.
+- `1.0.2` is the unreleased production version. Do not distribute it until the
+  exact Windows/Linux artifact has completed the release matrix.
+- `1.0.2-rc.4` is a superseded internal candidate and was never published. It
+  must not be installed or reused: it carries different bytes under a different
+  identity.
 - `1.0.2-rc.3` is superseded: the exact Desktop probe supplied the raw role as
   camelCase `agentType`, which that candidate did not normalize. Do not install
   or reuse it.
@@ -21,7 +24,7 @@ state, candidate bytes, verification evidence and delivery.
 - `1.0.0` is withdrawn and must not be installed. Its historical tag is kept
   for auditability and is not reused.
 
-## Supported scope for 1.0.2-rc.4
+## Supported scope for 1.0.2
 
 | Platform | Status |
 |---|---|
@@ -176,5 +179,5 @@ Cycle for Zcode is an independent integration. It is not affiliated with,
 sponsored by or endorsed by ZCode or its operator. ZCode names and trademarks
 belong to their respective owners.
 
-Development disclosure: changes prepared for `1.0.2-rc.4` include AI-assisted code
+Development disclosure: changes prepared for `1.0.2` include AI-assisted code
 and documentation and require human owner review before publication.

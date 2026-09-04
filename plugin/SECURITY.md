@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-`1.0.2-rc.4` is an unreleased release candidate. `1.0.2-rc.3`,
-`1.0.2-rc.2`, `1.0.2-rc.1` and `1.0.1` are superseded and never released;
-`1.0.0` is withdrawn. None is supported for production use.
+`1.0.2` is unreleased. `1.0.2-rc.4`, `1.0.2-rc.3`, `1.0.2-rc.2`,
+`1.0.2-rc.1` and `1.0.1` are superseded internal candidates and were never
+released; `1.0.0` is withdrawn. None is supported for production use.
 
 ## Reporting a Cycle vulnerability
 

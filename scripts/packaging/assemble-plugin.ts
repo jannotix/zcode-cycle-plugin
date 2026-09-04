@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { join } from "node:path"
 
+import { checkNativeVersions, STAGING_TARGETS } from "../release/check-native-version.mjs"
 import { writeNativeManifest } from "./native-manifest.js"
 
 // Assembles the installable plugin directory: only runtime files, never the
@@ -31,6 +32,24 @@ const copy = [
   ["mcp/dist", "mcp/dist"],
 ]
 
+// Refuse before destroying the previous output: a tracked daemon built from a
+// different product version would assemble an installation that cannot start,
+// because the bridge rejects a daemon whose version disagrees with the
+// manifest. Checking here also means a refusal leaves the existing plugin
+// directory untouched instead of half-rebuilt.
+const { expected, results } = await checkNativeVersions(root, STAGING_TARGETS)
+const stale = results.filter((result) => result.foreign.length > 0 || !result.declares)
+if (stale.length > 0) {
+  for (const { declares, foreign, target } of stale) {
+    const detail =
+      foreign.length > 0 ? `carries ${foreign.join(", ")}` : `does not declare ${expected}`
+    console.error(`  ${target} — ${detail}`)
+  }
+  throw new Error(
+    `refusing to assemble: ${stale.length} tracked daemon(s) disagree with plugin version ${expected}`,
+  )
+}
+
 await rm(output, { force: true, recursive: true })
 await mkdir(join(output, "bin"), { recursive: true })
 for (const [from, to] of copy) {
@@ -38,7 +57,8 @@ for (const [from, to] of copy) {
 }
 
 // Per-platform daemon binaries; assembly fails if any certified platform
-// binary is missing.
+// binary is missing. Their product version was checked before anything was
+// removed.
 await cp(join(root, "bin", "workflowd.exe"), join(output, "bin", "win32-x64", "workflowd.exe"))
 await cp(join(root, "bin", "workflowd"), join(output, "bin", "linux-x64", "workflowd"))
 await writeNativeManifest(output)
