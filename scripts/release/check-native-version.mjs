@@ -45,8 +45,14 @@ export async function checkNativeVersions(
     try {
       bytes = await readFile(join(root, target))
     } catch (error) {
-      if (error.code === "ENOENT") continue
-      throw error
+      if (error.code !== "ENOENT") throw error
+      // Staging is absent in a fresh clone and that is not a defect. A shipped
+      // binary is tracked, so its absence is one, and a check that quietly
+      // examined nothing would be worse than no check at all.
+      if (SHIPPED_TARGETS.includes(target)) {
+        throw new Error(`a shipped daemon is missing from the plugin: ${target}`)
+      }
+      continue
     }
     const content = bytes.toString("latin1")
     const declares = content.includes(expected)

@@ -90,6 +90,13 @@ jobs:
           node scripts/packaging/verify-plugin-source-sync.mjs
           node scripts/validate-marketplace.mjs
 
+      # The bridge refuses a daemon whose product version disagrees with the
+      # manifest, so a tracked binary left behind by an earlier version ships an
+      # installation that cannot start. The assembler refuses to build one; this
+      # refuses to merge one.
+      - name: Tracked daemon version
+        run: node scripts/release/check-native-version.mjs
+
       - name: Role and release-evidence regression
         run: node --test tests/qualification/*.test.mjs
 
