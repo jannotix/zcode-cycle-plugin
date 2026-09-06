@@ -183,6 +183,14 @@ publisher identity carried inside the file.
 Signing returns in a later version. Published versions are immutable, so `1.0.2`
 stays unsigned for its whole life.
 
+On Linux there is no Authenticode equivalent and none is claimed. The guarantee
+there is the same one that holds on Windows without a certificate — the declared
+SHA-256 verified before execution, the archive digest verified on install — plus
+build provenance attested for the sealed artifacts, which lets anyone check that
+a binary came from this repository at a named commit through the published
+workflow. The Linux daemon is built on Ubuntu 22.04 and its GLIBC floor is
+verified at 2.35 or lower, so it runs on 22.04 and 24.04 alike.
+
 ## Security and legal
 
 Report plugin vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
