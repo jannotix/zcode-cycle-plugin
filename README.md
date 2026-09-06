@@ -164,7 +164,24 @@ node tests/qualification/battery.mjs 1
 
 The public release also requires the official marketplace validator/build,
 20/20 deterministic batteries on both certified platforms, clean-install/live
-ZCode checks, SBOM/notices/provenance, and signed Windows binaries.
+ZCode checks, and SBOM/notices/provenance.
+
+### Windows code signing
+
+The bundled `workflowd.exe` is **not** Authenticode signed in `1.0.2`. Windows
+SmartScreen will warn on first use, some endpoint protection may quarantine it,
+and environments that refuse unsigned executables by policy will refuse it.
+
+What still holds without a signature: the plugin declares each native binary's
+SHA-256 in `bin/native-manifest.json`, the bridge verifies it before the daemon
+is ever executed and refuses a mismatch, the binary is materialized read-write
+for its owner only, and the ZCode client verifies the archive digest on install.
+Build provenance is attested for the sealed artifacts. Integrity is therefore
+demonstrated; what is missing is the operating system's own trust decision and a
+publisher identity carried inside the file.
+
+Signing returns in a later version. Published versions are immutable, so `1.0.2`
+stays unsigned for its whole life.
 
 ## Security and legal
 

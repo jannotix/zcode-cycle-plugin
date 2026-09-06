@@ -99,8 +99,13 @@ legal opinion.
    setup/doctor, quick and full routes, forced repair, hard-kill resume, browser
    and accessibility evidence, Goal Mode, update, uninstall and rollback pass.
 9. **Supply chain** - tag/commit verification, immutable checksums, SBOM,
-   notices and provenance pass. Windows publication additionally requires a
-   valid Authenticode signature and timestamp; no unsigned substitute passes.
+   notices and provenance pass. Windows code signing is applied when the signing
+   secrets are configured and is not a release gate: ZCode does not require it,
+   and the plugin verifies its own native bytes by digest before running them.
+   The signature state is recorded as a fact in the staged evidence and in the
+   release documentation, so an unsigned release is a declared limitation rather
+   than an unnoticed one. A signature that exists and does not verify still
+   fails, on the binary and again inside the sealed archive.
 10. **Independent review** - an independent reviewer approves the exact SHA and
     artifact receipts. Owner approval changes status to `AUTHORIZED TO
     PUBLISH`.

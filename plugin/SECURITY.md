@@ -33,8 +33,16 @@ official private feedback/security channel and follow its disclosure terms.
 - IPC is local and authenticated. A user or process able to read the Cycle data
   directory is inside the trust boundary.
 - Release binaries are necessary prebuilt components. Production publication
-  requires exact-source provenance, checksums, SBOM/notices and platform signing
-  where applicable.
+  requires exact-source provenance, checksums and SBOM/notices.
+- **The Windows daemon in `1.0.2` is not Authenticode signed.** SmartScreen will
+  warn, endpoint protection may quarantine it, and policies that refuse unsigned
+  executables will refuse it. Integrity does not depend on that signature: the
+  plugin declares each native binary's SHA-256 in `bin/native-manifest.json`, the
+  bridge verifies it before executing the daemon and refuses a mismatch, and the
+  ZCode client verifies the archive digest on install. What a signature would add
+  is the operating system's trust decision and a publisher identity inside the
+  file. Report a signature that exists but does not verify as a vulnerability;
+  its absence is this documented limitation.
 
 See [the full threat model](docs/security/threat-model.md) for assumptions and
 out-of-scope risks.
