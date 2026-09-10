@@ -175,19 +175,20 @@ test("repair never overwrites an unowned role-profile conflict", async () => {
   }
 })
 
-test(
-  "a linked role-profile directory is rejected",
-  { skip: process.platform === "win32" },
-  async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), "zcode-cycle-role-link-"))
-    const outside = await mkdtemp(join(tmpdir(), "zcode-cycle-role-outside-"))
-    try {
-      await mkdir(join(projectRoot, ".zcode"))
-      await symlink(outside, join(projectRoot, ".zcode", "agents"), "dir")
-      await assert.rejects(manageRoleProfiles(options(projectRoot, "status")), /unsafe/u)
-    } finally {
-      await rm(projectRoot, { force: true, recursive: true })
-      await rm(outside, { force: true, recursive: true })
-    }
-  },
-)
+// Runs on both certified platforms. A POSIX symlink needs privileges to create
+// on Windows, which is why this used to be skipped there — but a directory
+// junction does not, `lstat` reports one as a symbolic link, and it redirects a
+// path exactly the same way. Node's "junction" type makes one on Windows and is
+// ignored elsewhere, so one test covers the attack on both.
+test("a linked role-profile directory is rejected", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "zcode-cycle-role-link-"))
+  const outside = await mkdtemp(join(tmpdir(), "zcode-cycle-role-outside-"))
+  try {
+    await mkdir(join(projectRoot, ".zcode"))
+    await symlink(outside, join(projectRoot, ".zcode", "agents"), "junction")
+    await assert.rejects(manageRoleProfiles(options(projectRoot, "status")), /unsafe/u)
+  } finally {
+    await rm(projectRoot, { force: true, recursive: true })
+    await rm(outside, { force: true, recursive: true })
+  }
+})

@@ -102,7 +102,20 @@ test("a packaged daemon that disagrees with its native manifest is rejected", as
   }
 })
 
-test("a symlink cannot be used as the packaged daemon", { skip: process.platform === "win32" }, async () => {
+// The only one of these that cannot run on Windows. The redirect has to be a
+// file, so a junction will not do, and creating a file symlink there needs
+// SeCreateSymbolicLinkPrivilege or Developer Mode — neither of which a test may
+// assume. The guard it covers is not platform-specific: `lstat().isSymbolicLink()`
+// is checked before the win32 path returns early, so the same line protects both
+// platforms and Linux proves it on every push.
+test(
+  "a symlink cannot be used as the packaged daemon",
+  {
+    skip:
+      process.platform === "win32" &&
+      "a file symlink needs elevation on Windows; the shared guard is proven on Linux",
+  },
+  async () => {
   const item = await fixture()
   try {
     const other = join(item.root, "other")
@@ -124,7 +137,11 @@ test("a symlink cannot be used as the packaged daemon", { skip: process.platform
   }
 })
 
-test("a symlink cannot replace the private runtime directory", { skip: process.platform === "win32" }, async () => {
+// Runs on both certified platforms: the redirect is a directory, and a Windows
+// junction redirects one without the privileges a POSIX symlink would need
+// there. Node's "junction" type is ignored off Windows, so the same test covers
+// the attack on both.
+test("a symlink cannot replace the private runtime directory", async () => {
   const item = await fixture()
   try {
     const options = {
@@ -138,7 +155,7 @@ test("a symlink cannot replace the private runtime directory", { skip: process.p
     const redirect = join(item.root, "redirect")
     await rm(runtimeDirectory, { force: true, recursive: true })
     await mkdir(redirect)
-    await symlink(redirect, runtimeDirectory, "dir")
+    await symlink(redirect, runtimeDirectory, "junction")
 
     await assert.rejects(prepareNativeBinary(options), /runtime directory is unsafe/u)
   } finally {

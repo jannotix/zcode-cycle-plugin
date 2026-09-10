@@ -30,6 +30,43 @@ orchestrator runs one executor session covering both protocols and
 attaches the receipt to verification, bound to the frozen candidate
 digest. A skipped browser gate is reported, never hidden.
 
+## Which browser it uses
+
+Cycle does not download or bundle a browser: it drives one already
+installed on your machine, and looks for a stable Chrome, Edge or
+Chromium.
+
+| Platform | Looked for, in order |
+|---|---|
+| Windows | Edge under `PROGRAMFILES`, then Chrome under `LOCALAPPDATA` and `PROGRAMFILES` |
+| Linux | `/usr/bin/google-chrome-stable`, `google-chrome`, `microsoft-edge-stable`, `chromium`, `chromium-browser` |
+| macOS | Chrome, Edge, then Chromium under `/Applications` |
+
+Set `ZCODE_CYCLE_BROWSER` to an absolute path to use a different
+installation. Sessions run headless unless `ZCODE_CYCLE_BROWSER_HEADLESS`
+is `false`.
+
+With none of them present the session refuses to start, naming the cause:
+*no supported stable Chrome, Edge or Chromium installation was found*. A
+mandatory browser gate then cannot be satisfied and the candidate is
+refused — which is the intended behaviour, not a failure to handle it.
+Install a browser, or point `ZCODE_CYCLE_BROWSER` at one.
+
+## What is certified, and where
+
+The browser and accessibility gates were qualified on **Windows**. On
+Linux they are **not certified**: no run has been observed there, because
+the qualification environment has no browser installed.
+
+What that does and does not mean. The gate logic, the receipt protocol,
+the origin boundary and the redaction are one implementation shared by
+both platforms, and the only platform-specific part — the list above — is
+covered by tests. So there is no known reason for them to behave
+differently on Linux. But "no known reason" is not evidence, and this
+project does not record an unobserved row as passed. If you run the
+browser gates on Linux and they misbehave, that is a defect worth
+reporting rather than a documented limitation.
+
 ## Limits
 
 At most two concurrent sessions per project. Screenshots and receipts

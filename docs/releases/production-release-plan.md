@@ -50,8 +50,19 @@ is part of this release.
 
 The plugin must:
 
-- use `.zcode-plugin/plugin.json`, the documented `${ZCODE_PLUGIN_ROOT}` and
-  `${ZCODE_PLUGIN_DATA}` variables, and newline-delimited JSON-RPC for MCP;
+- use `.zcode-plugin/plugin.json`, the documented `${ZCODE_PLUGIN_ROOT}`
+  variable, and newline-delimited JSON-RPC for MCP;
+- keep durable data out of the install directory. Cycle does, and does **not**
+  use `${ZCODE_PLUGIN_DATA}` to do it: the ledger, the signed checkpoints, the
+  evidence and the project history are written under `%LOCALAPPDATA%\ZCode Cycle`
+  and its POSIX equivalents instead. This is a deliberate, disclosed deviation
+  from the recommendation, for one reason: the product promises that a history
+  of delivered work outlives the plugin, and the uninstall scenario asserts that
+  audit data survives removal. What ZCode does to `ZCODE_PLUGIN_DATA` when a
+  plugin is uninstalled is not specified in the contract, and a tamper-evident
+  record cannot rest on unspecified behaviour. The binding rule — never the
+  install directory — is met; the path is reported by `cycle_health`, documented
+  per platform in both READMEs, and removable by the user;
 - preserve every ZCode confirmation, risk rule, permission boundary and
   platform safeguard; Cycle may add denials but never bypass host controls;
 - keep credentials, private endpoints, customer data and machine-specific

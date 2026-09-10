@@ -37,6 +37,14 @@ The certification target is the current ZCode Desktop release recorded in the
 release receipt. A newer ZCode version invalidates host-integration receipts
 until the live matrix is repeated.
 
+One exception inside that scope: the **browser and accessibility gates are
+certified on Windows only**. They are expected to work on Linux — the
+implementation is shared and the one platform-specific part is tested — but no
+run has been observed there, and an unobserved row is not recorded as passed.
+Cycle drives a browser you already have; see the
+[browser guide](docs/guides/browser.md) for which ones it looks for and how to
+name another.
+
 ## Installation
 
 Production users should install the plugin only from the official ZCode public

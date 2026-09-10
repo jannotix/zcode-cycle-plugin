@@ -52763,5 +52763,6 @@ function createBrowserRuntime(options) {
   };
 }
 export {
-  createBrowserRuntime
+  createBrowserRuntime,
+  browserCandidates
 };

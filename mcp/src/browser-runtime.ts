@@ -3,7 +3,16 @@ import { join } from "node:path"
 import { BrowserEvidenceRegistry } from "./browser/browser-evidence.js"
 import { BrowserManager } from "./browser/browser-manager.js"
 import { attestForVerification, browserRun } from "./browser/browser-ops.js"
-import { ManagedBrowserSessionFactory } from "./browser/managed-browser-session.js"
+import {
+  browserCandidates,
+  ManagedBrowserSessionFactory,
+} from "./browser/managed-browser-session.js"
+
+// Where the browser is looked for is the only part of the managed browser that
+// differs by platform, and it is the part Linux has never been observed
+// exercising. Exposed from this on-demand module so a test can prove the list
+// without a desktop and without loading the browser on the handshake path.
+export { browserCandidates }
 
 export interface CycleBrowserRuntime {
   attest(args: Record<string, unknown>): Promise<readonly unknown[]>

@@ -73,6 +73,24 @@ they record why the candidate bytes changed.
   certification when its two reviewers first split. Zcode had never run a
   governed cycle in which they disagreed, so it could not have found it alone.
 
+- Two of the three symlink cases that had always been skipped on Windows now run
+  there. A POSIX symlink needs elevation on Windows, which is why they were
+  skipped, but a directory junction needs none, `lstat` reports one as a symbolic
+  link, and it redirects a path the same way — so the role-profile directory and
+  the private runtime directory are now proven against a real redirect on both
+  certified platforms. The third needs a *file* symlink, which a junction cannot
+  be; it states that as its skip reason instead of passing silently, and the
+  guard it covers is one shared line checked before the Windows path returns
+  early, proven on Linux on every push.
+
+- Where the managed browser is looked for is now covered by tests on all three
+  platforms. It is the only part of the browser gates that differs by platform,
+  and Linux is where they have never been observed running, so proving the list
+  costs nothing and removes the one thing that could differ. Both READMEs and the
+  browser guide now say plainly that the browser and accessibility gates are
+  certified on Windows only, what that does and does not mean, which browsers
+  Cycle looks for on each platform, and that `ZCODE_CYCLE_BROWSER` names another.
+
 - Recovery could not tell a promotion that never began from one that started and
   stopped, and the two need opposite responses. In a non-interactive session the
   workflow dies with the session, so an approved cycle ordinarily ends with the
