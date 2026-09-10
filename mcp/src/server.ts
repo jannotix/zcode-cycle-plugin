@@ -445,6 +445,126 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
   }
 }
 
+// The control plane deserialises these payloads into Rust types that deny
+// unknown fields and accept no defaults. Declaring them as a bare object here
+// leaves a role with nothing to conform to, and the shapes it invents are
+// rejected at the protocol boundary. Every field below mirrors
+// workflow_core::{ArbiterVerdict, ReviewVerdict} and
+// workflow_ipc::audit::AuditObservation exactly.
+const EVIDENCE_IDS = {
+  type: "array",
+  items: { type: "string", description: "evidence id, a UUID" },
+} as const
+
+const FINDING = {
+  type: "object",
+  properties: {
+    severity: { enum: ["critical", "high", "medium", "low", "info"] },
+    summary: { type: "string" },
+    evidence_ids: EVIDENCE_IDS,
+  },
+  required: ["severity", "summary", "evidence_ids"],
+  additionalProperties: false,
+} as const
+
+const REQUIREMENT_DECISION = {
+  type: "object",
+  properties: {
+    requirement_id: { type: "string" },
+    status: { enum: ["satisfied", "unsatisfied"] },
+    evidence_ids: EVIDENCE_IDS,
+  },
+  required: ["requirement_id", "status", "evidence_ids"],
+  additionalProperties: false,
+} as const
+
+const REPAIR_TARGET = {
+  description: "null when the decision is an approval",
+  enum: ["execution", "architecture", null],
+} as const
+
+const ARBITER_VERDICT = {
+  type: "object",
+  properties: {
+    decision: { enum: ["approved", "rejected"] },
+    candidate_digest: { type: "string", description: "sha256 of the frozen candidate" },
+    requirements: { type: "array", items: REQUIREMENT_DECISION },
+    findings: { type: "array", items: FINDING },
+    repair_target: REPAIR_TARGET,
+  },
+  required: ["decision", "candidate_digest", "requirements", "findings", "repair_target"],
+  additionalProperties: false,
+} as const
+
+const REVIEW_VERDICT = {
+  type: "object",
+  properties: {
+    decision: { enum: ["approved", "rejected"] },
+    candidate_digest: { type: "string", description: "sha256 of the frozen candidate" },
+    requirements: { type: "array", items: REQUIREMENT_DECISION },
+    findings: { type: "array", items: FINDING },
+    repair_target: REPAIR_TARGET,
+    role: { enum: ["functional_reviewer", "security_architecture_reviewer"] },
+  },
+  required: [
+    "decision",
+    "candidate_digest",
+    "requirements",
+    "findings",
+    "repair_target",
+    "role",
+  ],
+  additionalProperties: false,
+} as const
+
+const AUDIT_OBSERVATION = {
+  type: "object",
+  properties: {
+    actor_id: { type: "string" },
+    candidate_id: { type: ["string", "null"] },
+    data: {
+      description:
+        "one tagged variant: workflow{action} | tool{tool,invocation_digest} | permission{permission,decision} | git{revision,externally_attributed} | verification{gate,status}",
+      type: "object",
+    },
+    evidence_ids: EVIDENCE_IDS,
+    files: { type: "array", items: { type: "string" } },
+    metadata: { type: "object", additionalProperties: { type: "string" } },
+    model: { type: ["object", "null"] },
+    project_key: { type: "string" },
+    role: {
+      enum: [
+        "architect",
+        "executor",
+        "functional_reviewer",
+        "security_architecture_reviewer",
+        "arbiter",
+        null,
+      ],
+    },
+    session_id: { type: ["string", "null"] },
+    task_id: { type: ["string", "null"] },
+    timestamp_unix_millis: { type: "integer" },
+    workflow_id: { type: ["string", "null"] },
+  },
+  required: [
+    "actor_id",
+    "candidate_id",
+    "data",
+    "evidence_ids",
+    "files",
+    "metadata",
+    "model",
+    "project_key",
+    "role",
+    "session_id",
+    "task_id",
+    "timestamp_unix_millis",
+    "workflow_id",
+  ],
+  additionalProperties: false,
+} as const
+
 const TOOLS: Record<string, ToolDefinition> = {
   cycle_health: {
     description:
@@ -499,7 +619,7 @@ const TOOLS: Record<string, ToolDefinition> = {
     inputSchema: {
       type: "object",
       properties: {
-        observation: { type: "object" },
+        observation: AUDIT_OBSERVATION,
       },
       required: ["observation"],
       additionalProperties: false,
@@ -753,7 +873,7 @@ const TOOLS: Record<string, ToolDefinition> = {
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
         role_session_id: { type: "string" },
-        verdict: { type: "object" },
+        verdict: REVIEW_VERDICT,
       },
       required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false,
@@ -769,7 +889,7 @@ const TOOLS: Record<string, ToolDefinition> = {
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
         role_session_id: { type: "string" },
-        verdict: { type: "object" },
+        verdict: ARBITER_VERDICT,
       },
       required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false,

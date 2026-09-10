@@ -1357,9 +1357,13 @@ export async function prepareNativeBinary(options: NativeBinaryOptions): Promise
 
   const sourceDigest = await fileDigest(source)
   await verifyNativeManifest(options, source, sourceDigest, sourceInfo.size)
-  if (options.platform === "win32") return source
 
-  const executable = "workflowd"
+  // Windows is materialized too, even though it needs no execute bit. Running
+  // the daemon straight out of the plugin cache makes that directory
+  // undeletable for as long as the daemon lives, and Windows refuses to unlink
+  // a running executable: uninstalling then removes 72 of 73 files, fails on
+  // workflowd.exe, and leaves the plugin gutted but still marked enabled.
+  const executable = options.platform === "win32" ? "workflowd.exe" : "workflowd"
   const targetDirectory = join(
     options.dataDirectory,
     "runtime",

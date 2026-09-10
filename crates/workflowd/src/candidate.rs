@@ -138,6 +138,7 @@ impl VerificationEnvironment {
 pub enum CandidateFreezeError {
     Core(workflow_core::CandidateError),
     DirtyWorktree,
+    EmptyCandidate,
     GitFailed(String),
     InvalidBaseRevision,
     InvalidRepository,
@@ -157,6 +158,9 @@ impl std::fmt::Display for CandidateFreezeError {
             Self::DirtyWorktree => {
                 formatter.write_str("candidate worktree must be clean before freezing")
             }
+            Self::EmptyCandidate => formatter.write_str(
+                "candidate changes no files against its base revision, so promotion would deliver nothing",
+            ),
             Self::GitFailed(message) => {
                 write!(formatter, "Git candidate operation failed: {message}")
             }
@@ -260,6 +264,13 @@ pub fn freeze(
     )?
     .stdout;
     let (files, exact_files) = candidate_files(&repository, &changes, exact_diff.len())?;
+    // A candidate that changes nothing would promote nothing. This happens when
+    // the base revision has drifted onto the implementation commit itself, and
+    // the resulting manifest looks valid while describing an empty delivery.
+    // Refuse it here rather than let it travel to arbitration.
+    if files.is_empty() {
+        return Err(CandidateFreezeError::EmptyCandidate);
+    }
     let tracked = nul_fields(&git(&repository, ["ls-files", "-z"])?.stdout)?;
     let dependency_state_digest = selected_files_digest(&repository, &tracked, dependency_file)?;
     let configuration_digest = selected_files_digest(&repository, &tracked, configuration_file)?;

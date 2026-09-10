@@ -46,6 +46,30 @@ impl Repository {
     }
 }
 
+/// A base revision that has drifted onto the implementation commit itself
+/// produces an empty diff. The manifest that comes out looks structurally valid
+/// while describing a delivery of nothing, and it reached arbitration during
+/// live certification before anyone noticed. Refuse it at the freeze.
+#[test]
+fn a_candidate_that_changes_nothing_is_refused() {
+    let repository = Repository::new();
+    repository.commit_candidate();
+    let head = output(&repository.path, ["rev-parse", "HEAD"]);
+
+    let error = freeze(
+        &repository.path,
+        &head,
+        CandidateId::new(),
+        vec![EvidenceId::new()],
+    )
+    .unwrap_err();
+
+    assert!(
+        matches!(error, CandidateFreezeError::EmptyCandidate),
+        "expected an empty-candidate refusal, got: {error}"
+    );
+}
+
 #[test]
 fn freezes_exact_changes_with_stable_order_and_environment() {
     let repository = Repository::new();

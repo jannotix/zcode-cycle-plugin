@@ -64,7 +64,12 @@ pub async fn run(data_directory: impl AsRef<Path>) -> Result<(), DaemonError> {
         let report = report.clone();
         let shared = Arc::clone(&shared);
         tokio::spawn(async move {
-            let _ = serve_connection(stream, authenticator, report, shared).await;
+            if let Err(error) = serve_connection(stream, authenticator, report, shared).await {
+                // Never swallow this. A connection that ends in an error is the
+                // only trace the caller gets, and without a line here the
+                // failure is invisible on both sides.
+                eprintln!("workflowd connection ended with an error: {error}");
+            }
         });
     }
 }
@@ -105,7 +110,29 @@ where
         .verify(&challenge, &response, now_unix_millis()?)?;
 
     loop {
-        match channel.receive::<ClientMessage>().await? {
+        // Read the frame as a value first. A payload that does not match the
+        // protocol is answered, not dropped: closing the connection here is
+        // indistinguishable from a crash and leaves the caller with nothing to
+        // correct. The request id is recovered from the raw value so the caller
+        // can still correlate the rejection with its own call.
+        let raw: serde_json::Value = channel.receive().await?;
+        let request_id = raw.get("request_id").and_then(serde_json::Value::as_u64);
+        let message = match serde_json::from_value::<ClientMessage>(raw) {
+            Ok(message) => message,
+            Err(error) => {
+                channel
+                    .send(&ServerMessage::Error {
+                        request_id,
+                        code: "malformed_request".to_owned(),
+                        message: format!(
+                            "the request does not match the control-plane protocol: {error}"
+                        ),
+                    })
+                    .await?;
+                continue;
+            }
+        };
+        match message {
             ClientMessage::Admission {
                 operation,
                 project_key,
