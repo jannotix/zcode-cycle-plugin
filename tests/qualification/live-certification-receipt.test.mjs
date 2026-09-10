@@ -51,7 +51,7 @@ test("a live ZCode receipt is bound to sealed bytes and complete evidence", asyn
       source_git_sha: "a".repeat(40),
       plugin_archive: { path: archiveName, sha256: archiveDigest },
       host: {
-        desktop_version: "3.10.2.6414",
+        desktop_version: "3.11.2.6792",
         cli_version: "0.16.5",
         platform: "windows-11-x64",
       },

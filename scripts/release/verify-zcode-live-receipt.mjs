@@ -5,7 +5,13 @@ import { lstat, readFile } from "node:fs/promises"
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const EXPECTED_DESKTOP = "3.10.2.6414"
+// The certification host. ZCode Desktop updates itself, so this pin goes stale
+// between releases without anyone touching it: 3.10.2.6414 was current when the
+// lane was written and 3.11.2.6792 was installed by the time it first ran. A
+// receipt naming a host nobody certified on is worth nothing, so the mismatch
+// fails loudly here rather than passing quietly. Update this and the fixture
+// together, before a campaign starts and never during one.
+const EXPECTED_DESKTOP = "3.11.2.6792"
 const EXPECTED_CLI = "0.16.5"
 const MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
 const REQUIRED_SCENARIOS = new Set([

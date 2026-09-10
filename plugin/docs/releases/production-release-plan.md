@@ -11,7 +11,7 @@ archive digest they name.
 
 - Product: Cycle for Zcode `1.0.2`. The internal candidates `1.0.2-rc.1`
   through `1.0.2-rc.4` were never published and carry different bytes.
-- ZCode certification target: Desktop `3.10.2.6414`, bundled CLI `0.16.5`,
+- ZCode certification target: Desktop `3.11.2.6792`, bundled CLI `0.16.5`,
   refreshed if ZCode changes before release sealing.
 - Certified platforms: Windows 11 x64 and Linux x64 on Ubuntu 22.04 and 24.04.
 - Windows/Linux ARM64: unsupported in `1.0.2`; the marketplace documentation
