@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod admission;
+pub mod arbitration;
 pub mod audit;
 pub mod candidate;
 pub mod code_intelligence;

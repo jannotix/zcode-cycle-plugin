@@ -1063,14 +1063,26 @@ fn submit_arbitration(
         }
         None => return Err("workflow does not have a routing mode".to_owned()),
     };
-    if verdict.decision == workflow_core::ArbiterDecision::Approved
-        && (!reviews_approved
-            || evidence.iter().any(|(record, _, mandatory)| {
-                *mandatory && record.status != workflow_core::EvidenceStatus::Passed
-            }))
-    {
-        return Err("approval requirements have not passed".to_owned());
-    }
+    // A rejection binds. An approval that contradicts a live rejection, or that
+    // stands over a mandatory gate which did not pass, used to be refused by an
+    // error raised before the verdict was written: no arbitration row, no history
+    // event, and nothing new for the orchestrator to read. It re-dispatched the
+    // arbiter with the same inputs, which produced the same verdict, and the run
+    // could not converge while the record stayed silent about all of it.
+    //
+    // The verdict is a fact whichever way it went, so it is written either way,
+    // refused by name in the chain, and routed to repair toward the target the
+    // rejecting reviewer asked for. That converges in one dispatch even when the
+    // arbiter is wrong.
+    let mandatory_gates_passed = !evidence.iter().any(|(record, _, mandatory)| {
+        *mandatory && record.status != workflow_core::EvidenceStatus::Passed
+    });
+    let refusal = crate::arbitration::refusal(
+        verdict.decision,
+        reviews_approved,
+        mandatory_gates_passed,
+        &reviews,
+    );
     let timestamp = workflow_core::WorkflowTimestamp::now();
     let receipt = workflow_core::ArbitrationReceipt {
         arbiter_verdict_digest: verdict.digest(),
@@ -1087,33 +1099,43 @@ fn submit_arbitration(
     store
         .save_arbitration_once(workflow_id, candidate_id, verdict, &receipt, timestamp)
         .map_err(|error| error.to_string())?;
-    let next_state = match verdict.decision {
-        workflow_core::ArbiterDecision::Approved => store
+    let next_state = match (refusal, verdict.decision) {
+        (Some(refused), _) => {
+            crate::repair::route(
+                store,
+                workflow_id,
+                candidate_id,
+                repair_cause(refused.repair_target),
+                timestamp,
+            )
+            .map_err(|error| error.to_string())?
+            .state
+        }
+        (None, workflow_core::ArbiterDecision::Approved) => store
             .apply_workflow_command(
                 workflow_id,
                 &format!("{workflow_id}:{candidate_id}:approved"),
+                // Derived from the check above rather than asserted again: a
+                // literal `true` here would become a silent bypass the moment
+                // that check moved or changed shape.
                 workflow_core::WorkflowCommand::Approve {
-                    mandatory_gates_passed: true,
+                    mandatory_gates_passed,
                 },
                 timestamp,
             )
             .map_err(|error| error.to_string())?
             .state
             .state(),
-        workflow_core::ArbiterDecision::Rejected => {
+        (None, workflow_core::ArbiterDecision::Rejected) => {
             crate::repair::route(
                 store,
                 workflow_id,
                 candidate_id,
-                match verdict.repair_target {
-                    Some(workflow_core::RepairTarget::Architecture) => {
-                        crate::repair::RepairCause::PlanDefect
-                    }
-                    Some(workflow_core::RepairTarget::Execution) => {
-                        crate::repair::RepairCause::ImplementationFinding
-                    }
-                    None => return Err("rejected verdict lacks a repair target".to_owned()),
-                },
+                repair_cause(
+                    verdict
+                        .repair_target
+                        .ok_or_else(|| "rejected verdict lacks a repair target".to_owned())?,
+                ),
                 timestamp,
             )
             .map_err(|error| error.to_string())?
@@ -1127,9 +1149,10 @@ fn submit_arbitration(
             actor_id: "workflowd".to_owned(),
             candidate_id: Some(candidate_id),
             data: workflow_ipc::audit::AuditData::Workflow {
-                action: match verdict.decision {
-                    workflow_core::ArbiterDecision::Approved => "arbitration_approved",
-                    workflow_core::ArbiterDecision::Rejected => "arbitration_rejected",
+                action: match (refusal, verdict.decision) {
+                    (Some(_), _) => "arbitration_refused",
+                    (None, workflow_core::ArbiterDecision::Approved) => "arbitration_approved",
+                    (None, workflow_core::ArbiterDecision::Rejected) => "arbitration_rejected",
                 }
                 .to_owned(),
             },
@@ -1140,10 +1163,20 @@ fn submit_arbitration(
                 .iter()
                 .map(|file| file.path.clone())
                 .collect(),
-            metadata: std::collections::BTreeMap::from([(
-                "receipt_digest".to_owned(),
-                receipt.digest().to_string(),
-            )]),
+            metadata: {
+                let mut metadata = std::collections::BTreeMap::from([(
+                    "receipt_digest".to_owned(),
+                    receipt.digest().to_string(),
+                )]);
+                if let Some(refused) = refusal {
+                    metadata.insert("refusal_reason".to_owned(), refused.reason.to_owned());
+                    metadata.insert(
+                        "repair_target".to_owned(),
+                        crate::arbitration::repair_target_name(refused.repair_target).to_owned(),
+                    );
+                }
+                metadata
+            },
             model: None,
             project_key: project_key.to_owned(),
             role: Some(workflow_core::WorkflowRole::Arbiter),
@@ -1155,6 +1188,13 @@ fn submit_arbitration(
     )
     .map_err(|error| error.to_string())?;
     Ok((receipt, workflow_state(next_state)?))
+}
+
+const fn repair_cause(target: workflow_core::RepairTarget) -> crate::repair::RepairCause {
+    match target {
+        workflow_core::RepairTarget::Architecture => crate::repair::RepairCause::PlanDefect,
+        workflow_core::RepairTarget::Execution => crate::repair::RepairCause::ImplementationFinding,
+    }
 }
 
 fn submit_review(

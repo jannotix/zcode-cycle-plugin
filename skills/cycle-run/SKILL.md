@@ -127,9 +127,13 @@ returned path; it never implements a "quick" change in place.
 
 1. Create and register an arbiter role token.
 2. Dispatch `zcode-cycle:arbiter` with the verbatim original request, the
-   candidate manifest, the raw evidence records and both review verdicts.
+   candidate manifest, the raw evidence records and **both review verdicts in
+   full** — decision, findings and repair target for each. An arbiter that
+   cannot see a rejection cannot honour it, and the plane will refuse the
+   approval that follows.
 3. `cycle_submit_arbitration` with its verdict JSON and the arbiter token as
-   `role_session_id`.
+   `role_session_id`. Read the state the plane returns; never assume it from
+   the verdict you submitted.
    - Approved: `cycle_promote_candidate` with the project directory, then
      report the delivered paths and the final state. Audit an
      `approved_candidate_delivered` observation. Done.
@@ -137,6 +141,13 @@ returned path; it never implements a "quick" change in place.
      feedback; continue from phase 3, one repair cycle.
    - Rejected with `repair_target` `architecture`: continue from phase 1,
      one repair cycle.
+   - **Refused**: the arbiter approved against a live rejection or over a
+     failed mandatory gate. The plane has recorded the verdict, named the
+     refusal in the audit chain and routed the workflow to repair itself, so
+     the returned state is already `execution` or `architecture`. Continue
+     from there and count one repair cycle. Do **not** re-dispatch the arbiter
+     on the same candidate: the inputs have not changed and neither would the
+     verdict.
 4. Revoke the arbiter role token.
 
 ## Repair budget

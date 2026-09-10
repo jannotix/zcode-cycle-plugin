@@ -213,9 +213,23 @@ fn recovery(
     let executor_session_ids = store
         .load_role_session_ids(workflow_id, workflow_core::WorkflowRole::Executor)
         .map_err(|error| error.to_string())?;
+    // "The promotion never began" and "the promotion started and stopped" are
+    // opposites to act on, and a workflow sitting in delivery looks identical
+    // from the outside. The plane knows which it is — a reservation is taken
+    // before any byte moves and a journal is bound once one has — so it says so
+    // rather than leaving the caller to infer it from an absence.
+    let delivery_reserved = store
+        .workflow_delivery_reserved(workflow_id)
+        .map_err(|error| error.to_string())?;
+    let delivery_journal_digest = store
+        .candidate_delivery_journal_digest(workflow_id, candidate_id)
+        .map_err(|error| error.to_string())?;
     Ok(json!({
         "candidateDigest": candidate.manifest.digest(),
         "candidateId": candidate_id,
+        "deliveryBegan": delivery_reserved || delivery_journal_digest.is_some(),
+        "deliveryJournalDigest": delivery_journal_digest,
+        "deliveryReserved": delivery_reserved,
         "evidence": evidence,
         "executorSessionIds": executor_session_ids,
         "manifest": candidate.manifest,

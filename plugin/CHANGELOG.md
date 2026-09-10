@@ -38,6 +38,50 @@ they record why the candidate bytes changed.
   packages and the certification fixtures all read `1.0.2`; the daemon reports
   it from the same number, and the bridge refuses a daemon that disagrees.
 
+### Fixed
+
+- A run in which the two independent reviewers disagreed could not converge, and
+  left no trace of why. The plane refused an arbiter's approval that contradicted
+  a live rejection — correctly — but refused it by raising an error before the
+  verdict was written: no arbitration row, no history event, nothing new for the
+  orchestrator to read. It dispatched the same arbiter again with the same
+  inputs, which produced the same verdict, and the record the product exists to
+  keep stayed silent about all of it.
+
+  The verdict is a fact whichever way it went, so it is now written either way,
+  refused by name in the audit chain as `arbitration_refused` with the reason and
+  the repair target in its metadata, and the workflow is routed to repair toward
+  the target the rejecting reviewer asked for. A plan defect outranks an
+  implementation finding: if either rejecting reviewer says the architecture is
+  wrong, repairing the implementation against that same plan would produce the
+  same candidate again. One dispatch now settles it even when the arbiter is
+  wrong.
+
+  The arbiter's own contract said the opposite of the rule the plane enforces —
+  *"weigh review disagreements yourself; you are the final judge"* — which
+  invited exactly the verdict that would be refused. It now states that a
+  rejection binds: the arbiter is the final judge of whether the candidate
+  answers the request, not of whether a reviewer's rejection counts, and
+  disagreeing means rejecting with the reasoning on record.
+
+  `mandatory_gates_passed` was passed to the state machine as a literal `true`.
+  It was correct only because the check above it had already excluded failing
+  gates, so any change to that check would have turned the literal into a silent
+  bypass. It is derived from the check now.
+
+  Found by reading Cycle for Claude Code 1.0.20, which hit this on its own
+  certification when its two reviewers first split. Zcode had never run a
+  governed cycle in which they disagreed, so it could not have found it alone.
+
+- Recovery could not tell a promotion that never began from one that started and
+  stopped, and the two need opposite responses. In a non-interactive session the
+  workflow dies with the session, so an approved cycle ordinarily ends with the
+  delivery never having started. The plane holds both facts already — a
+  reservation is taken before any byte moves, a journal is bound once one has —
+  and now reports them as `deliveryBegan`, `deliveryReserved` and
+  `deliveryJournalDigest`, so `/cycle:resume` finishes a delivery that never
+  began and leaves a half-written one to a person.
+
 ## [1.0.2-rc.4] - SUPERSEDED - NOT RELEASED
 
 Do not install or reuse this candidate. It was the last internal candidate
