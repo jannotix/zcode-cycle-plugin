@@ -56,7 +56,10 @@ assert.equal(server?.command, "node")
 assert.ok(server?.args?.includes("${ZCODE_PLUGIN_ROOT}/mcp/dist/server.js"))
 assert.equal(server?.cwd, "${ZCODE_PROJECT_DIR}")
 assert.equal(server?.enabled, true)
-assert.equal(server?.timeoutMs, 60000)
+// The host stops a tool call here, so this is the ceiling every IPC timeout in
+// the client has to fit under. Verification runs the project's own test suite,
+// which is routinely longer than a minute.
+assert.equal(server?.timeoutMs, 1_800_000)
 assert.equal(JSON.stringify(mcp).includes("CLAUDE_PLUGIN_ROOT"), false)
 assert.equal(existsSync(join(ROOT, "plugin", "mcp", "node_modules")), false)
 

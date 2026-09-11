@@ -11,8 +11,21 @@ import { productVersion } from "./version.js"
 
 const AUTH_DOMAIN = Buffer.from("zcode-cycle-ipc-auth-v1")
 const MAX_FRAME_BYTES = 8 * 1024 * 1024
+// The host kills a tool call at the `timeoutMs` declared in .mcp.json, so no
+// timeout below can promise more than that. Verification used to ask for
+// twenty-four hours while the host allowed sixty seconds, and the host won:
+// every verification longer than a minute was reported as a failure while the
+// gates it started ran to completion and passed. IPC_TIMEOUTS is exported so a
+// test can hold the two files to the same number.
 const CANDIDATE_OPERATION_TIMEOUT_MILLIS = 30 * 60_000
-const VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 24 * 60 * 60_000
+const VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 30 * 60_000
+
+export const IPC_TIMEOUTS = Object.freeze({
+  candidateOperation: CANDIDATE_OPERATION_TIMEOUT_MILLIS,
+  verificationResponse: VERIFICATION_RESPONSE_TIMEOUT_MILLIS,
+  healthWait: 15_000,
+  default: 10_000,
+})
 const HEALTH_WAIT_MS = 15_000
 const MAX_NATIVE_BINARY_BYTES = 256 * 1024 * 1024
 const MAX_NATIVE_MANIFEST_BYTES = 64 * 1024

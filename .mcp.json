@@ -7,7 +7,7 @@
       "cwd": "${ZCODE_PROJECT_DIR}",
       "env": {},
       "enabled": true,
-      "timeoutMs": 60000
+      "timeoutMs": 1800000
     }
   }
 }

@@ -71,7 +71,13 @@ import { createRequire as createRequire2 } from "node:module";
 var AUTH_DOMAIN = Buffer.from("zcode-cycle-ipc-auth-v1");
 var MAX_FRAME_BYTES = 8 * 1024 * 1024;
 var CANDIDATE_OPERATION_TIMEOUT_MILLIS = 30 * 60000;
-var VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 24 * 60 * 60000;
+var VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 30 * 60000;
+var IPC_TIMEOUTS = Object.freeze({
+  candidateOperation: CANDIDATE_OPERATION_TIMEOUT_MILLIS,
+  verificationResponse: VERIFICATION_RESPONSE_TIMEOUT_MILLIS,
+  healthWait: 15000,
+  default: 1e4
+});
 var HEALTH_WAIT_MS = 15000;
 var MAX_NATIVE_BINARY_BYTES = 256 * 1024 * 1024;
 var MAX_NATIVE_MANIFEST_BYTES = 64 * 1024;
@@ -1112,5 +1118,6 @@ export {
   prepareNativeBinary,
   nativePackageName,
   LocalControlPlane,
+  IPC_TIMEOUTS,
   ControlPlaneError
 };
