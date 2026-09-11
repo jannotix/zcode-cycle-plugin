@@ -565,7 +565,19 @@ where
                             .map_err(|error| error.to_string())?
                             .load_index_state(project_id)
                             .map_err(|error| error.to_string())?
-                            .ok_or_else(|| "project repository identity is unavailable".to_owned())?
+                            .ok_or_else(|| {
+                                // Naming the remedy matters more than naming the
+                                // condition. This fires at delivery, long after the
+                                // step that would have prevented it, and against a
+                                // candidate every gate has already passed — so the
+                                // reader is looking for a fault in promotion, not
+                                // for a missing step in phase one.
+                                "this project has never been indexed, so promotion \
+                                 cannot confirm it is delivering into the right \
+                                 repository: run cycle_code_index for this project, \
+                                 then promote again"
+                                    .to_owned()
+                            })?
                             .0;
                     if repository.to_string_lossy() != indexed_repository {
                         return Err(

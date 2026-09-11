@@ -137,6 +137,12 @@ returned path; it never implements a "quick" change in place.
    - Approved: `cycle_promote_candidate` with the project directory, then
      report the delivered paths and the final state. Audit an
      `approved_candidate_delivered` observation. Done.
+     Promotion confirms it is delivering into the right repository by
+     comparing the project directory against the one `cycle_code_index`
+     recorded in phase 1. If you skipped or lost that step while recovering
+     from something else, promotion refuses here and the remedy is to run
+     `cycle_code_index` for the project and promote again — the candidate and
+     its approval are untouched.
    - Rejected with `repair_target` `execution`: the verdict is repair
      feedback; continue from phase 3, one repair cycle.
    - Rejected with `repair_target` `architecture`: continue from phase 1,
