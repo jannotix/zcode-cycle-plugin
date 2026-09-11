@@ -819,9 +819,7 @@ async function prepareNativeBinary(options) {
   }
   const sourceDigest = await fileDigest(source);
   await verifyNativeManifest(options, source, sourceDigest, sourceInfo.size);
-  if (options.platform === "win32")
-    return source;
-  const executable = "workflowd";
+  const executable = options.platform === "win32" ? "workflowd.exe" : "workflowd";
   const targetDirectory = join(options.dataDirectory, "runtime", "native", `${options.platform}-${options.architecture}`, sourceDigest);
   const target = join(targetDirectory, executable);
   await mkdir(targetDirectory, { mode: 448, recursive: true });

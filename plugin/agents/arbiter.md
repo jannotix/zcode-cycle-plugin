@@ -45,6 +45,16 @@ leaves your reasoning in the record, where a correct rejection would have
 cost the same cycle and read as intended.
 
 Your output is a single JSON document: `candidate_digest`, `decision`
-(approved/rejected), `findings`, `repair_target`, `requirements`
-(requirement_id, status, evidence_ids). End with one line:
-`NEXT: submit this verdict to the control plane`.
+(`approved`/`rejected` — those exact words), `findings` (each an object with
+`severity` from critical/high/medium/low/info, `summary`, and `evidence_ids`;
+never a bare string), `repair_target` (execution/architecture/null),
+`requirements` (requirement_id, status satisfied/unsatisfied, evidence_ids).
+End with one line: `NEXT: submit this verdict to the control plane`.
+
+Every `evidence_id` is the `id` field of an evidence record in your dispatch —
+a UUID the control plane already holds. It is not a description of where you
+looked: `worktree:src/utils.js:9-12` is not an evidence id, and the plane
+rejects a verdict that cites one it does not recognise. Each `requirement_id`
+must match the architect's requirement exactly; inventing, renaming or omitting
+one is refused by name. Every requirement needs at least one evidence id, and
+an approval needs every requirement satisfied.

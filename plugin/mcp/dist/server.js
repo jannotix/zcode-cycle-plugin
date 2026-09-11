@@ -819,9 +819,7 @@ async function prepareNativeBinary(options) {
   }
   const sourceDigest = await fileDigest(source);
   await verifyNativeManifest(options, source, sourceDigest, sourceInfo.size);
-  if (options.platform === "win32")
-    return source;
-  const executable = "workflowd";
+  const executable = options.platform === "win32" ? "workflowd.exe" : "workflowd";
   const targetDirectory = join(options.dataDirectory, "runtime", "native", `${options.platform}-${options.architecture}`, sourceDigest);
   const target = join(targetDirectory, executable);
   await mkdir(targetDirectory, { mode: 448, recursive: true });
@@ -1912,6 +1910,112 @@ async function callTool(name, rawArgs) {
       throw new Error(`unknown tool: ${name}`);
   }
 }
+var EVIDENCE_IDS = {
+  type: "array",
+  items: { type: "string", description: "evidence id, a UUID" }
+};
+var FINDING = {
+  type: "object",
+  properties: {
+    severity: { enum: ["critical", "high", "medium", "low", "info"] },
+    summary: { type: "string" },
+    evidence_ids: EVIDENCE_IDS
+  },
+  required: ["severity", "summary", "evidence_ids"],
+  additionalProperties: false
+};
+var REQUIREMENT_DECISION = {
+  type: "object",
+  properties: {
+    requirement_id: { type: "string" },
+    status: { enum: ["satisfied", "unsatisfied"] },
+    evidence_ids: EVIDENCE_IDS
+  },
+  required: ["requirement_id", "status", "evidence_ids"],
+  additionalProperties: false
+};
+var REPAIR_TARGET = {
+  description: "null when the decision is an approval",
+  enum: ["execution", "architecture", null]
+};
+var ARBITER_VERDICT = {
+  type: "object",
+  properties: {
+    decision: { enum: ["approved", "rejected"] },
+    candidate_digest: { type: "string", description: "sha256 of the frozen candidate" },
+    requirements: { type: "array", items: REQUIREMENT_DECISION },
+    findings: { type: "array", items: FINDING },
+    repair_target: REPAIR_TARGET
+  },
+  required: ["decision", "candidate_digest", "requirements", "findings", "repair_target"],
+  additionalProperties: false
+};
+var REVIEW_VERDICT = {
+  type: "object",
+  properties: {
+    decision: { enum: ["approved", "rejected"] },
+    candidate_digest: { type: "string", description: "sha256 of the frozen candidate" },
+    requirements: { type: "array", items: REQUIREMENT_DECISION },
+    findings: { type: "array", items: FINDING },
+    repair_target: REPAIR_TARGET,
+    role: { enum: ["functional_reviewer", "security_architecture_reviewer"] }
+  },
+  required: [
+    "decision",
+    "candidate_digest",
+    "requirements",
+    "findings",
+    "repair_target",
+    "role"
+  ],
+  additionalProperties: false
+};
+var AUDIT_OBSERVATION = {
+  type: "object",
+  properties: {
+    actor_id: { type: "string" },
+    candidate_id: { type: ["string", "null"] },
+    data: {
+      description: "one tagged variant: workflow{action} | tool{tool,invocation_digest} | permission{permission,decision} | git{revision,externally_attributed} | verification{gate,status}",
+      type: "object"
+    },
+    evidence_ids: EVIDENCE_IDS,
+    files: { type: "array", items: { type: "string" } },
+    metadata: { type: "object", additionalProperties: { type: "string" } },
+    model: { type: ["object", "null"] },
+    project_key: { type: "string" },
+    role: {
+      enum: [
+        "architect",
+        "executor",
+        "functional_reviewer",
+        "security_architecture_reviewer",
+        "arbiter",
+        null
+      ]
+    },
+    session_id: { type: ["string", "null"] },
+    task_id: { type: ["string", "null"] },
+    timestamp_unix_millis: { type: "integer" },
+    workflow_id: { type: ["string", "null"] }
+  },
+  required: [
+    "actor_id",
+    "candidate_id",
+    "data",
+    "evidence_ids",
+    "files",
+    "metadata",
+    "model",
+    "project_key",
+    "role",
+    "session_id",
+    "task_id",
+    "timestamp_unix_millis",
+    "workflow_id"
+  ],
+  additionalProperties: false
+};
 var TOOLS = {
   cycle_health: {
     description: "Check the Cycle control plane: spawns or attaches the local workflowd daemon and returns product/protocol/schema versions plus the authoritative data directory.",
@@ -1962,7 +2066,7 @@ var TOOLS = {
     inputSchema: {
       type: "object",
       properties: {
-        observation: { type: "object" }
+        observation: AUDIT_OBSERVATION
       },
       required: ["observation"],
       additionalProperties: false
@@ -2204,7 +2308,7 @@ var TOOLS = {
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
         role_session_id: { type: "string" },
-        verdict: { type: "object" }
+        verdict: REVIEW_VERDICT
       },
       required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false
@@ -2219,7 +2323,7 @@ var TOOLS = {
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
         role_session_id: { type: "string" },
-        verdict: { type: "object" }
+        verdict: ARBITER_VERDICT
       },
       required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false
