@@ -5,7 +5,7 @@
 
 const { createHash } = require("node:crypto")
 const { readFile } = require("node:fs/promises")
-const { join, posix, resolve, win32 } = require("node:path")
+const { join, posix, resolve, sep, win32 } = require("node:path")
 const { spawn } = require("node:child_process")
 
 const MAX_HOOK_INPUT_BYTES = 1024 * 1024
@@ -166,6 +166,43 @@ function registrationForHostRole(registry, role) {
   return candidates.length === 1
     ? { ambiguous: false, registration: candidates[0] }
     : { ambiguous: candidates.length > 1, registration: undefined }
+}
+
+/** The managed worktree recorded for this workflow, or null before one exists. */
+function worktreeForWorkflow(registry, workflowId) {
+  if (typeof workflowId !== "string" || !workflowId) return null
+  const lock = registry[`workflow:${workflowId}`]
+  if (typeof lock !== "object" || lock === null || lock.kind !== "workflow_lock") return null
+  return typeof lock.worktree_path === "string" && lock.worktree_path ? lock.worktree_path : null
+}
+
+function insideWorktree(candidate, worktree) {
+  if (typeof candidate !== "string" || !candidate) return false
+  const target = resolve(candidate)
+  const root = resolve(worktree)
+  const normalise = (value) => (process.platform === "win32" ? value.toLowerCase() : value)
+  const a = normalise(target)
+  const b = normalise(root)
+  return a === b || a.startsWith(b.endsWith(sep) ? b : `${b}${sep}`)
+}
+
+/**
+ * Every path a mutating call would touch. Absent a path the call is not a file
+ * write and is judged elsewhere; an unreadable one is returned as a non-path so
+ * the caller denies rather than guesses.
+ */
+function mutationTargets(input) {
+  const parameters = input.toolInput ?? input.tool_input ?? {}
+  const single = parameters.file_path ?? parameters.filePath ?? parameters.path
+  const targets = typeof single === "string" && single ? [single] : []
+  const edits = parameters.edits
+  if (Array.isArray(edits)) {
+    for (const edit of edits) {
+      const path = edit?.file_path ?? edit?.filePath ?? edit?.path
+      if (typeof path === "string" && path) targets.push(path)
+    }
+  }
+  return targets
 }
 
 function workflowLocksForProject(registry) {
@@ -418,6 +455,33 @@ async function main() {
       if (verb !== null && FORBIDDEN_GIT.has(verb)) {
         deny(`the executor may not run git ${verb}`, audit)
         return
+      }
+    }
+  }
+
+  // The orchestration contract says execution happens inside the managed
+  // worktree and never in the project directory. Saying it is not enough: a
+  // live run committed the executor's work straight into the project, the gates
+  // then ran on content that was already in the user's repository, and
+  // promotion could only refuse and strand the workflow. The rule is enforced
+  // here, where the role is already known.
+  if (role === "executor" && registration !== undefined) {
+    const worktree = worktreeForWorkflow(registry, registration.workflow_id)
+    if (worktree !== null) {
+      if (DENIED_FOR_READ_ONLY.has(toolName) && toolName !== "Bash" && toolName !== "Shell") {
+        for (const target of mutationTargets(input)) {
+          if (!insideWorktree(target, worktree)) {
+            deny(`the executor may write only inside its managed worktree, not ${target}`, audit)
+            return
+          }
+        }
+      }
+      if (toolName === "Bash" || toolName === "Shell") {
+        const cwd = input.cwd ?? input.toolInput?.cwd ?? input.tool_input?.cwd
+        if (typeof cwd === "string" && cwd && !insideWorktree(cwd, worktree)) {
+          deny(`the executor may run commands only inside its managed worktree, not ${cwd}`, audit)
+          return
+        }
       }
     }
   }

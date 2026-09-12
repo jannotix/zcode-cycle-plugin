@@ -1673,6 +1673,14 @@ async function lockWorkflow(projectKey, workflowId) {
   };
   await writeRegistry(registry);
 }
+async function recordWorktree(workflowId, worktreePath) {
+  const registry = await readRegistry();
+  const lock = registry[workflowLockKey(workflowId)];
+  if (!isWorkflowLock(lock))
+    return;
+  registry[workflowLockKey(workflowId)] = { ...lock, worktree_path: worktreePath };
+  await writeRegistry(registry);
+}
 async function unlockWorkflow(workflowId) {
   const registry = await readRegistry();
   delete registry[workflowLockKey(workflowId)];
@@ -1828,7 +1836,9 @@ async function callTool(name, rawArgs) {
       if (!workflowId || !projectDirectory) {
         throw new Error("cycle_prepare_worktree requires workflow_id and project_directory");
       }
-      return plane.prepareWorktree(projectKey, projectDirectory, workflowId);
+      const worktree = await plane.prepareWorktree(projectKey, projectDirectory, workflowId);
+      await recordWorktree(workflowId, worktree.path);
+      return worktree;
     }
     case "cycle_plan_verification": {
       const workflowId = text2(args.workflow_id);

@@ -131,6 +131,131 @@ test("an executor profile cannot mutate outside a uniquely registered workflow",
   assert.match(denied(run(input, registered)), /ambiguous/u)
 })
 
+// The orchestration contract has always said execution happens inside the
+// managed worktree and never in the project directory. Nothing enforced it: the
+// hook judged role identity and tool class, and a registered executor could
+// write anywhere. A live forced-repair run committed the executor's work
+// straight into the project, so the gates ran on content already sitting in the
+// user's repository and promotion could only refuse and strand the workflow.
+test("a registered executor may write only inside its managed worktree", () => {
+  const worktree = join(ROOT, "target", "managed-worktree-fixture")
+  const registry = {
+    "role-token": {
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: Date.now(),
+      role: "executor",
+      workflow_id: "workflow",
+    },
+    "workflow:workflow": {
+      kind: "workflow_lock",
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 1,
+      workflow_id: "workflow",
+      worktree_path: worktree,
+    },
+  }
+  const write = (filePath) => ({
+    agent_type: "zcode-cycle:executor",
+    sessionId: "child-session",
+    toolName: "Write",
+    toolInput: { file_path: filePath },
+  })
+
+  allowed(run(write(join(worktree, "src", "utils.js")), registry))
+  assert.match(
+    denied(run(write(join(ROOT, "src", "utils.js")), registry)),
+    /only inside its managed worktree/u,
+  )
+  // A sibling whose name merely starts with the worktree's is still outside it.
+  assert.match(
+    denied(run(write(`${worktree}-elsewhere/src/utils.js`), registry)),
+    /only inside its managed worktree/u,
+  )
+  // Every path of a multi-file edit is judged, not just the first.
+  assert.match(
+    denied(
+      run(
+        {
+          agent_type: "zcode-cycle:executor",
+          sessionId: "child-session",
+          toolName: "MultiEdit",
+          toolInput: {
+            edits: [
+              { file_path: join(worktree, "a.js") },
+              { file_path: join(ROOT, "package.json") },
+            ],
+          },
+        },
+        registry,
+      ),
+    ),
+    /only inside its managed worktree/u,
+  )
+  // A shell whose working directory is the project, not the worktree.
+  assert.match(
+    denied(
+      run(
+        {
+          agent_type: "zcode-cycle:executor",
+          cwd: ROOT,
+          sessionId: "child-session",
+          toolName: "Bash",
+          toolInput: { command: "npm test" },
+        },
+        registry,
+      ),
+    ),
+    /only inside its managed worktree/u,
+  )
+  allowed(
+    run(
+      {
+        agent_type: "zcode-cycle:executor",
+        cwd: worktree,
+        sessionId: "child-session",
+        toolName: "Bash",
+        toolInput: { command: "npm test" },
+      },
+      registry,
+    ),
+  )
+})
+
+test("before a worktree exists there is nothing to confine the executor to", () => {
+  // prepare_worktree records the path; until it has run the lock carries none,
+  // and the earlier guards - unique registration, role, tool class - are what
+  // stand. This test pins that the new check does not deny on a missing path.
+  const registry = {
+    "role-token": {
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: Date.now(),
+      role: "executor",
+      workflow_id: "workflow",
+    },
+    "workflow:workflow": {
+      kind: "workflow_lock",
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 1,
+      workflow_id: "workflow",
+    },
+  }
+  allowed(
+    run(
+      {
+        agent_type: "zcode-cycle:executor",
+        sessionId: "child-session",
+        toolName: "Write",
+        toolInput: { file_path: join(ROOT, "src", "utils.js") },
+      },
+      registry,
+    ),
+  )
+})
+
 test("an active workflow locks mutation and permits only exact Cycle role dispatch", () => {
   const registry = {
     architect: {

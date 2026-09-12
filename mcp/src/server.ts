@@ -31,6 +31,9 @@ interface WorkflowLock {
   readonly project_key: string
   readonly registered_at_unix_millis: number
   readonly workflow_id: string
+  // Recorded when the managed worktree is prepared. The PreToolUse hook needs
+  // it to confine the executor: until it exists there is nowhere to confine to.
+  readonly worktree_path?: string
 }
 
 type RegistryRecord = RoleRegistration | WorkflowLock
@@ -123,6 +126,14 @@ async function lockWorkflow(projectKey: string, workflowId: string): Promise<voi
     registered_at_unix_millis: Date.now(),
     workflow_id: workflowId,
   }
+  await writeRegistry(registry)
+}
+
+async function recordWorktree(workflowId: string, worktreePath: string): Promise<void> {
+  const registry = await readRegistry()
+  const lock = registry[workflowLockKey(workflowId)]
+  if (!isWorkflowLock(lock)) return
+  registry[workflowLockKey(workflowId)] = { ...lock, worktree_path: worktreePath }
   await writeRegistry(registry)
 }
 
@@ -326,7 +337,9 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
       if (!workflowId || !projectDirectory) {
         throw new Error("cycle_prepare_worktree requires workflow_id and project_directory")
       }
-      return plane.prepareWorktree(projectKey, projectDirectory, workflowId)
+      const worktree = await plane.prepareWorktree(projectKey, projectDirectory, workflowId)
+      await recordWorktree(workflowId, worktree.path)
+      return worktree
     }
     case "cycle_plan_verification": {
       const workflowId = text(args.workflow_id)
