@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import test from "node:test"
@@ -254,6 +254,58 @@ test("before a worktree exists there is nothing to confine the executor to", () 
       registry,
     ),
   )
+})
+
+// Denials were audited and allowances were not, so "was this call judged, and
+// how?" could only be answered by inference. A commit the orchestrator made
+// while it should have been mutation-locked stayed unexplained for exactly that
+// reason. The trace answers it with a record, and stays off unless asked for.
+test("the hook can record every decision it makes, and records none unless asked", () => {
+  const dataDirectory = mkdtempSync(join(tmpdir(), "zcode-cycle-hook-trace-"))
+  const tracePath = join(dataDirectory, "runtime", "hook-trace.jsonl")
+  const registry = {
+    "workflow:active": {
+      kind: "workflow_lock",
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 1,
+      workflow_id: "active",
+    },
+  }
+  const call = (trace) => {
+    mkdirSync(join(dataDirectory, "runtime"), { recursive: true })
+    writeFileSync(join(dataDirectory, "runtime", "role-sessions.json"), JSON.stringify(registry))
+    const result = spawnSync(process.execPath, [HOOK], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ZCODE_CYCLE_DATA_DIR: dataDirectory,
+        ZCODE_PROJECT_DIR: ROOT,
+        ...(trace ? { ZCODE_CYCLE_HOOK_TRACE: "1" } : {}),
+      },
+      input: JSON.stringify({ sessionId: "main", toolName: "Bash", toolInput: { command: "ls" } }),
+      shell: false,
+    })
+    assert.equal(result.status, 0, result.stderr)
+    return JSON.parse(result.stdout).hookSpecificOutput
+  }
+
+  try {
+    assert.equal(denied(call(false)).includes("mutation-locked"), true)
+    assert.equal(existsSync(tracePath), false, "the trace wrote itself without being asked")
+
+    assert.equal(denied(call(true)).includes("mutation-locked"), true)
+    const line = JSON.parse(readFileSync(tracePath, "utf8").trim().split("\n").at(-1))
+    assert.equal(line.decision, "deny")
+    assert.equal(line.tool, "Bash")
+    // The facts that decide this branch, so a later question does not need a guess.
+    assert.equal(line.workflow_locks, 1)
+    assert.equal(line.resolved_role, null)
+    assert.equal(line.has_registration, false)
+    assert.match(line.reason, /mutation-locked/u)
+  } finally {
+    rmSync(dataDirectory, { force: true, recursive: true })
+  }
 })
 
 test("an active workflow locks mutation and permits only exact Cycle role dispatch", () => {

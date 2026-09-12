@@ -4,6 +4,7 @@
 // confirmation decision.
 
 const { createHash } = require("node:crypto")
+const { appendFileSync } = require("node:fs")
 const { readFile } = require("node:fs/promises")
 const { join, posix, resolve, sep, win32 } = require("node:path")
 const { spawn } = require("node:child_process")
@@ -237,7 +238,50 @@ function auditAsync(observation) {
   }
 }
 
+// Denials are audited; allowances were not, so "was this call judged, and how?"
+// could only be answered by inference. That is how a commit the orchestrator
+// made while it should have been mutation-locked went unexplained. The trace
+// records every decision, allow included, and is off unless asked for.
+const trace = {
+  enabled: false,
+  path: null,
+  facts: {},
+}
+
+function traceSetup() {
+  const flag = process.env.ZCODE_CYCLE_HOOK_TRACE
+  if (!flag) return
+  trace.enabled = true
+  trace.path =
+    flag === "1" || flag.toLowerCase() === "true"
+      ? join(dataDirectory(), "runtime", "hook-trace.jsonl")
+      : flag
+}
+
+function traceFact(key, value) {
+  if (trace.enabled) trace.facts[key] = value
+}
+
+function traceWrite(output, reason) {
+  if (!trace.enabled || trace.path === null) return
+  try {
+    appendFileSync(
+      trace.path,
+      `${JSON.stringify({
+        at: new Date().toISOString(),
+        decision: output,
+        ...(reason ? { reason } : {}),
+        ...trace.facts,
+      })}\n`,
+      "utf8",
+    )
+  } catch {
+    // A diagnostic must never change the decision it is describing.
+  }
+}
+
 function decision(output, reason) {
+  traceWrite(output, reason)
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {
@@ -353,6 +397,12 @@ async function main() {
   const sessionId = input.sessionId ?? input.session_id
   const toolName = String(input.toolName ?? input.tool_name ?? "")
   const registry = await readRegistry()
+  traceSetup()
+  traceFact("tool", toolName)
+  traceFact("session_id", typeof sessionId === "string" ? sessionId : null)
+  traceFact("project_dir", process.env.ZCODE_PROJECT_DIR ?? null)
+  traceFact("registry_keys", Object.keys(registry).length)
+  traceFact("workflow_locks", workflowLocksForProject(registry).length)
   const candidateRegistration = typeof sessionId === "string" ? registry[sessionId] : undefined
   const directRegistration =
     typeof candidateRegistration === "object" &&
@@ -382,6 +432,12 @@ async function main() {
   const registration = directRegistration ?? fallback.registration
 
   const role = registeredRole ?? hostRole
+  traceFact("host_role", hostRole)
+  traceFact("registered_role", registeredRole)
+  traceFact("resolved_role", role)
+  traceFact("has_registration", registration !== undefined)
+  traceFact("registration_workflow", registration?.workflow_id ?? null)
+  traceFact("worktree_path", worktreeForWorkflow(registry, registration?.workflow_id) ?? null)
   if (role === null) {
     const workflowLocks = workflowLocksForProject(registry)
     const requestedRole =
