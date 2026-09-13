@@ -16,8 +16,10 @@ logs, snapshots and receipts.
 ## Who may use it
 
 Interactive actions (click, fill, press, upload) are executor-only;
-read-only roles may inspect via snapshot, logs and checks. The PreToolUse
-hook enforces the boundary and audits it.
+read-only roles may inspect via snapshot, logs and checks. The boundary is the
+managed profile's tool list, and the browser tool itself refuses an interactive
+action from a read-only role. The PreToolUse hook does not reach a dispatched
+role — ZCode runs it for the main session only — so it is not what holds here.
 
 ## Evidence
 

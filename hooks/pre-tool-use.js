@@ -1,7 +1,20 @@
-// PreToolUse enforcement for Cycle role sessions. Managed project profiles are
-// the first boundary; this hook is the fail-closed runtime boundary; candidate
-// reconciliation is the final boundary. It never relaxes a ZCode permission or
-// confirmation decision.
+// PreToolUse enforcement for the main session. It never relaxes a ZCode
+// permission or confirmation decision.
+//
+// Read this before trusting anything below to bound a role. ZCode does not run
+// PreToolUse for tool calls made inside a dispatched agent: its execution
+// context carries no hook runner, so the call proceeds with no hook, no error
+// and no trace. Measured in a live governed run — the main session made 3
+// hooked-tool calls and this hook decided 3; the dispatched roles made 9 and it
+// decided none.
+//
+// So the role-scoped guards here — the executor's registration, its forbidden
+// Git verbs, its worktree — are reached only when the main session itself makes
+// the call. They are correct, they are tested, and against a dispatched role
+// they are currently unreachable. What actually bounds a role is the managed
+// profile's `tools:` list, which withholds Edit, Write and Bash from read-only
+// roles outright; and the control plane, which refuses a candidate whose
+// project has moved. Neither of those is this file.
 
 const { createHash } = require("node:crypto")
 const { appendFileSync } = require("node:fs")

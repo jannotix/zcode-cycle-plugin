@@ -35,10 +35,20 @@ the project you govern, and Node.js for the bundled bridge. The
 | Arbiter | Read-only. Final approval from the original request plus evidence plus reviews. The only role that can approve. |
 
 Read-only roles physically lack edit and shell tools in the managed project
-profiles. The PreToolUse hook enforces those identities again; an executor
-cannot mutate without one unique active workflow registration. Every Cycle
-role dispatch likewise requires a unique Cycle registration; raw direct role
-launches are denied.
+profiles. That is the boundary — not a convenience in front of one. ZCode runs
+the PreToolUse hook for your main session and not inside a dispatched agent, so
+once a role is running, its profile is what holds.
+
+The hook still does real work, on the main session: while a workflow is locked
+it denies you mutating the project directly, and it denies a role dispatch that
+has no unique Cycle registration, so raw direct role launches fail.
+
+One gap is worth knowing about. The executor legitimately holds edit and shell
+tools, so the profile cannot bound it the way it bounds the others, and the
+hook does not reach it. Nothing today confines where the executor writes. The
+control plane still refuses to promote a candidate whose project has moved
+underneath it, so a delivery cannot be forged — but work can reach your project
+before the gates have passed on it.
 
 ## Modes and routing
 

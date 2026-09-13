@@ -49,8 +49,9 @@ name another.
 
 Production users should install the plugin only from the official ZCode public
 marketplace after version `1.0.2` is accepted and published. Official
-installation matters because public role enforcement depends on ZCode loading
-the plugin hooks from a trusted source.
+installation matters because the role profiles, the hook and the native daemon
+all run with your privileges, and a trusted source is what makes their bytes
+accountable.
 
 For development and certification, add a **local directory marketplace** in
 Settings -> Plugins -> Create -> Add marketplace, select this repository, then
@@ -76,7 +77,9 @@ never downloaded or executed from a remote URL at runtime.
 - five explicit project role profiles: architect, executor, two reviewers and
   arbiter; the main ZCode session orchestrates them;
 - slash commands and five workflow skills;
-- a `PreToolUse` role guard and a `PostToolUse` audit hook;
+- a `PreToolUse` guard for the main session and a `PostToolUse` audit hook
+  (ZCode does not run either inside a dispatched agent, so a role is bounded by
+  its profile, not by these);
 - one local stdio MCP server;
 - a self-contained MCP/browser bridge built from the locked npm dependency graph;
 - platform-bound `workflowd` binaries, user documentation and legal notices.

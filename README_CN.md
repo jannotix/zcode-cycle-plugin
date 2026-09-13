@@ -37,8 +37,9 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 
 ## 安装
 
-生产用户应仅在 `1.0.2` 被接纳并发布后，从 ZCode 官方公共插件市场安装。公共环境中的
-角色保护依赖 ZCode 从可信来源加载插件 Hook，因此官方发布是安全门槛。
+生产用户应仅在 `1.0.2` 被接纳并发布后，从 ZCode 官方公共插件市场安装。角色配置、
+Hook 和本地守护进程都以你的权限运行，可信来源是其字节可被追责的前提，因此官方发布
+是安全门槛。
 
 开发和认证时，请在 Settings -> Plugins -> Create -> Add marketplace 中添加本地目录
 市场，选择本仓库并安装 `zcode-cycle`。在每个受治理项目中运行
@@ -61,7 +62,8 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 
 - 五个显式项目角色配置：架构师、执行器、两名审查者和裁决者；主 ZCode 会话负责编排；
 - 斜杠命令和五个工作流 Skill；
-- `PreToolUse` 角色保护 Hook 与 `PostToolUse` 审计 Hook；
+- 面向主会话的 `PreToolUse` 保护 Hook 与 `PostToolUse` 审计 Hook（ZCode 不会在被
+  派发的 Agent 内运行这两者，因此约束角色的是其配置文件，而非这些 Hook）；
 - 一个本地 stdio MCP 服务；
 - 根据锁定的 npm 依赖图构建的自包含 MCP/浏览器桥；
 - 平台限定的 `workflowd` 二进制文件、用户文档和法律声明。

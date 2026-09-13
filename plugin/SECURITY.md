@@ -21,12 +21,24 @@ official private feedback/security channel and follow its disclosure terms.
 - Cycle is local-first and has no telemetry or remote service.
 - It executes project verification and Git operations with the current user's
   privileges; it is not an operating-system sandbox.
-- Read-only roles declare mutating, shell and delegation tools away. The
-  PreToolUse hook is a second boundary, and candidate reconciliation is the
-  final write-scope boundary.
-- The executor may create code and commits only in the isolated worktree. It
-  cannot use the Cycle hook to push, tag, switch, rewrite history, delete
-  candidate state or delegate.
+- Read-only roles declare mutating, shell and delegation tools away. This is
+  the boundary that holds them, and it is the only one: ZCode does not run the
+  PreToolUse hook inside a dispatched agent, so the hook cannot stand behind the
+  profile as a second layer. The hook guards the main session — it denies
+  mutation while a workflow is locked and denies a role dispatch without a
+  unique registration.
+- **The executor is not confined to the worktree.** It legitimately holds edit
+  and shell tools, so the profile cannot bound it the way it bounds the others,
+  and the hook does not reach it. The orchestration contract tells it to work
+  only in the isolated worktree and the Cycle hook declares Git verbs it may not
+  run, but neither is enforced against a dispatched executor today. Two live
+  certification runs saw work committed into the project directory before the
+  gates had passed on it.
+- Candidate reconciliation in the control plane is the boundary that does hold
+  against every role, because every role reaches it through the MCP server:
+  promotion refuses a candidate whose project has moved underneath it, so a
+  delivery cannot be forged. What it cannot do is prevent unapproved work from
+  arriving first.
 - External browser origins require explicit approval and use an isolated
   temporary profile. Approved websites remain third parties with their own
   security and privacy terms.

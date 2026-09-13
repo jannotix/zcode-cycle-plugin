@@ -29,8 +29,10 @@ Adopt these independently useful mechanisms:
 2. Reproducible archive construction plus SHA-256 sidecars.
 3. CycloneDX SBOM, complete third-party notices and a private vulnerability
    reporting policy.
-4. Read-only roles that do not receive mutating or shell tools, with a hook as
-   a second enforcement layer rather than the only boundary.
+4. Read-only roles that do not receive mutating or shell tools. The profile is
+   the boundary, not a convenience in front of one: ZCode does not run
+   PreToolUse inside a dispatched agent, so a hook cannot be a second layer
+   behind it.
 5. A requirement-to-evidence certification matrix covering installation,
    workflow behavior, failure paths, recovery, platform behavior and packaging.
 6. Version information derived from one product manifest instead of duplicated
@@ -92,9 +94,20 @@ legal opinion.
    baseline. A `0644` archive entry is a required regression case.
 3. **Role boundaries** - the current runtime's diagnostic-only plugin-agent
    field is not used. Explicit setup installs five managed project profiles;
-   read-only roles lack mutating, shell and subagent tools; an executor cannot
-   mutate without one unique active workflow registration; malformed hook
-   input and ambiguous identity deny high-risk calls.
+   read-only roles lack mutating, shell and subagent tools. That profile is the
+   only boundary a dispatched role actually meets: ZCode runs PreToolUse for the
+   main session and not inside a dispatched agent, measured 3 of 3 against 0 of
+   9 in a live governed run. The hook therefore gates what the main session does
+   - it denies mutation while a workflow is locked, denies a role dispatch
+   without a unique registration, and denies malformed or ambiguous input - and
+   its executor-scoped rules are unreachable until that changes.
+
+   **Open and unresolved.** The executor legitimately holds Edit and Bash, so it
+   is the one role the profile cannot constrain, and nothing else confines where
+   it writes. Two live runs saw work committed into the project before the gates
+   ran. Do not sign a receipt that claims a runtime role boundary until this is
+   closed at the control plane, which is the layer no dispatched role can
+   bypass.
 4. **Marketplace contract** - official validator and distribution builder
    pass; English/Chinese docs, i18n fields, supported category and disclosures
    are present.
