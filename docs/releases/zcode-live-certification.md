@@ -43,7 +43,13 @@ receipt is cheaper to re-earn than to argue about.
 not invalidated retroactively. What expires is its usefulness as evidence for the
 *current* host, which is why the plan calls for a rerun rather than a patch.
 4. Use a disposable fixture repository and a disposable ZCode plugin test
-   profile. Keep the withdrawn `1.0.0` isolated from production projects.
+   profile. Isolation has three independent axes, and `ZCODE_DATA_BASE_DIR`
+   alone does not provide it - the host child process does not inherit it. Set
+   the Desktop `dataBaseDir` setting for desktop data, point `~/.zcode/cli` at a
+   throwaway directory for the plugin set and history, and set
+   `ZCODE_CYCLE_DATA_DIR` for the Cycle control plane. A campaign that leaves any
+   one of the three pointing at the production profile is not isolated, and its
+   evidence does not count.
 5. Capture sanitized JSON/text evidence and screenshots where UI state is the
    assertion. Evidence must contain no credentials, user paths, private data
    or model conversation content unrelated to the scenario.
@@ -72,23 +78,38 @@ digest-bound evidence file:
    browser snapshot, not from a narrative assertion.
 9. `goal`: link completed workflows to every milestone and prove completion
    refuses missing workflow/arbiter evidence.
-10. `update-from-withdrawn-1.0.0`: in the disposable profile only, update the
-    historical 1.0.0 installation to the admitted 1.0.2 and verify data/schema
-    reconciliation.
+10. `schema-forward-compatibility`: no public predecessor exists to upgrade
+    from. `v1.0.0` was withdrawn carrying no release asset, and no installable
+    archive was ever published under any earlier identity, so an upgrade
+    scenario would have to manufacture the artifact it claims to test. Prove the
+    mechanism instead: run 1.0.2 until the data directory holds ledger entries,
+    signed checkpoints, goal records and browser evidence, then open that
+    directory with a build declaring a lower schema version and observe the
+    documented safe read-only mode. The stored bytes must be unchanged
+    afterwards, compared by digest and not by inspection.
 11. `uninstall`: run `/cycle:setup remove`, uninstall the plugin, verify plugin
     and project-profile residue is absent while audit data remains intact.
-12. `isolated-rollback-to-withdrawn-1.0.0`: test rollback mechanics only in the
-    disposable profile, record the expected withdrawn warning/read-only
-    behavior, then restore and re-verify 1.0.2. The final state must be
-    `1.0.2-installed-enabled`.
+12. `history-survives-version-change`: after scenario 10, reinstall 1.0.2 over
+    the same data directory and prove the record came through intact - every
+    ledger entry present, the hash chain verifying end to end, every checkpoint
+    signature still valid, every goal and milestone linked to the workflow it
+    was linked to before. The final state must be `1.0.2-installed-enabled`.
+    Rollback to a published predecessor is certified at `1.0.3`, when one
+    exists; recording it now would be recording an unobserved row as passed.
 
 ## Receipt and signature
 
 Create `zcode-live-certification.json` using the schema enforced by
 `scripts/release/verify-zcode-live-receipt.mjs`. Every scenario must be `PASS`
 and cite relative evidence paths plus SHA-256 digests. Set
-`isolated_withdrawn_version_tests` and `audit_data_preserved` to `true` only
-after observing those facts.
+`audit_data_preserved` to `true` only after observing that fact.
+
+Every scenario also records the host build it actually ran on, and the verifier
+rejects a receipt whose scenarios do not all name the same one. That invariant
+is what enforces the single-host rule, replacing a constant duplicated across
+four files that no campaign is obliged to read: the pin above says which build a
+campaign starts on, and the receipt proves the campaign never changed hosts
+underneath itself.
 
 Sign the receipt with the authorized release key. Its public half is
 [`release-signing-key.asc`](release-signing-key.asc) and its fingerprint is:

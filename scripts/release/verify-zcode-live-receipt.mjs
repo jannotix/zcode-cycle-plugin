@@ -24,9 +24,9 @@ const REQUIRED_SCENARIOS = new Set([
   "browser",
   "accessibility",
   "goal",
-  "update-from-withdrawn-1.0.0",
+  "schema-forward-compatibility",
   "uninstall",
-  "isolated-rollback-to-withdrawn-1.0.0",
+  "history-survives-version-change",
 ])
 
 export async function verifyLiveCertification({
@@ -58,7 +58,6 @@ export async function verifyLiveCertification({
   assert.match(receipt.tested_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u)
   assert.equal(receipt.final_state, `${expectedVersion}-installed-enabled`)
   assert.equal(receipt.audit_data_preserved, true)
-  assert.equal(receipt.isolated_withdrawn_version_tests, true)
 
   const archiveName = `zcode-cycle-${expectedVersion}.zip`
   const archive = releaseManifest.artifacts.find((item) => item.path === archiveName)
@@ -79,6 +78,14 @@ export async function verifyLiveCertification({
     assert.equal(scenarios.has(scenario.id), false, `duplicate scenario: ${scenario.id}`)
     scenarios.set(scenario.id, scenario)
     assert.equal(scenario.status, "PASS", `${scenario.id} is not PASS`)
+    // A receipt mixes evidence from every scenario, so a host that updated
+    // mid-campaign makes half of it describe a build the other half never ran
+    // on. The pin says where a campaign starts; this says it never moved.
+    assert.equal(
+      scenario.host_desktop_version,
+      receipt.host?.desktop_version,
+      `${scenario.id} ran on ZCode Desktop ${scenario.host_desktop_version}, not ${receipt.host?.desktop_version}`,
+    )
     assert.ok(Array.isArray(scenario.evidence) && scenario.evidence.length > 0, `${scenario.id} lacks evidence`)
     for (const evidence of scenario.evidence) {
       assertSafeRelativePath(evidence.path)

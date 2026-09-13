@@ -108,6 +108,15 @@ legal opinion.
    ran. Do not sign a receipt that claims a runtime role boundary until this is
    closed at the control plane, which is the layer no dispatched role can
    bypass.
+
+   **What closes it.** Every role reaches the control plane through the MCP
+   server, so under this harness that is the only place a boundary can still be
+   enforced against a dispatched agent. Freeze records the project revision;
+   reconciliation compares the project tree against that revision and refuses a
+   candidate whose project moved outside the worktree while the workflow held
+   it. The philosophy does not change - a role is bounded by something it cannot
+   talk its way past - only the layer moves, from a host hook this harness never
+   calls to a control plane it must call in order to deliver anything at all.
 4. **Marketplace contract** - official validator and distribution builder
    pass; English/Chinese docs, i18n fields, supported category and disclosures
    are present.
@@ -120,8 +129,17 @@ legal opinion.
    native binaries are built on their target OS and their digests are bound in
    the archive manifest, SBOM and provenance.
 8. **Live ZCode** - clean install from the final ZIP, component discovery,
-   setup/doctor, quick and full routes, forced repair, hard-kill resume, browser
-   and accessibility evidence, Goal Mode, update, uninstall and rollback pass.
+   setup/doctor, quick and full routes, forced repair, hard-kill resume, Goal
+   Mode, schema compatibility and uninstall pass. Browser and accessibility
+   evidence is required on Windows and not on Linux, matching the declared
+   scope: the Linux lane has no browser installed, and an unobserved row is not
+   recorded as passed. Upgrade and rollback from a published predecessor are not
+   gates for `1.0.2` and cannot be: `v1.0.0` was withdrawn carrying no release
+   asset, so no installable predecessor has ever existed. Building one now from
+   the tag would manufacture the artifact the gate claims to exercise. What the
+   gate protects - that delivered history survives a version change - is proved
+   instead by the schema-compatibility scenarios, and the upgrade path itself is
+   certified at `1.0.3`, from bytes that were genuinely published.
 9. **Supply chain** - tag/commit verification, immutable checksums, SBOM,
    notices and provenance pass. Windows code signing is applied when the signing
    secrets are configured and is not a release gate: ZCode does not require it,
