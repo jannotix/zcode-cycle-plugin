@@ -399,6 +399,20 @@ test("a Cycle role dispatch needs a unique role registration even before a workf
   }
 })
 
+// A hook that waited for EOF would never answer while stdin stays open, so
+// these two tests deadlock on a regression and the timeout is what reports it.
+// It is a deadlock guard, not a performance budget: a value tight enough to
+// also catch a slow machine would fail runs that prove nothing, and the 20x
+// repeatability gate runs these under exactly that load.
+const DEADLOCK_GUARD_MILLIS = 30_000
+
+function deadlockGuard(message) {
+  return new Promise((_, reject) => {
+    // unref so a passing test never keeps the runner alive waiting on a timer.
+    setTimeout(() => reject(new Error(message)), DEADLOCK_GUARD_MILLIS).unref()
+  })
+}
+
 test("the PreToolUse hook consumes ZCode's newline-delimited input before stdin closes", async () => {
   const dataDirectory = mkdtempSync(join(tmpdir(), "zcode-cycle-hook-open-stdin-"))
   const child = spawn(process.execPath, [HOOK], {
@@ -409,11 +423,11 @@ test("the PreToolUse hook consumes ZCode's newline-delimited input before stdin 
     let output = ""
     child.stdout.setEncoding("utf8")
     child.stdout.on("data", (chunk) => (output += chunk))
+    // Attach before writing: a hook fast enough to answer first would leave a
+    // later listener waiting for a chunk that has already been delivered.
+    const answered = once(child.stdout, "data")
     child.stdin.write(`${JSON.stringify({ tool_name: "Write", tool_input: {} })}\n`)
-    await Promise.race([
-      once(child.stdout, "data"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("hook waited for stdin close")), 1_000)),
-    ])
+    await Promise.race([answered, deadlockGuard("PreToolUse hook waited for stdin close")])
     assert.equal(JSON.parse(output).hookSpecificOutput.permissionDecision, "allow")
   } finally {
     child.stdin.end()
@@ -429,11 +443,9 @@ test("the PostToolUse hook consumes ZCode's newline-delimited input before stdin
     stdio: ["pipe", "pipe", "pipe"],
   })
   try {
+    const exited = once(child, "exit")
     child.stdin.write(`${JSON.stringify({ session_id: "unregistered", tool_name: "Read" })}\n`)
-    const [exitCode] = await Promise.race([
-      once(child, "exit"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("post hook waited for stdin close")), 1_000)),
-    ])
+    const [exitCode] = await Promise.race([exited, deadlockGuard("PostToolUse hook waited for stdin close")])
     assert.equal(exitCode, 0)
   } finally {
     child.stdin.end()

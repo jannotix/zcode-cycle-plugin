@@ -96,9 +96,11 @@ arms a governed run.
   `.zcode/agents`; repair, model changes and removal require their explicit
   setup/model command forms and never overwrite an unowned conflicting file.
 - The executor modifies an isolated Git worktree within declared write scopes.
-- The executor may stage and commit those worktree changes. It cannot delegate,
-  push, tag, switch branches, create another worktree, rewrite history or run
-  destructive Git cleanup through the Cycle hook.
+  It may stage and commit those worktree changes.
+- The executor is not sandboxed: it holds edit and shell tools. What bounds it
+  is the control plane, which refuses to freeze a candidate unless your project
+  still stands where the workflow started, with nothing uncommitted. Work that
+  escaped the worktree stops the run and is named, rather than riding along.
 - The control plane freezes exact candidate bytes, verifies them and promotes
   only the approved paths onto the recorded base revision.
 - Export, cancellation with data loss, external browser origins and publication

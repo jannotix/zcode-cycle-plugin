@@ -27,18 +27,23 @@ official private feedback/security channel and follow its disclosure terms.
   profile as a second layer. The hook guards the main session — it denies
   mutation while a workflow is locked and denies a role dispatch without a
   unique registration.
-- **The executor is not confined to the worktree.** It legitimately holds edit
-  and shell tools, so the profile cannot bound it the way it bounds the others,
-  and the hook does not reach it. The orchestration contract tells it to work
-  only in the isolated worktree and the Cycle hook declares Git verbs it may not
-  run, but neither is enforced against a dispatched executor today. Two live
-  certification runs saw work committed into the project directory before the
-  gates had passed on it.
-- Candidate reconciliation in the control plane is the boundary that does hold
-  against every role, because every role reaches it through the MCP server:
-  promotion refuses a candidate whose project has moved underneath it, so a
-  delivery cannot be forged. What it cannot do is prevent unapproved work from
-  arriving first.
+- **The executor is not sandboxed, it is reconciled.** It legitimately holds
+  edit and shell tools, so the profile cannot bound it the way it bounds the
+  others, and the hook does not reach it. Nothing stops it writing outside the
+  isolated worktree. What stops that write from becoming a delivery is the
+  control plane, which every role must pass through: freezing a candidate
+  refuses to proceed unless the project still stands at the base revision the
+  workflow started from, with nothing uncommitted, and the refusal names the
+  files that appeared. Two live certification runs saw work reach the project
+  before any gate ran on it; that now fails at the freeze rather than surfacing
+  at delivery or not at all.
+- The project path used for that check comes from the code index, not from the
+  caller, so a role cannot aim it at a directory where it left nothing.
+- Promotion holds the same line from the other side: it refuses a candidate
+  whose project has moved underneath it, and refuses to overwrite any
+  destination that no longer matches its approved base.
+- The residual risk is detection, not prevention: a role that wrote into the
+  project and then restored it exactly would pass, having delivered nothing.
 - External browser origins require explicit approval and use an isolated
   temporary profile. Approved websites remain third parties with their own
   security and privacy terms.

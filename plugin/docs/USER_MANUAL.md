@@ -43,12 +43,19 @@ The hook still does real work, on the main session: while a workflow is locked
 it denies you mutating the project directly, and it denies a role dispatch that
 has no unique Cycle registration, so raw direct role launches fail.
 
-One gap is worth knowing about. The executor legitimately holds edit and shell
-tools, so the profile cannot bound it the way it bounds the others, and the
-hook does not reach it. Nothing today confines where the executor writes. The
-control plane still refuses to promote a candidate whose project has moved
-underneath it, so a delivery cannot be forged — but work can reach your project
-before the gates have passed on it.
+The executor is the exception, and it is worth knowing how it is held. It
+legitimately holds edit and shell tools, so its profile cannot bound it the way
+it bounds the others, and the hook does not reach it either. Nothing physically
+stops it writing outside the isolated worktree. What the control plane does
+instead is refuse to build a candidate on a project that moved: freezing checks
+that your project still stands exactly where the workflow started, with nothing
+uncommitted, and names the files it found if it does not. Work that escaped the
+worktree therefore stops the workflow instead of riding along with it.
+
+Two consequences for you. Leave your project alone while a run is in flight —
+your own uncommitted edit stops the freeze the same way a stray one does. And
+commit what Cycle delivered before starting the next run, because promotion is
+fast-forward onto the revision it started from.
 
 ## Modes and routing
 

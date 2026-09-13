@@ -424,6 +424,7 @@ where
                     Arc::clone(&store),
                     Arc::clone(&checkpoint_key),
                     Arc::clone(&worktrees),
+                    Arc::clone(&database),
                     CandidateFreezeRequest {
                         base_revision,
                         candidate_id,
@@ -1565,6 +1566,7 @@ async fn freeze_candidate(
     store: Arc<tokio::sync::Mutex<Store>>,
     checkpoint_key: Arc<CheckpointKey>,
     worktrees: Arc<PathBuf>,
+    database: Arc<PathBuf>,
     request: CandidateFreezeRequest,
 ) -> Result<workflow_core::CandidateManifest, String> {
     let project_id = workflow_core::ProjectId::from_stable_key(&request.project_key);
@@ -1627,10 +1629,30 @@ async fn freeze_candidate(
     let path = worktrees
         .join(project_id.to_string())
         .join(request.workflow_id.to_string());
+    // Where the project lives comes from the index, never from the caller: a
+    // role that could name this path could name a harmless one instead.
+    // Promotion already requires the project to be indexed, so asking for it
+    // here only moves the demand earlier, to where it is cheaper to satisfy.
+    let indexed_project = workflow_code_intel::graph::GraphStore::open(&*database)
+        .map_err(|error| error.to_string())?
+        .load_index_state(project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| {
+            "this project has never been indexed, so freezing cannot confirm the project \
+             stood still while this workflow ran: run cycle_code_index for this project, \
+             then freeze again"
+                .to_owned()
+        })?
+        .0;
     let base_revision = request.base_revision.clone();
     let evidence_ids = request.evidence_ids.clone();
     let candidate_id = request.candidate_id;
     let frozen = tokio::task::spawn_blocking(move || {
+        crate::candidate::require_project_untouched(
+            std::path::Path::new(&indexed_project),
+            &base_revision,
+        )
+        .map_err(|error| error.to_string())?;
         crate::candidate::freeze(&path, &base_revision, candidate_id, evidence_ids)
             .map_err(|error| error.to_string())
     })

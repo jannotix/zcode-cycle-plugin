@@ -1,7 +1,7 @@
 use std::{fs, path::Path, process::Command};
 
 use workflow_core::{CandidateFileKind, CandidateId, EvidenceId};
-use workflowd::candidate::{CandidateFreezeError, freeze, promote};
+use workflowd::candidate::{CandidateFreezeError, freeze, promote, require_project_untouched};
 
 struct Repository {
     _directory: tempfile::TempDir,
@@ -44,6 +44,52 @@ impl Repository {
         git(&self.path, ["add", "-A"]);
         git(&self.path, ["commit", "-m", "candidate"]);
     }
+}
+
+/// The executor is the one role a managed profile cannot bound - it holds Edit
+/// and Bash legitimately - and ZCode does not run the PreToolUse hook inside a
+/// dispatched agent, so the hook never sees its tool calls either. Two live
+/// certification runs saw work reach the project before any gate ran on it. The
+/// control plane is the layer every role must pass through to deliver, so the
+/// boundary lives here.
+#[test]
+fn a_project_that_stood_still_is_accepted() {
+    let repository = Repository::new();
+
+    require_project_untouched(&repository.path, &repository.base_revision).unwrap();
+}
+
+#[test]
+fn work_left_in_the_project_is_refused_and_named() {
+    let repository = Repository::new();
+    // Exactly what an unconfined executor does: writes into the project
+    // directory rather than the isolated worktree it was given.
+    fs::write(repository.path.join("escaped.rs"), "fn main() {}\n").unwrap();
+
+    let error = require_project_untouched(&repository.path, &repository.base_revision).unwrap_err();
+
+    let message = error.to_string();
+    assert!(
+        matches!(error, CandidateFreezeError::ProjectMoved(_)),
+        "expected a moved-project refusal, got: {message}"
+    );
+    assert!(
+        message.contains("escaped.rs"),
+        "the refusal must name the file that appeared: {message}"
+    );
+}
+
+#[test]
+fn a_project_committed_past_its_base_revision_is_refused() {
+    let repository = Repository::new();
+    repository.commit_candidate();
+
+    let error = require_project_untouched(&repository.path, &repository.base_revision).unwrap_err();
+
+    assert!(
+        matches!(error, CandidateFreezeError::ProjectMoved(_)),
+        "expected a moved-project refusal, got: {error}"
+    );
 }
 
 /// A base revision that has drifted onto the implementation commit itself

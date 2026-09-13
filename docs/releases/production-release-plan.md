@@ -102,21 +102,22 @@ legal opinion.
    without a unique registration, and denies malformed or ambiguous input - and
    its executor-scoped rules are unreachable until that changes.
 
-   **Open and unresolved.** The executor legitimately holds Edit and Bash, so it
-   is the one role the profile cannot constrain, and nothing else confines where
-   it writes. Two live runs saw work committed into the project before the gates
-   ran. Do not sign a receipt that claims a runtime role boundary until this is
-   closed at the control plane, which is the layer no dispatched role can
-   bypass.
-
-   **What closes it.** Every role reaches the control plane through the MCP
-   server, so under this harness that is the only place a boundary can still be
-   enforced against a dispatched agent. Freeze records the project revision;
-   reconciliation compares the project tree against that revision and refuses a
-   candidate whose project moved outside the worktree while the workflow held
-   it. The philosophy does not change - a role is bounded by something it cannot
-   talk its way past - only the layer moves, from a host hook this harness never
+   **Closed at the control plane.** The executor legitimately holds Edit and
+   Bash, so it is the one role the profile cannot constrain, and two live runs
+   saw work reach the project before the gates ran. Freezing a candidate now
+   refuses to proceed unless the project still stands at the base revision the
+   workflow started from with nothing uncommitted, and the refusal names the
+   files that appeared. The project path it checks comes from the code index,
+   not from the caller, so a role cannot aim the check somewhere harmless. The
+   philosophy does not change - a role is bounded by something it cannot talk
+   its way past - only the layer moves, from a host hook this harness never
    calls to a control plane it must call in order to deliver anything at all.
+
+   What the receipt may claim is therefore reconciliation, not containment: the
+   executor is not sandboxed and can still write outside its worktree; what it
+   cannot do is have that write survive into a delivery. A role that wrote into
+   the project and restored it exactly would pass this check, having delivered
+   nothing. State it that way or not at all.
 4. **Marketplace contract** - official validator and distribution builder
    pass; English/Chinese docs, i18n fields, supported category and disclosures
    are present.

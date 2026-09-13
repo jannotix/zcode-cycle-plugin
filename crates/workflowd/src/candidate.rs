@@ -147,6 +147,7 @@ pub enum CandidateFreezeError {
     NonUtf8Path,
     PayloadMismatch,
     PayloadTooLarge,
+    ProjectMoved(String),
     UnsupportedExecutableMode,
     Serialization(serde_json::Error),
 }
@@ -175,6 +176,12 @@ impl std::fmt::Display for CandidateFreezeError {
                 formatter.write_str("candidate payload does not match its immutable manifest")
             }
             Self::PayloadTooLarge => formatter.write_str("candidate payload exceeds 128 MiB"),
+            Self::ProjectMoved(detail) => write!(
+                formatter,
+                "the project changed while this workflow was holding it, so delivering now would \
+                 mix approved work with work no gate has seen: {detail}. Roles implement inside \
+                 the isolated worktree; commit or revert the project, then freeze again"
+            ),
             Self::UnsupportedExecutableMode => formatter
                 .write_str("executable candidate files are not supported on this operating system"),
             Self::Serialization(error) => error.fmt(formatter),
@@ -1561,6 +1568,71 @@ fn configuration_file(path: &str) -> bool {
 fn generated_path(path: &str) -> bool {
     path.split('/')
         .any(|component| matches!(component, "build" | "dist" | "generated" | "out"))
+}
+
+/// The project must stand still while a workflow holds it.
+///
+/// Promotion is fast-forward onto the recorded base revision, so anything that
+/// reaches the project meanwhile is either refused at delivery — long after the
+/// fact, against a candidate every gate has already passed — or, when it lands
+/// outside the candidate's paths, never noticed at all.
+///
+/// This is the boundary the PreToolUse hook cannot be. ZCode does not run that
+/// hook inside a dispatched agent, so it never sees the executor's tool calls.
+/// Every role reaches the control plane, and the project path checked here is
+/// the indexed one, not a path the caller supplied: a role cannot point this
+/// check at somewhere harmless.
+pub fn require_project_untouched(
+    project: &Path,
+    base_revision: &str,
+) -> Result<(), CandidateFreezeError> {
+    let project = project.canonicalize()?;
+    let discovered = PathBuf::from(output_text(&git(
+        &project,
+        ["rev-parse", "--show-toplevel"],
+    )?)?)
+    .canonicalize()?;
+    if discovered != project {
+        return Err(CandidateFreezeError::InvalidRepository);
+    }
+    let head = output_text(&git(&project, ["rev-parse", "HEAD"])?)?;
+    if head != base_revision {
+        return Err(CandidateFreezeError::ProjectMoved(format!(
+            "the project is at {head}, but this workflow started from {base_revision}"
+        )));
+    }
+    let entries = nul_fields(
+        &git(
+            &project,
+            ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        )?
+        .stdout,
+    )?;
+    if !entries.is_empty() {
+        return Err(CandidateFreezeError::ProjectMoved(format!(
+            "the project holds changes no gate has seen: {}",
+            describe_status(&entries)
+        )));
+    }
+    Ok(())
+}
+
+/// Name the paths, bounded. A reader who sees which files appeared knows at
+/// once whether a role escaped its worktree or they left their own work behind.
+fn describe_status(entries: &[String]) -> String {
+    const SHOWN: usize = 5;
+    // Porcelain v1 prefixes every entry with two status characters and a space,
+    // all ASCII, so byte index three is always a character boundary.
+    let paths = entries
+        .iter()
+        .take(SHOWN)
+        .map(|entry| entry.get(3..).unwrap_or(entry.as_str()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    match entries.len().checked_sub(SHOWN) {
+        Some(remaining) if remaining > 0 => format!("{paths} and {remaining} more"),
+        _ => paths,
+    }
 }
 
 fn require_clean(repository: &Path) -> Result<(), CandidateFreezeError> {
