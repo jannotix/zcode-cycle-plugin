@@ -118,9 +118,20 @@ legal opinion.
    cannot do is have that write survive into a delivery. A role that wrote into
    the project and restored it exactly would pass this check, having delivered
    nothing. State it that way or not at all.
-4. **Marketplace contract** - official validator and distribution builder
-   pass; English/Chinese docs, i18n fields, supported category and disclosures
-   are present.
+4. **Marketplace contract** - English/Chinese docs, i18n fields, supported
+   category and disclosures are present, and `scripts/validate-marketplace.mjs`
+   passes in CI.
+
+   There is no official validator or distribution builder to run: ZCode ships
+   neither as a command. The CLI (`0.16.5`) exposes only `plugins list`, and the
+   official checks - `validateMarketplaceSource`, `validateMarketplacePlugin`
+   and the archive SHA-256 verification - live inside the client and run when a
+   marketplace is added and a plugin is installed. So the official half of this
+   gate is not a build step at all: it is satisfied by observing the Desktop
+   accept the marketplace and install the sealed archive with no diagnostic,
+   which is scenario 1 of the live lane. Our own validator covers the static
+   contract in CI; the client covers the rest, live, or the gate stays open.
+   Do not record this gate as passed from the CI half alone.
 5. **Quality** - format, clippy, Rust tests, MCP typecheck/build, dependency and
    license audits, package allowlists and secret scans all pass on Windows and
    Linux.
