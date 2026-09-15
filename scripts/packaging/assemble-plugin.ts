@@ -1,9 +1,10 @@
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { join } from "node:path"
+import { join, relative } from "node:path"
 
 import { checkNativeVersions, STAGING_TARGETS } from "../release/check-native-version.mjs"
 import { writeNativeManifest } from "./native-manifest.js"
+import { COPY_MAPPINGS, excludedFromPlugin } from "./plugin-contents.mjs"
 
 // Assembles the installable plugin directory: only runtime files, never the
 // repository working tree (build outputs like target/ must not reach an
@@ -12,25 +13,7 @@ import { writeNativeManifest } from "./native-manifest.js"
 const root = fileURLToPath(new URL("../../", import.meta.url))
 const output = join(root, "plugin")
 
-const copy = [
-  [".zcode-plugin/plugin.json", ".zcode-plugin/plugin.json"],
-  [".mcp.json", ".mcp.json"],
-  ["LICENSE", "LICENSE"],
-  ["NOTICE", "NOTICE"],
-  ["README.md", "README.md"],
-  ["README_CN.md", "README_CN.md"],
-  ["CHANGELOG.md", "CHANGELOG.md"],
-  ["SECURITY.md", "SECURITY.md"],
-  ["THIRD-PARTY-RUST-LICENSES.html", "THIRD-PARTY-RUST-LICENSES.html"],
-  ["docs", "docs"],
-  ["agents", "agents"],
-  ["commands", "commands"],
-  ["skills", "skills"],
-  ["hooks/cycle-hooks.json", "hooks/cycle-hooks.json"],
-  ["hooks/pre-tool-use.js", "hooks/pre-tool-use.js"],
-  ["hooks/post-tool-use.js", "hooks/post-tool-use.js"],
-  ["mcp/dist", "mcp/dist"],
-]
+const copy = COPY_MAPPINGS
 
 // Refuse before destroying the previous output: a tracked daemon built from a
 // different product version would assemble an installation that cannot start,
@@ -53,7 +36,10 @@ if (stale.length > 0) {
 await rm(output, { force: true, recursive: true })
 await mkdir(join(output, "bin"), { recursive: true })
 for (const [from, to] of copy) {
-  await cp(join(root, from), join(output, to), { recursive: true })
+  await cp(join(root, from), join(output, to), {
+    filter: (source) => !excludedFromPlugin(relative(root, source)),
+    recursive: true,
+  })
 }
 
 // Per-platform daemon binaries; assembly fails if any certified platform

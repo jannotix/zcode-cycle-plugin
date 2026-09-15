@@ -11,8 +11,9 @@ does not ship.
    `cargo test --workspace --all-features --no-fail-fast` — expect zero
    failed tests on both; record counts rather than hard-coding them here.
 3. **Qualification battery on both platforms.**
-   `node tests/qualification/battery.mjs <n>` with the platform
-   overrides — zero FAIL iterations.
+   `node scripts/release/run-battery.mjs --iterations <n>`, which points the
+   battery at this checkout and, with `--binary`, at a per-platform daemon —
+   zero FAIL iterations.
 4. **Assemble the distribution.**
    `bun scripts/packaging/assemble-plugin.ts`; verify the assembled
    plugin contains both platform binaries, the built MCP bundle, the five

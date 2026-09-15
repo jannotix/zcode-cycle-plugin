@@ -156,7 +156,7 @@ separate, explicit data-destruction decision after taking any required backup.
 
 See [the user manual](docs/USER_MANUAL.md), [command reference](docs/commands/reference.md),
 [threat model](docs/security/threat-model.md) and
-[release plan](docs/releases/production-release-plan.md).
+[release plan](https://github.com/jannotix/zcode-cycle-plugin/blob/main/docs/releases/production-release-plan.md).
 
 ## Update, rollback and removal
 

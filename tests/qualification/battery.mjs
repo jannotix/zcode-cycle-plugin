@@ -1,17 +1,22 @@
-// F6 Windows qualification battery: the deterministic control-plane matrix
-// (no LLM dispatches - roles are platform-independent and were qualified in
-// F3-F5). Repeatable: run N times for the repeat-suite matrix item.
+// Qualification battery: the deterministic control-plane matrix, with no LLM
+// dispatches - roles are platform-independent and are qualified separately.
+// Repeatable: run N times for the repeat-suite matrix item.
+//
+// Every path defaults to this repository. The overrides exist for the release
+// matrix, which runs one checkout's battery against a per-platform daemon.
 
 import { spawn } from "node:child_process"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { randomUUID } from "node:crypto"
-import { pathToFileURL } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
-const ROOT = process.env.F6_ROOT ?? "/home/user/f6"
-const BINARY = process.env.F6_BINARY ?? `${ROOT}/target/release/workflowd`
-const CLIENT = pathToFileURL(process.env.F6_CLIENT ?? `${ROOT}/mcp/dist/client.js`).href
+const ROOT = process.env.CYCLE_BATTERY_ROOT ?? dirname(dirname(dirname(fileURLToPath(import.meta.url))))
+const BINARY = process.env.CYCLE_BATTERY_BINARY ?? join(ROOT, "target", "release", "workflowd")
+const CLIENT = pathToFileURL(
+  process.env.CYCLE_BATTERY_CLIENT ?? join(ROOT, "mcp", "dist", "client.js"),
+).href
 
 let passed = 0
 let failed = 0
@@ -50,11 +55,11 @@ const DEFER_REASONS = new Set([
 
 async function hookDecision(dataDir, input, projectDirectory) {
   const result = await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [process.env.F6_HOOK ?? `${ROOT}/hooks/pre-tool-use.js`], {
+    const child = spawn(process.execPath, [process.env.CYCLE_BATTERY_HOOK ?? join(ROOT, "hooks", "pre-tool-use.js")], {
       env: {
         ...process.env,
         ZCODE_CYCLE_DATA_DIR: dataDir,
-        ZCODE_PLUGIN_ROOT: process.env.F6_PLUGIN_ROOT ?? `${ROOT}`,
+        ZCODE_PLUGIN_ROOT: process.env.CYCLE_BATTERY_PLUGIN_ROOT ?? ROOT,
         ...(projectDirectory ? { ZCODE_PROJECT_DIR: projectDirectory } : {}),
       },
       stdio: ["pipe", "pipe", "ignore"],
@@ -71,19 +76,19 @@ async function hookDecision(dataDir, input, projectDirectory) {
 
 async function main() {
   const iteration = process.argv[2] ?? "1"
-  const projectKey = `f6-win-battery-${iteration}`
-  const dataDir = await mkdtemp(join(tmpdir(), "zcode-cycle-f6-"))
-  const fixture = await mkdtemp(join(tmpdir(), "zcode-cycle-f6-repo-"))
+  const projectKey = `cycle-battery-${iteration}`
+  const dataDir = await mkdtemp(join(tmpdir(), "zcode-cycle-battery-"))
+  const fixture = await mkdtemp(join(tmpdir(), "zcode-cycle-battery-repo-"))
   const { execSync } = await import("node:child_process")
   const git = (args) =>
     execSync(`git ${args}`, { cwd: fixture, env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" } })
 
   try {
     git("init -q -b main")
-    await writeFile(join(fixture, "package.json"), '{"name":"f6","type":"module","scripts":{"test":"node test.js"}}')
+    await writeFile(join(fixture, "package.json"), '{"name":"battery","type":"module","scripts":{"test":"node test.js"}}')
     await writeFile(join(fixture, "utils.js"), "export const ping = () => \"pong\"\n")
     await writeFile(join(fixture, "test.js"), "import assert from 'node:assert/strict'; import { ping } from './utils.js'; assert.equal(ping(), 'pong'); console.log('ok')\n")
-    git('add -A && git -c user.name=f6 -c user.email=f6@invalid commit -qm base')
+    git('add -A && git -c user.name=battery -c user.email=battery@invalid commit -qm base')
 
     await withPlane(dataDir, async (plane) => {
       // 1. health + doctor
@@ -94,7 +99,7 @@ async function main() {
 
       // 2. audit + history verify
       const receipt = await plane.audit({
-        actor_id: "f6-battery",
+        actor_id: "cycle-battery",
         candidate_id: null,
         data: { action: "battery_observation", type: "workflow" },
         evidence_ids: [],
@@ -223,11 +228,11 @@ async function main() {
       await writeFile(
         registryPath,
         JSON.stringify({
-          "sess-f6-ro": { project_key: projectKey, registered_at_unix_millis: 1, role: "architect", workflow_id: null },
+          "sess-battery-ro": { project_key: projectKey, registered_at_unix_millis: 1, role: "architect", workflow_id: null },
         }),
       )
       const denied = await hookDecision(dataDir, {
-        sessionId: "sess-f6-ro",
+        sessionId: "sess-battery-ro",
         toolName: "Write",
         toolInput: { file_path: "x.txt", content: "hi" },
       })
@@ -249,7 +254,7 @@ async function main() {
     })
 
     // 7. MCP server over stdio (sequential request/response)
-    const server = spawn(process.execPath, [process.env.F6_SERVER ?? `${ROOT}/mcp/dist/server.js`], {
+    const server = spawn(process.execPath, [process.env.CYCLE_BATTERY_SERVER ?? join(ROOT, "mcp", "dist", "server.js")], {
       env: {
         ...process.env,
         ZCODE_CYCLE_BINARY: BINARY,
@@ -292,7 +297,7 @@ async function main() {
     try {
       const initialized = await request("initialize", {
         capabilities: {},
-        clientInfo: { name: "f6", version: "0" },
+        clientInfo: { name: "cycle-battery", version: "0" },
         protocolVersion: "2025-06-18",
       })
       check("mcp initialize", initialized.serverInfo?.name === "zcode-cycle", initialized)

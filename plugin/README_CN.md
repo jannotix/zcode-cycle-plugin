@@ -130,7 +130,7 @@ Shell；不安全操作符、被阻止的程序和破坏性形式会被拒绝。
    `/cycle:resume` 恢复。
 
 更多信息见[用户手册](docs/USER_MANUAL.md)、[命令参考](docs/commands/reference.md)、
-[威胁模型](docs/security/threat-model.md)和[发布计划](docs/releases/production-release-plan.md)。
+[威胁模型](docs/security/threat-model.md)和[发布计划](https://github.com/jannotix/zcode-cycle-plugin/blob/main/docs/releases/production-release-plan.md)。
 
 ## 更新、回滚和删除
 

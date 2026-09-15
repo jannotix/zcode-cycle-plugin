@@ -34,6 +34,27 @@ rejects any unknown model or pair before changing a managed profile. The tool
 preserves the security-critical prompt and tool list; an override applies in a
 new session.
 
+## Third-party models
+
+ZCode lets you add models from other providers, and Cycle does not accept them
+for a governed role. The control plane verifies each managed profile against a
+known baseline, and it cannot check the capabilities or the thought-level
+vocabulary of a model it does not know — accepting one would mean recording an
+unverified claim about who judged your candidate. A profile edited by hand to
+name a third-party model is therefore reported as `managed-drift` by
+`/cycle:setup status` rather than being accepted silently.
+
+This applies only to the five governed roles. Your own main session may use any
+model ZCode offers.
+
+## What the ledger records
+
+Every event a role produces records the model pinned in its profile, so
+`/cycle:history` and an exported receipt answer *which model approved this
+candidate*, not merely that one did. `inherit` is recorded as `inherit`: the
+session's model is a weaker claim than a pinned one, and the record does not
+flatten the difference.
+
 ## Choosing models
 
 - The **architect** and **arbiter** benefit from the strongest reasoning
