@@ -1690,6 +1690,19 @@ async function unlockWorkflow(workflowId) {
   }
   await writeRegistry(registry);
 }
+async function revokeOrphanedRoleRegistrations(workflowId) {
+  const registry = await readRegistry();
+  const revoked = [];
+  for (const [key, value] of Object.entries(registry)) {
+    if (isRoleRegistration(value) && value.workflow_id === workflowId) {
+      revoked.push(`${value.role}:${key}`);
+      delete registry[key];
+    }
+  }
+  if (revoked.length > 0)
+    await writeRegistry(registry);
+  return revoked;
+}
 function terminalWorkflowState(value) {
   if (typeof value !== "object" || value === null)
     return false;
@@ -1742,6 +1755,9 @@ async function callTool(name, rawArgs) {
       const result = await plane.control(projectKey, args.operation ?? "status", workflowId);
       if (workflowId !== undefined && terminalWorkflowState(result))
         await unlockWorkflow(workflowId);
+      else if (workflowId !== undefined && args.operation === "recovery") {
+        await revokeOrphanedRoleRegistrations(workflowId);
+      }
       return result;
     }
     case "cycle_audit": {

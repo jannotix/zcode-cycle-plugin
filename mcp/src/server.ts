@@ -146,6 +146,26 @@ async function unlockWorkflow(workflowId: string): Promise<void> {
   await writeRegistry(registry)
 }
 
+/**
+ * Drop this workflow's role registrations while keeping its lock.
+ *
+ * Used by recovery, which by definition declares the previous session gone. The
+ * registrations it left cannot be revoked by their owner any more, and while
+ * they stand every role dispatch is ambiguous.
+ */
+async function revokeOrphanedRoleRegistrations(workflowId: string): Promise<string[]> {
+  const registry = await readRegistry()
+  const revoked: string[] = []
+  for (const [key, value] of Object.entries(registry)) {
+    if (isRoleRegistration(value) && value.workflow_id === workflowId) {
+      revoked.push(`${value.role}:${key}`)
+      delete registry[key]
+    }
+  }
+  if (revoked.length > 0) await writeRegistry(registry)
+  return revoked
+}
+
 function terminalWorkflowState(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false
   const record = value as Record<string, unknown>
@@ -229,6 +249,20 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
         workflowId,
       )
       if (workflowId !== undefined && terminalWorkflowState(result)) await unlockWorkflow(workflowId)
+      // A role registration is revoked by the session that made it, so a session
+      // that dies mid-run leaves its registrations behind with no owner. Every
+      // later dispatch is then ambiguous and recovery cannot use the sanctioned
+      // path — dispatch a role — to inspect or repair anything. A hard kill
+      // during execution left exactly that behind in the live certification, and
+      // the operator saw only "worktree recovery state is inconsistent", several
+      // steps downstream of the cause.
+      //
+      // Recovery is the operation that declares the previous session dead, so it
+      // is the right place to sweep. The workflow lock is left alone: it is what
+      // keeps the main session read-only while the workflow is non-terminal.
+      else if (workflowId !== undefined && args.operation === "recovery") {
+        await revokeOrphanedRoleRegistrations(workflowId)
+      }
       return result
     }
     case "cycle_audit": {

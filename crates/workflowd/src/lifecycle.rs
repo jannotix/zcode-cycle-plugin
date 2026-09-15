@@ -734,6 +734,47 @@ where
                             .state
                             .state()
                     };
+                    // Promotion is the one step that changes the user's project,
+                    // and it was the one step the ledger did not record. The
+                    // orchestrating session used to volunteer an observation for
+                    // it, so whether a delivery appeared in the audit chain
+                    // depended on a narrator remembering — across the live
+                    // certification the event was present in some runs and absent
+                    // in others, for identical bytes. The component that performs
+                    // the delivery records it, with the digests it just bound.
+                    crate::audit::record(
+                        &mut store,
+                        &checkpoint_key,
+                        workflow_ipc::audit::AuditObservation {
+                            actor_id: "workflowd".to_owned(),
+                            candidate_id: Some(candidate_id),
+                            data: workflow_ipc::audit::AuditData::Workflow {
+                                action: "approved_candidate_delivered".to_owned(),
+                            },
+                            evidence_ids: current.manifest.evidence_ids().iter().copied().collect(),
+                            files: changed_paths.iter().cloned().collect(),
+                            metadata: std::collections::BTreeMap::from([
+                                ("candidate_digest".to_owned(), candidate_digest.to_string()),
+                                (
+                                    "delivery_journal_digest".to_owned(),
+                                    journal_digest.to_string(),
+                                ),
+                                (
+                                    "workflow_state".to_owned(),
+                                    format!("{delivered_state:?}").to_lowercase(),
+                                ),
+                            ]),
+                            model: None,
+                            project_key: project_key.clone(),
+                            role: None,
+                            session_id: None,
+                            task_id: None,
+                            timestamp_unix_millis: now_unix_millis()
+                                .map_err(|error| error.to_string())?,
+                            workflow_id: Some(workflow_id),
+                        },
+                    )
+                    .map_err(|error| error.to_string())?;
                     Ok((changed_paths, workflow_state(delivered_state)?))
                 }
                 .await;
