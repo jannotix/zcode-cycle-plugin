@@ -20,6 +20,13 @@ archive digest they name.
   successfully; macOS evidence never substitutes for a Windows/Linux gate.
 - Node.js: 22 or later. Rust and Bun versions are pinned by the release
   workflow and recorded in provenance.
+- Role models: the five governed roles accept only the models ZCode ships for
+  the Z.ai coding plan (`GLM-5.3`, `GLM-5.3-Flash`, `GLM-5-Turbo`) and
+  `inherit`. ZCode permits third-party models and Cycle does not accept them
+  for a role, because the control plane cannot verify the capabilities of a
+  model it does not know and would then be recording an unverified claim in a
+  receipt. Documentation must state this restriction rather than implying that
+  any ZCode model can drive a role.
 
 ## Comparison with Cycle for Claude Code
 

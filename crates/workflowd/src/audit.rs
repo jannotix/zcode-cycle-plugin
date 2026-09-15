@@ -60,13 +60,24 @@ pub fn record(
         },
         AuditData::Verification { gate, status } => EventData::Verification { gate, status },
     };
+    // DEFECT-10. An observation carrying a role may declare its own model, and a
+    // role attesting to its own identity proves nothing. Where the role is known,
+    // the managed profile on disk is the authority: it is written by setup,
+    // checked against the plugin baseline, and a dispatched role cannot change it
+    // without the control plane seeing the drift. A self-declared model is kept
+    // only when no profile answers, and never overrides one that does.
+    let model = observation
+        .role
+        .and_then(|role| role_model(&observation.project_key, role))
+        .or(observation.model)
+        .map(|model| ModelIdentity {
+            model: model.model,
+            provider: model.provider,
+        });
     let event = LedgerEvent::new(
         Actor {
             id: observation.actor_id,
-            model: observation.model.map(|model| ModelIdentity {
-                model: model.model,
-                provider: model.provider,
-            }),
+            model,
             role: observation.role,
             session_id: observation.session_id,
         },
@@ -97,4 +108,59 @@ pub fn record(
             .map_err(AuditError::Store)?;
     }
     Ok(entry)
+}
+
+/// The model a managed role profile pins, read from the profile on disk.
+///
+/// DEFECT-10: `Actor.model` existed in the ledger schema and every construction
+/// site passed `None`, so a receipt could not answer "which model approved this
+/// candidate" - the question an audit trail exists to answer. The product is
+/// named for multi-model orchestration and nothing recorded which model ran.
+///
+/// The value is read from the managed profile rather than accepted from the
+/// role, deliberately. A role that declared its own model would be attesting to
+/// its own identity, which proves nothing; the profile is written by setup,
+/// verified against the plugin baseline, and a dispatched role cannot change it
+/// without the control plane seeing the drift.
+///
+/// `inherit` is recorded as such: "the session's model, whichever that was" is a
+/// different and weaker claim than a pinned one, and flattening the two would
+/// make the record say more than it knows.
+pub fn role_model(
+    project_directory: &str,
+    role: workflow_core::WorkflowRole,
+) -> Option<workflow_ipc::audit::AuditModel> {
+    let role = match role {
+        workflow_core::WorkflowRole::Architect => "architect",
+        workflow_core::WorkflowRole::Executor => "executor",
+        workflow_core::WorkflowRole::FunctionalReviewer => "functional-reviewer",
+        workflow_core::WorkflowRole::SecurityArchitectureReviewer => "security-reviewer",
+        workflow_core::WorkflowRole::Arbiter => "arbiter",
+    };
+    let profile = std::path::Path::new(project_directory)
+        .join(".zcode")
+        .join("agents")
+        .join(format!("zcode-cycle-{role}.md"));
+    let content = std::fs::read_to_string(profile).ok()?;
+    let value = content
+        .lines()
+        .take_while(|line| !line.starts_with("---") || line.trim() == "---")
+        .find_map(|line| line.strip_prefix("model:"))?
+        .trim();
+    if value.is_empty() {
+        return None;
+    }
+    // ZCode model refs look like custom:builtin:zai-coding-plan:GLM-5.3 or
+    // provider/model; "inherit" has no provider of its own.
+    let provider = if value == "inherit" {
+        "inherit".to_owned()
+    } else if let Some(rest) = value.strip_prefix("custom:") {
+        rest.split(':').next().unwrap_or("custom").to_owned()
+    } else {
+        value.split('/').next().unwrap_or("unknown").to_owned()
+    };
+    Some(workflow_ipc::audit::AuditModel {
+        model: value.to_owned(),
+        provider,
+    })
 }

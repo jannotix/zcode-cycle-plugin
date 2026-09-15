@@ -31,7 +31,7 @@ fn immutable_request_survives_restart_and_rejects_replacement() {
             &RequestRecord::new("Architect summary".to_owned(), vec![]),
             WorkflowTimestamp::now()
         ),
-        Err(StoreError::AggregateConflict)
+        Err(StoreError::AggregateConflict(_))
     ));
     drop(store);
 

@@ -95,6 +95,10 @@ arms a governed run.
 - `/cycle:setup install` writes five managed files under the current project's
   `.zcode/agents`; repair, model changes and removal require their explicit
   setup/model command forms and never overwrite an unowned conflicting file.
+- Each role can be pinned to its own model, and the ledger records which model
+  ran. Governed roles accept only the models ZCode ships for the Z.ai coding
+  plan; third-party models you add to ZCode are not accepted for a role, and a
+  profile naming one is reported as drift. Your main session is unaffected.
 - The executor modifies an isolated Git worktree within declared write scopes.
   It may stage and commit those worktree changes.
 - The executor is not sandboxed: it holds edit and shell tools. What bounds it

@@ -27,7 +27,9 @@ impl Store {
             .optional()?;
         if let Some((owner, current)) = current {
             if owner != workflow_id.to_string() || current != plan_json {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "a verification plan with this identifier is already stored under a different workflow or with different content",
+                ));
             }
             return Ok(true);
         }
@@ -62,7 +64,7 @@ impl Store {
                 Ok((
                     workflow_id
                         .parse()
-                        .map_err(|_| StoreError::AggregateConflict)?,
+                        .map_err(|_| StoreError::AggregateConflict("a stored verification plan row holds a workflow identifier this schema cannot parse"))?,
                     serde_json::from_str(&plan)?,
                 ))
             })
@@ -85,7 +87,7 @@ impl Store {
         value
             .map(|(plan_id, plan)| {
                 Ok((
-                    plan_id.parse().map_err(|_| StoreError::AggregateConflict)?,
+                    plan_id.parse().map_err(|_| StoreError::AggregateConflict("a stored verification plan row holds a plan identifier this schema cannot parse"))?,
                     serde_json::from_str(&plan)?,
                 ))
             })
@@ -108,7 +110,9 @@ impl Store {
         }
         record.validate().map_err(StoreError::Evidence)?;
         if output_redacted.len() > 2 * 1024 * 1024 {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "redacted verification output exceeds the 2 MiB limit",
+            ));
         }
         let record_json = serde_json::to_string(record)?;
         let transaction = self.connection.transaction()?;
@@ -126,7 +130,9 @@ impl Store {
             || candidate.0 != workflow_id.to_string()
             || candidate.1 != record.candidate_digest.to_string()
         {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "the plan or candidate belongs to a different workflow, or the evidence cites a different candidate digest",
+            ));
         }
         let current: Option<(String, String, String, bool, String, String)> = transaction
             .query_row(
@@ -157,7 +163,9 @@ impl Store {
                 || current.2 != identity.2
                 || current.3 != identity.3
             {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "evidence for this gate is already recorded with a different identity",
+                ));
             }
             let latest: Option<(i64, String, String)> = transaction
                 .query_row(

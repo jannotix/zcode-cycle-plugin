@@ -57,6 +57,32 @@ your own uncommitted edit stops the freeze the same way a stray one does. And
 commit what Cycle delivered before starting the next run, because promotion is
 fast-forward onto the revision it started from.
 
+## Which model runs a role
+
+Each role can be pinned to its own model with `/cycle:setup model`, so the
+arbiter can judge on a stronger model than the one that drafted the work. The
+choice is written into the managed profile, and the ledger records the model
+that was pinned for every event a role produces — a receipt says which model
+approved a candidate, not merely that one did.
+
+Cycle accepts only the models ZCode ships for the Z.ai coding plan:
+
+| Model | Thought levels |
+|---|---|
+| `custom:builtin:zai-coding-plan:GLM-5.3` | `low`, `high`, `max` |
+| `custom:builtin:zai-coding-plan:GLM-5.3-Flash` | `low`, `high`, `max` |
+| `custom:builtin:zai-coding-plan:GLM-5-Turbo` | `enabled`, `off` |
+| `inherit` | follows the session |
+
+ZCode itself lets you add third-party models, and Cycle does not accept them
+for a governed role. This is a deliberate narrowing, not an oversight: the
+control plane verifies each managed profile against a known baseline, and a
+model whose thought-level vocabulary and capabilities it cannot check is a
+model it cannot make claims about in a receipt. A profile edited by hand to
+name a third-party model is reported as `managed-drift` by
+`/cycle:setup status` rather than being accepted silently. Your own main
+session is unaffected — the restriction applies to the five governed roles.
+
 ## Modes and routing
 
 `/cycle:run auto` lets the deterministic router choose: small

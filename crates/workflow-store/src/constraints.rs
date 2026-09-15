@@ -16,7 +16,9 @@ impl Store {
             return Err(StoreError::ReadOnly);
         }
         if kind.is_empty() || kind.len() > 64 {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "a constraint kind must be between 1 and 64 characters",
+            ));
         }
         let json = serde_json::to_string(value)?;
         let transaction = self.connection.transaction()?;
@@ -30,7 +32,9 @@ impl Store {
             .optional()?;
         if let Some((current_digest, current_json)) = current {
             if current_digest != digest.to_string() || current_json != json {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "a constraint of this kind is already recorded for the workflow with different content",
+                ));
             }
             return Ok(true);
         }

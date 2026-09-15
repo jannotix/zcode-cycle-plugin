@@ -102,7 +102,9 @@ impl Store {
         if current == (workflow_id.to_string(), candidate_digest.to_string()) {
             Ok(true)
         } else {
-            Err(StoreError::AggregateConflict)
+            Err(StoreError::AggregateConflict(
+                "the delivery reservation for this candidate is held for a different workflow or digest",
+            ))
         }
     }
 
@@ -127,7 +129,9 @@ impl Store {
         if deleted == 1 {
             Ok(())
         } else {
-            Err(StoreError::AggregateConflict)
+            Err(StoreError::AggregateConflict(
+                "no delivery reservation matches this candidate, workflow and digest, so there is nothing to release",
+            ))
         }
     }
 
@@ -154,7 +158,9 @@ impl Store {
         if updated == 1 {
             Ok(())
         } else {
-            Err(StoreError::AggregateConflict)
+            Err(StoreError::AggregateConflict(
+                "no delivery reservation matches this candidate, workflow and expected journal digest",
+            ))
         }
     }
 
@@ -223,7 +229,9 @@ impl Store {
                 || current_diff != exact_diff
                 || current_files != exact_files
             {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "a candidate with this identifier is already stored with different bytes or a different owner",
+                ));
             }
             return Ok(true);
         }
@@ -303,7 +311,7 @@ impl Store {
                     Ok(StoredCandidate {
                         workflow_id: workflow_id
                             .parse()
-                            .map_err(|_| StoreError::AggregateConflict)?,
+                            .map_err(|_| StoreError::AggregateConflict("a stored candidate row holds a workflow identifier this schema cannot parse"))?,
                         manifest,
                         exact_diff,
                         exact_files,
@@ -328,7 +336,7 @@ impl Store {
                 |row| row.get::<_, String>(0),
             )
             .optional()?
-            .map(|value| value.parse().map_err(|_| StoreError::AggregateConflict))
+            .map(|value| value.parse().map_err(|_| StoreError::AggregateConflict("a stored candidate row holds a candidate identifier this schema cannot parse")))
             .transpose()?;
         candidate_id
             .map(|id| self.load_candidate(id))

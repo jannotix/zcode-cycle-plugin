@@ -1258,7 +1258,7 @@ fn submit_arbitration(
                 }
                 metadata
             },
-            model: None,
+            model: crate::audit::role_model(project_key, workflow_core::WorkflowRole::Arbiter),
             project_key: project_key.to_owned(),
             role: Some(workflow_core::WorkflowRole::Arbiter),
             session_id: None,

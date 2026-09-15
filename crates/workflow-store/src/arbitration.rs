@@ -22,7 +22,9 @@ impl Store {
             || receipt.candidate_digest != verdict.candidate_digest
             || receipt.arbiter_verdict_digest != verdict.digest()
         {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "the arbiter receipt does not bind the workflow, candidate and verdict it is recorded against",
+            ));
         }
         let verdict_json = serde_json::to_string(verdict)?;
         let receipt_json = serde_json::to_string(receipt)?;
@@ -43,7 +45,9 @@ impl Store {
                 receipt_json,
             );
             if current != expected {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "an arbitration verdict is already recorded for this candidate and differs from the one submitted",
+                ));
             }
             return Ok(true);
         }
@@ -82,7 +86,7 @@ impl Store {
                 Ok((
                     workflow_id
                         .parse()
-                        .map_err(|_| StoreError::AggregateConflict)?,
+                        .map_err(|_| StoreError::AggregateConflict("a stored arbitration row holds a workflow identifier this schema cannot parse"))?,
                     serde_json::from_str(&verdict)?,
                     serde_json::from_str(&receipt)?,
                 ))

@@ -93,7 +93,7 @@ fn candidate_bytes_are_immutable_and_scoped_to_their_workflow() {
             &[CandidateFilePayload::new("src/lib.rs", b"changed".to_vec())],
             WorkflowTimestamp::now()
         ),
-        Err(StoreError::AggregateConflict)
+        Err(StoreError::AggregateConflict(_))
     ));
 
     let mode_manifest = CandidateManifest::new(
@@ -270,11 +270,11 @@ fn delivery_reservation_is_idempotent_and_blocks_other_mutations() {
             None,
             ContentDigest::of(b"journal")
         ),
-        Err(StoreError::AggregateConflict)
+        Err(StoreError::AggregateConflict(_))
     ));
     assert!(matches!(
         reopened.release_candidate_delivery(workflow_id, candidate_id, other_digest),
-        Err(StoreError::AggregateConflict)
+        Err(StoreError::AggregateConflict(_))
     ));
     assert!(reopened.workflow_delivery_reserved(workflow_id).unwrap());
 }

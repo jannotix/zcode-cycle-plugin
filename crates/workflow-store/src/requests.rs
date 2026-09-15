@@ -19,9 +19,11 @@ impl Store {
             .optional()?;
         value
             .map(|workflow_id| {
-                workflow_id
-                    .parse()
-                    .map_err(|_| StoreError::AggregateConflict)
+                workflow_id.parse().map_err(|_| {
+                    StoreError::AggregateConflict(
+                        "a stored request row holds a workflow identifier this schema cannot parse",
+                    )
+                })
             })
             .transpose()
     }
@@ -47,7 +49,9 @@ impl Store {
             .optional()?;
         if let Some((current_project, current_request)) = current {
             if current_project != project_id.to_string() || current_request != request_json {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "a request is already recorded for this workflow under a different project or with different content",
+                ));
             }
             return Ok(true);
         }
@@ -82,7 +86,7 @@ impl Store {
                 Ok((
                     project_id
                         .parse()
-                        .map_err(|_| StoreError::AggregateConflict)?,
+                        .map_err(|_| StoreError::AggregateConflict("a stored request row holds a project identifier this schema cannot parse"))?,
                     serde_json::from_str(&request)?,
                 ))
             })

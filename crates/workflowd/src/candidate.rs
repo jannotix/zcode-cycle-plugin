@@ -2307,7 +2307,7 @@ mod tests {
                 Some(pending_digest),
                 ContentDigest::of(b"stale")
             ),
-            Err(StoreError::AggregateConflict)
+            Err(StoreError::AggregateConflict(_))
         ));
         let delivered = store
             .deliver_reserved_candidate(
@@ -2329,7 +2329,7 @@ mod tests {
                 "retry-stale-deliver",
                 WorkflowTimestamp::now()
             ),
-            Err(StoreError::AggregateConflict)
+            Err(StoreError::AggregateConflict(_))
         ));
         assert_eq!(fs::read(source.join("target.txt")).unwrap(), b"approved\n");
         assert!(!legacy_journal_path.exists());

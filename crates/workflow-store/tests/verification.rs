@@ -125,7 +125,7 @@ fn evidence_attempts_are_versioned_and_bound_to_plan_workflow_and_candidate() {
             true,
             WorkflowTimestamp::now()
         ),
-        Err(StoreError::AggregateConflict)
+        Err(StoreError::AggregateConflict(_))
     ));
 }
 
