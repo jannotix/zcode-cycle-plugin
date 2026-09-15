@@ -3,11 +3,55 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.2] - Unreleased
+## [1.0.3] - Unreleased
 
 Status: **blocked until every Windows/Linux certification gate passes against
-the same immutable plugin archive**. This is the first version of this line
-intended for publication; `1.0.2-rc.1` through `1.0.2-rc.4` were internal
+the same immutable plugin archive**.
+
+`1.0.2` was sealed and carried through the full thirteen-scenario live
+certification against ZCode Desktop. Eleven scenarios passed, two failed, and
+the campaign found seven defects that eighty-nine Rust test binaries, the
+qualification battery and the MCP suite had all missed. They share one shape: a
+mechanism that works correctly, and an artefact that does not carry what a
+reader needs. Fixing them changed the bytes, so `1.0.2` is superseded and was
+never published.
+
+### Fixed
+
+- The ledger now records which model ran a role, read from the managed profile
+  rather than accepted from the role itself. `Actor.model` existed in the schema
+  and every construction site passed `None`, so a receipt could not answer which
+  model approved a candidate.
+- Promotion is recorded by the control plane. Delivery is the one step that
+  changes the user's project and was the one step no component recorded; across
+  the campaign the same sealed bytes produced a delivery event in some runs and
+  none in others.
+- Recovery sweeps the role registrations a hard-killed session leaves behind.
+  Until it did, every subsequent dispatch was ambiguous and recovery could not
+  use the sanctioned path to repair anything.
+- `StoreError::AggregateConflict` carries the condition that failed. It was
+  raised from sixty-six places and rendered as one sentence asserting one
+  specific cause, which was true of three of them.
+- The secret scanner no longer refuses ordinary cryptographic code. It now
+  requires a quoted literal and a whole-word name, reports the line and the rule
+  it matched, and never prints the value.
+
+### Changed
+
+- An installation no longer carries `docs/releases`: release engineering, the
+  internal certification plan and the public signing key are repository and
+  release-page content. A signing key shipped inside the artifact it attests to
+  proves nothing about those bytes.
+- Governed roles accept only the models ZCode ships for the Z.ai coding plan.
+  The restriction was enforced and undocumented; it is now stated in the model
+  guide, both READMEs and the release plan, with the reason.
+- One list decides what an installation contains, shared by the assembler and
+  the verifier that proves the assembly still matches source.
+
+## [1.0.2] - Superseded, never published
+
+Status: sealed, fully certified live, and superseded by the fixes its own
+certification required. `1.0.2-rc.1` through `1.0.2-rc.4` were internal
 candidates and none was ever published. Their entries are kept below because
 they record why the candidate bytes changed.
 

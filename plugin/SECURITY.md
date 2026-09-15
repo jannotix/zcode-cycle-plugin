@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-`1.0.2` is unreleased. `1.0.2-rc.4`, `1.0.2-rc.3`, `1.0.2-rc.2`,
+`1.0.3` is unreleased. `1.0.2`, `1.0.2-rc.4`, `1.0.2-rc.3`, `1.0.2-rc.2`,
 `1.0.2-rc.1` and `1.0.1` are superseded internal candidates and were never
 released; `1.0.0` is withdrawn. None is supported for production use.
 
@@ -51,7 +51,7 @@ official private feedback/security channel and follow its disclosure terms.
   directory is inside the trust boundary.
 - Release binaries are necessary prebuilt components. Production publication
   requires exact-source provenance, checksums and SBOM/notices.
-- **The Windows daemon in `1.0.2` is not Authenticode signed.** SmartScreen will
+- **The Windows daemon in `1.0.3` is not Authenticode signed.** SmartScreen will
   warn, endpoint protection may quarantine it, and policies that refuse unsigned
   executables will refuse it. Integrity does not depend on that signature: the
   plugin declares each native binary's SHA-256 in `bin/native-manifest.json`, the
