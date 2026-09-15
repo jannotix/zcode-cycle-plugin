@@ -27,6 +27,7 @@ const REQUIRED_SCENARIOS = new Set([
   "schema-forward-compatibility",
   "uninstall",
   "history-survives-version-change",
+  "per-role-model",
 ])
 
 export async function verifyLiveCertification({

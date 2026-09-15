@@ -142,7 +142,16 @@ legal opinion.
    the archive manifest, SBOM and provenance.
 8. **Live ZCode** - clean install from the final ZIP, component discovery,
    setup/doctor, quick and full routes, forced repair, hard-kill resume, Goal
-   Mode, schema compatibility and uninstall pass. Browser and accessibility
+   Mode, schema compatibility, per-role model assignment and uninstall pass.
+
+   The per-role model row was added late, because the twelve scenarios written
+   before it never assigned a model to a role. The managed profiles ship as
+   `model: inherit`, so every run they certify has one model playing architect,
+   executor, both reviewers and arbiter. The product is named for multi-model
+   orchestration; a receipt that never varied the model has not certified it.
+   ZCode supports third-party providers, so the plugin's own restriction to
+   three Z.ai Coding Plan ids is a decision this release must state rather than
+   enforce silently. Browser and accessibility
    evidence is required on Windows and not on Linux, matching the declared
    scope: the Linux lane has no browser installed, and an unobserved row is not
    recorded as passed. Upgrade and rollback from a published predecessor are not

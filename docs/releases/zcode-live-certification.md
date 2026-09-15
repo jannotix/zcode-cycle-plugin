@@ -96,6 +96,31 @@ digest-bound evidence file:
     was linked to before. The final state must be `1.0.2-installed-enabled`.
     Rollback to a published predecessor is certified at `1.0.3`, when one
     exists; recording it now would be recording an unobserved row as passed.
+13. `per-role-model`: assign an explicit model to one role with
+    `/cycle:models`, start a new session, run a governed workflow, and prove
+    from the ledger that the dispatched role ran on the model it was assigned -
+    not on the session's model. Then repeat with a third-party model the user
+    has configured in ZCode, which the host supports, and record what happens.
+
+    This scenario exists because the product is named for multi-model
+    orchestration and nothing else in this lane tests it. The five managed
+    profiles ship as `model: inherit`, so every other scenario certifies a run
+    in which architect, executor, both reviewers and the arbiter shared one
+    model: independent prompts and tool lists, one judgement. That is a
+    narrower claim than "independent reviewers" and the receipt must not imply
+    the wider one.
+
+    It also has a prerequisite the other twelve do not: `Actor.model` exists in
+    the ledger schema but every control-plane construction site passes `None`,
+    so today a receipt cannot say which model approved a candidate. A row here
+    cannot be recorded as passed while the only available answer is
+    self-declared by the role being certified. Either the control plane
+    observes the model, or this scenario reports what is actually knowable and
+    the release documents say so plainly.
+
+    A refusal is an acceptable outcome, a silent refusal is not: if the plugin
+    declines a third-party model that ZCode itself accepts, that restriction
+    must be stated in the README, the manual and this plan, with its reason.
 
 ## Receipt and signature
 

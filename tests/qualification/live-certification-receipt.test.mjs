@@ -20,6 +20,7 @@ const SCENARIOS = [
   "schema-forward-compatibility",
   "uninstall",
   "history-survives-version-change",
+  "per-role-model",
 ]
 const PRODUCT_VERSION = "1.0.2"
 const HOST_DESKTOP = "3.11.2.6792"
