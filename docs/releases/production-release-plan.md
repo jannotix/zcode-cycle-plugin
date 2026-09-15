@@ -1,4 +1,4 @@
-# Cycle for Zcode 1.0.2 Production Release Plan
+# Cycle for Zcode 1.0.3 Production Release Plan
 
 Status: **BLOCKED - NOT AUTHORIZED TO PUBLISH**
 
@@ -9,12 +9,13 @@ archive digest they name.
 
 ## Product and platform scope
 
-- Product: Cycle for Zcode `1.0.2`. The internal candidates `1.0.2-rc.1`
-  through `1.0.2-rc.4` were never published and carry different bytes.
+- Product: Cycle for Zcode `1.0.3`. `1.0.2` was sealed and fully certified
+  live, and the seven defects that campaign found changed the bytes; it and the
+  internal candidates `1.0.2-rc.1` through `1.0.2-rc.4` were never published.
 - ZCode certification target: Desktop `3.11.2.6792`, bundled CLI `0.16.5`,
   refreshed if ZCode changes before release sealing.
 - Certified platforms: Windows 11 x64 and Linux x64 on Ubuntu 22.04 and 24.04.
-- Windows/Linux ARM64: unsupported in `1.0.2`; the marketplace documentation
+- Windows/Linux ARM64: unsupported in `1.0.3`; the marketplace documentation
   must not imply support.
 - macOS x64/arm64: compatible but untested only after native packages are built
   successfully; macOS evidence never substitutes for a Windows/Linux gate.
@@ -94,7 +95,7 @@ legal opinion.
 ## Release gates
 
 1. **Version and history** - `1.0.0` is marked withdrawn and `1.0.1` is
-   marked superseded; all final installable manifests say `1.0.2`; historical
+   marked superseded; all final installable manifests say `1.0.3`; historical
    tags are unchanged.
 2. **Linux runtime** - the installed daemon is materialized atomically under
    plugin data, hash-verified, mode `0700`, and runs on the declared glibc
@@ -162,7 +163,7 @@ legal opinion.
    evidence is required on Windows and not on Linux, matching the declared
    scope: the Linux lane has no browser installed, and an unobserved row is not
    recorded as passed. Upgrade and rollback from a published predecessor are not
-   gates for `1.0.2` and cannot be: `v1.0.0` was withdrawn carrying no release
+   gates for `1.0.3` and cannot be: `v1.0.0` was withdrawn carrying no release
    asset, so no installable predecessor has ever existed. Building one now from
    the tag would manufacture the artifact the gate claims to exercise. What the
    gate protects - that delivered history survives a version change - is proved

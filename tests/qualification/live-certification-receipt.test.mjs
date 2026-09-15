@@ -1,9 +1,10 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
 
 import { verifyLiveCertification } from "../../scripts/release/verify-zcode-live-receipt.mjs"
 
@@ -22,7 +23,18 @@ const SCENARIOS = [
   "history-survives-version-change",
   "per-role-model",
 ]
-const PRODUCT_VERSION = "1.0.2"
+// Read rather than repeated: a literal here goes stale at every bump, and this
+// fixture exists to prove a receipt is bound to the version it names.
+const PRODUCT_VERSION = JSON.parse(
+  await readFile(
+    join(
+      dirname(dirname(dirname(fileURLToPath(import.meta.url)))),
+      ".zcode-plugin",
+      "plugin.json",
+    ),
+    "utf8",
+  ),
+).version
 const HOST_DESKTOP = "3.11.2.6792"
 
 test("a live ZCode receipt is bound to sealed bytes and complete evidence", async () => {

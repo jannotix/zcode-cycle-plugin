@@ -6,8 +6,11 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 
 ## 发布状态
 
-- `1.0.2` 是尚未发布的生产版本。在同一个不可变插件制品完成 Windows/Linux
+- `1.0.3` 是尚未发布的生产版本。在同一个不可变插件制品完成 Windows/Linux
   发布矩阵之前，不得分发。
+- `1.0.2` 是已被替代且从未发布的候选版本。它已完成封存并通过了完整的实机认证，
+  该认证发现了七个任何测试套件都未能捕获的缺陷；修复这些缺陷改变了字节。认证发现
+  正是 `1.0.3` 存在的原因，`1.0.2` 不得安装或复用。
 - `1.0.2-rc.4` 是已被替代的内部候选版本，从未发布，不得安装或复用：其字节与身份均不同。
 - `1.0.2-rc.3` 已被替代：精确 Desktop 探针将原始角色作为 camelCase `agentType`
   传入，该候选版本未进行规范化，不得安装或复用。
@@ -17,7 +20,7 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 - `1.0.1` 是已被替代且从未发布的候选版本，不得安装或复用：不同候选字节曾使用该身份进行测试。
 - `1.0.0` 已撤回，请勿安装。历史标签仅用于审计，不会被移动或重复使用。
 
-## 1.0.2 支持范围
+## 1.0.3 支持范围
 
 | 平台 | 状态 |
 |---|---|
@@ -37,7 +40,7 @@ Cycle for Zcode 是一个在本地运行、以证据为准入条件的 ZCode 交
 
 ## 安装
 
-生产用户应仅在 `1.0.2` 被接纳并发布后，从 ZCode 官方公共插件市场安装。角色配置、
+生产用户应仅在 `1.0.3` 被接纳并发布后，从 ZCode 官方公共插件市场安装。角色配置、
 Hook 和本地守护进程都以你的权限运行，可信来源是其字节可被追责的前提，因此官方发布
 是安全门槛。
 
@@ -148,7 +151,7 @@ cargo fmt --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features --no-fail-fast
 cd mcp && bun install --frozen-lockfile && bun run typecheck && bun run build && bun run test
-node tests/qualification/battery.mjs 1
+node scripts/release/run-battery.mjs --iterations 1
 ```
 
 公共发布还要求：官方市场验证和构建、两个认证平台各自 20/20 次确定性测试、基于最终
@@ -156,7 +159,7 @@ node tests/qualification/battery.mjs 1
 
 ### Windows 代码签名
 
-`1.0.2` 内置的 `workflowd.exe` **未**经过 Authenticode 签名。首次使用时
+`1.0.3` 内置的 `workflowd.exe` **未**经过 Authenticode 签名。首次使用时
 Windows SmartScreen 会发出警告，部分终端防护软件可能将其隔离，按策略拒绝未签名
 可执行文件的环境将拒绝运行它。
 
@@ -166,7 +169,7 @@ Windows SmartScreen 会发出警告，部分终端防护软件可能将其隔离
 带有构建来源证明。因此完整性是可验证的；缺少的是操作系统自身的信任判定，以及文件
 内部携带的发布者身份。
 
-签名将在后续版本中恢复。已发布版本不可变，因此 `1.0.2` 将始终保持未签名状态。
+签名将在后续版本中恢复。已发布版本不可变，因此 `1.0.3` 将始终保持未签名状态。
 
 Linux 上不存在 Authenticode 的对应机制，本项目也不作此声明。那里的保障与 Windows
 在没有证书时相同——执行前校验已声明的 SHA-256、安装时校验归档摘要——并额外为已封存
@@ -185,5 +188,5 @@ Copyright 2026 Gianluca Iannotta。采用 FSL-1.1-MIT 许可；每个已发布�
 Cycle for Zcode 是独立集成，不隶属于 ZCode 或其运营方，也未获得其赞助或背书。ZCode
 名称及商标归各自权利人所有。
 
-开发披露：为 `1.0.2` 准备的变更包含 AI 辅助生成的代码和文档，发布前必须由项目所有者
+开发披露：为 `1.0.3` 准备的变更包含 AI 辅助生成的代码和文档，发布前必须由项目所有者
 进行人工审查。
