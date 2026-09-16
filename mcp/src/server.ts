@@ -15,28 +15,16 @@ import { productVersion } from "./version.js"
 
 // Role session registry: the bridge writes it, the PreToolUse hook reads it.
 // Managed project profile tool whitelists are the primary role boundary; this is the
-// audited second layer.
-interface RoleRegistration {
-  readonly kind?: "role"
-  readonly project_directory: string
-  readonly project_key: string
-  readonly registered_at_unix_millis: number
-  readonly role: string
-  readonly workflow_id: string | null
-}
-
-interface WorkflowLock {
-  readonly kind: "workflow_lock"
-  readonly project_directory: string
-  readonly project_key: string
-  readonly registered_at_unix_millis: number
-  readonly workflow_id: string
-  // Recorded when the managed worktree is prepared. The PreToolUse hook needs
-  // it to confine the executor: until it exists there is nowhere to confine to.
-  readonly worktree_path?: string
-}
-
-type RegistryRecord = RoleRegistration | WorkflowLock
+// audited second layer. The record shapes and the sweep's decision live in their
+// own module: this one attaches to stdin on import, so anything a test needs to
+// reach cannot live here.
+import {
+  isRoleRegistration,
+  isWorkflowLock,
+  orphanedRegistrationKeys,
+  type RegistryRecord,
+  type RoleRegistration,
+} from "./role-registry.js"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const READ_ONLY_ROLES = new Set([
@@ -105,13 +93,7 @@ async function writeRegistry(registry: Record<string, RegistryRecord>): Promise<
   await rename(temporary, registryPath)
 }
 
-function isRoleRegistration(value: RegistryRecord | undefined): value is RoleRegistration {
-  return value !== undefined && value.kind !== "workflow_lock" && typeof value.role === "string"
-}
 
-function isWorkflowLock(value: RegistryRecord | undefined): value is WorkflowLock {
-  return value?.kind === "workflow_lock"
-}
 
 function workflowLockKey(workflowId: string): string {
   return `workflow:${workflowId}`
@@ -147,23 +129,23 @@ async function unlockWorkflow(workflowId: string): Promise<void> {
 }
 
 /**
- * Drop this workflow's role registrations while keeping its lock.
+ * Drop orphaned role registrations while keeping the workflow locks.
  *
  * Used by recovery, which by definition declares the previous session gone. The
  * registrations it left cannot be revoked by their owner any more, and while
  * they stand every role dispatch is ambiguous.
+ *
+ * Without a workflow id this sweeps every registration whose workflow no longer
+ * holds a lock. A recovery asked about the project rather than one workflow was
+ * previously skipped entirely, which left the caller with nothing to do but
+ * revoke by hand.
  */
-async function revokeOrphanedRoleRegistrations(workflowId: string): Promise<string[]> {
+async function revokeOrphanedRoleRegistrations(workflowId?: string): Promise<string[]> {
   const registry = await readRegistry()
-  const revoked: string[] = []
-  for (const [key, value] of Object.entries(registry)) {
-    if (isRoleRegistration(value) && value.workflow_id === workflowId) {
-      revoked.push(`${value.role}:${key}`)
-      delete registry[key]
-    }
-  }
-  if (revoked.length > 0) await writeRegistry(registry)
-  return revoked
+  const keys = orphanedRegistrationKeys(registry, workflowId)
+  for (const key of keys) delete registry[key]
+  if (keys.length > 0) await writeRegistry(registry)
+  return keys
 }
 
 function terminalWorkflowState(value: unknown): boolean {
@@ -243,27 +225,27 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
     }
     case "cycle_control": {
       const workflowId = typeof args.workflow_id === "string" ? args.workflow_id : undefined
-      const result = await plane.control(
-        projectKey,
-        (args.operation as ControlOperation) ?? "status",
-        workflowId,
-      )
-      if (workflowId !== undefined && terminalWorkflowState(result)) await unlockWorkflow(workflowId)
-      // A role registration is revoked by the session that made it, so a session
-      // that dies mid-run leaves its registrations behind with no owner. Every
-      // later dispatch is then ambiguous and recovery cannot use the sanctioned
-      // path — dispatch a role — to inspect or repair anything. A hard kill
-      // during execution left exactly that behind in the live certification, and
-      // the operator saw only "worktree recovery state is inconsistent", several
-      // steps downstream of the cause.
-      //
-      // Recovery is the operation that declares the previous session dead, so it
-      // is the right place to sweep. The workflow lock is left alone: it is what
-      // keeps the main session read-only while the workflow is non-terminal.
-      else if (workflowId !== undefined && args.operation === "recovery") {
-        await revokeOrphanedRoleRegistrations(workflowId)
+      // The sweep runs whatever the daemon answers, which is why it sits in a
+      // finally. Shipped in 1.0.3 it sat after this await, and a live hard kill
+      // showed why that is useless: the case it exists for is a session killed
+      // mid-run, which is exactly the case where the worktree state is
+      // inconsistent and the daemon refuses recovery. The await rejected, the
+      // sweep was never reached, and the orphan survived until it was revoked by
+      // hand. An orphaned registration is a fact about this registry; it does not
+      // depend on the daemon reconciling anything.
+      try {
+        const result = await plane.control(
+          projectKey,
+          (args.operation as ControlOperation) ?? "status",
+          workflowId,
+        )
+        if (workflowId !== undefined && terminalWorkflowState(result)) {
+          await unlockWorkflow(workflowId)
+        }
+        return result
+      } finally {
+        if (args.operation === "recovery") await revokeOrphanedRoleRegistrations(workflowId)
       }
-      return result
     }
     case "cycle_audit": {
       const observation = args.observation

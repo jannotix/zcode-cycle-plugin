@@ -59,10 +59,10 @@ not invalidated retroactively. What expires is its usefulness as evidence for th
 Run each scenario from the same admitted ZIP bytes and record at least one
 digest-bound evidence file:
 
-1. `component-discovery`: install and enable 1.0.3; commands, five skills,
+1. `component-discovery`: install and enable 1.0.4; commands, five skills,
    both Hooks and the MCP server load with no Cycle diagnostic.
 2. `setup-doctor`: `/cycle:setup install`, a real new session,
-   `/cycle:setup`, health 1.0.3/protocol 1/read-write schema and doctor PASS.
+   `/cycle:setup`, health 1.0.4/protocol 1/read-write schema and doctor PASS.
 3. `quick`: complete a bounded fixture change through promotion; verify the
    candidate digest and audit-chain receipt.
 4. `full`: complete architecture, execution, both independent reviews,
@@ -75,25 +75,30 @@ digest-bound evidence file:
    close and bind the receipt to the candidate. External origins are excluded
    unless separately approved at action time.
 8. `accessibility`: prove the required accessibility gate from the managed
-   browser snapshot, not from a narrative assertion.
+   browser snapshot, not from a narrative assertion. Read the gate's own
+   evidence record: it must carry the snapshot's findings, and a run against an
+   interface whose controls carry no accessible name must fail it. The 1.0.3
+   campaign found this gate passing on the snapshot operation merely having
+   happened, with the tree described only in the run's narrative and persisted
+   nowhere — which is the shape this row exists to reject.
 9. `goal`: link completed workflows to every milestone and prove completion
    refuses missing workflow/arbiter evidence.
 10. `schema-forward-compatibility`: no public predecessor exists to upgrade
     from. `v1.0.0` was withdrawn carrying no release asset, and no installable
     archive was ever published under any earlier identity, so an upgrade
     scenario would have to manufacture the artifact it claims to test. Prove the
-    mechanism instead: run 1.0.3 until the data directory holds ledger entries,
+    mechanism instead: run 1.0.4 until the data directory holds ledger entries,
     signed checkpoints, goal records and browser evidence, then open that
     directory with a build declaring a lower schema version and observe the
     documented safe read-only mode. The stored bytes must be unchanged
     afterwards, compared by digest and not by inspection.
 11. `uninstall`: run `/cycle:setup remove`, uninstall the plugin, verify plugin
     and project-profile residue is absent while audit data remains intact.
-12. `history-survives-version-change`: after scenario 10, reinstall 1.0.3 over
+12. `history-survives-version-change`: after scenario 10, reinstall 1.0.4 over
     the same data directory and prove the record came through intact - every
     ledger entry present, the hash chain verifying end to end, every checkpoint
     signature still valid, every goal and milestone linked to the workflow it
-    was linked to before. The final state must be `1.0.3-installed-enabled`.
+    was linked to before. The final state must be `1.0.4-installed-enabled`.
     Rollback to a published predecessor is certified at the first version that
     has one; recording it now would be recording an unobserved row as passed.
 13. `per-role-model`: assign an explicit model to one role with
@@ -110,13 +115,15 @@ digest-bound evidence file:
     narrower claim than "independent reviewers" and the receipt must not imply
     the wider one.
 
-    It also has a prerequisite the other twelve do not: `Actor.model` exists in
-    the ledger schema but every control-plane construction site passes `None`,
-    so today a receipt cannot say which model approved a candidate. A row here
-    cannot be recorded as passed while the only available answer is
-    self-declared by the role being certified. Either the control plane
-    observes the model, or this scenario reports what is actually knowable and
-    the release documents say so plainly.
+    Read the answer out of the store rather than the run's account. The control
+    plane resolves the pinned model from the managed profile, and it finds that
+    profile through the code index rather than through anything the observation
+    carries: a role that could name the project path could name one whose
+    profile claims a different model. The 1.0.3 campaign measured `actor.model`
+    null across four workflows, including one where the arbiter was explicitly
+    pinned to a model the session was not using, because the resolution was
+    handed a project key where a directory belonged and the miss was swallowed.
+    A row here is passed only when the ledger names the pinned model.
 
     A refusal is an acceptable outcome, a silent refusal is not: if the plugin
     declines a third-party model that ZCode itself accepts, that restriction

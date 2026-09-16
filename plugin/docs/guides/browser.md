@@ -32,6 +32,21 @@ orchestrator runs one executor session covering both protocols and
 attaches the receipt to verification, bound to the frozen candidate
 digest. A skipped browser gate is reported, never hidden.
 
+The accessibility gate does not stop at the operations. The snapshot
+carries a summary of the accessibility tree into the receipt — how many
+interactive elements it found and how many carry no accessible name — and
+the gate fails when any of them are unnamed, naming the roles that were
+missing one. A receipt from a browser that recorded no summary cannot
+discharge the gate either: there would be nothing to judge.
+
+This is narrower than an accessibility audit and is meant to be. It
+catches the failure that makes an interface unusable with a screen reader
+— a control that announces as nothing — and it does not claim to have
+checked contrast, focus order, or anything else. Point a project-native
+check at the gate instead, and it takes precedence: any verification
+command whose name contains `a11y`, `accessibility` or `axe` becomes the
+accessibility gate for that plan.
+
 ## Which browser it uses
 
 Cycle does not download or bundle a browser: it drives one already

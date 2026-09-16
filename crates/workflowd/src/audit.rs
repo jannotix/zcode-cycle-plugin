@@ -66,9 +66,10 @@ pub fn record(
     // checked against the plugin baseline, and a dispatched role cannot change it
     // without the control plane seeing the drift. A self-declared model is kept
     // only when no profile answers, and never overrides one that does.
+    let project_id = ProjectId::from_stable_key(&observation.project_key);
     let model = observation
         .role
-        .and_then(|role| role_model(&observation.project_key, role))
+        .and_then(|role| role_model(store.path(), project_id, role))
         .or(observation.model)
         .map(|model| ModelIdentity {
             model: model.model,
@@ -86,7 +87,7 @@ pub fn record(
         observation.evidence_ids,
         observation.files,
         observation.metadata,
-        ProjectId::from_stable_key(&observation.project_key),
+        project_id,
         observation.task_id,
         timestamp,
         observation.workflow_id,
@@ -110,23 +111,48 @@ pub fn record(
     Ok(entry)
 }
 
-/// The model a managed role profile pins, read from the profile on disk.
+/// The model a managed role profile pins, resolved through the code index.
 ///
 /// DEFECT-10: `Actor.model` existed in the ledger schema and every construction
 /// site passed `None`, so a receipt could not answer "which model approved this
 /// candidate" - the question an audit trail exists to answer. The product is
 /// named for multi-model orchestration and nothing recorded which model ran.
 ///
-/// The value is read from the managed profile rather than accepted from the
-/// role, deliberately. A role that declared its own model would be attesting to
-/// its own identity, which proves nothing; the profile is written by setup,
-/// verified against the plugin baseline, and a dispatched role cannot change it
-/// without the control plane seeing the drift.
+/// The 1.0.3 attempt at this fix resolved the profile from the observation's
+/// `project_key`, and never found one. A project key is a stable identifier, not
+/// a path: the bridge keeps `project_directory` and `project_key` as separate
+/// fields and sends the bare directory name as the key. Joining that with
+/// `.zcode/agents` resolved against the daemon's working directory, found
+/// nothing, and the miss was indistinguishable from "no model pinned". Four live
+/// workflows recorded `null` while a role ran on an explicitly pinned model.
+///
+/// Where the project lives now comes from the code index, for the same reason
+/// freezing takes it from there: a role that could name this path could name one
+/// whose profile claims a different model, and a self-attested identity proves
+/// nothing.
+pub fn role_model(
+    database: &std::path::Path,
+    project_id: ProjectId,
+    role: workflow_core::WorkflowRole,
+) -> Option<workflow_ipc::audit::AuditModel> {
+    let project_directory = workflow_code_intel::graph::GraphStore::open(database)
+        .ok()?
+        .load_index_state(project_id)
+        .ok()??
+        .0;
+    read_pinned_model(&project_directory, role)
+}
+
+/// Reads the pinned model out of a managed profile in a project directory.
+///
+/// Split from [`role_model`] so the parsing can be tested on its own and the
+/// resolution can be tested through a real store. Testing only this half is what
+/// let the 1.0.3 fix ship: the parser was right and the caller handed it a key.
 ///
 /// `inherit` is recorded as such: "the session's model, whichever that was" is a
 /// different and weaker claim than a pinned one, and flattening the two would
 /// make the record say more than it knows.
-pub fn role_model(
+pub fn read_pinned_model(
     project_directory: &str,
     role: workflow_core::WorkflowRole,
 ) -> Option<workflow_ipc::audit::AuditModel> {

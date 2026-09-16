@@ -25,6 +25,7 @@ try {
       join(ROOT, "src", "client.ts"),
       join(ROOT, "src", "version.ts"),
       join(ROOT, "src", "role-profiles.ts"),
+      join(ROOT, "src", "role-registry.ts"),
       join(ROOT, "src", "architecture-plan.ts"),
       join(ROOT, "src", "browser-runtime.ts"),
     ],

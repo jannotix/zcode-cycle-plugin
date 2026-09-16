@@ -1258,7 +1258,11 @@ fn submit_arbitration(
                 }
                 metadata
             },
-            model: crate::audit::role_model(project_key, workflow_core::WorkflowRole::Arbiter),
+            // Left unset deliberately: audit::record resolves the arbiter's
+            // pinned model from the code index, which is the only source a role
+            // cannot aim somewhere harmless. Naming it here as well would be a
+            // second, weaker answer competing with the authoritative one.
+            model: None,
             project_key: project_key.to_owned(),
             role: Some(workflow_core::WorkflowRole::Arbiter),
             session_id: None,

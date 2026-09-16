@@ -3,7 +3,47 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.3] - Unreleased
+## [1.0.4] - Unreleased
+
+Status: **blocked until every Windows/Linux certification gate passes against
+the same immutable plugin archive**.
+
+`1.0.3` was sealed and carried through the full thirteen-scenario live campaign.
+Ten scenarios passed, one was partial and two failed. Two of the failures were
+fixes shipped in `1.0.3` that did not work, and the third was a gate that had
+been reporting a judgement it never made. All three share one shape: the
+mechanism is present, is wired, and does not run in the case it exists for.
+
+### Fixed
+
+- The ledger now records which model a role ran on. The `1.0.3` fix resolved the
+  managed profile from the observation's `project_key`, which is a stable
+  identifier and not a path, so it never found one — four live workflows recorded
+  `null`, including one where the arbiter was pinned to a model the session was
+  not using. The project directory now comes from the code index, the same source
+  freezing uses and the only one a role cannot aim somewhere harmless.
+- The orphaned-role-registration sweep now runs whatever the daemon answers. In
+  `1.0.3` it sat after the awaited control call, so a daemon that refused
+  recovery skipped it — and refusing recovery is exactly what happens after the
+  hard kill the sweep was written for. A recovery asked about the project rather
+  than one workflow no longer skips the sweep either.
+- The accessibility gate judges the snapshot instead of counting the operation.
+  The managed browser now carries the accessibility tree's findings into the
+  receipt, and the gate fails when interactive elements carry no accessible name,
+  naming the roles that were missing one. A receipt with no summary cannot
+  discharge the gate. Previously a page with unnamed controls passed exactly like
+  one without, and the receipt said `passed` either way.
+
+### Changed
+
+- The browser guide states what the accessibility gate does and does not check,
+  and that a project-native `a11y`, `accessibility` or `axe` command takes
+  precedence over the built-in assessment.
+- The live certification plan's accessibility and per-role-model rows now say
+  what evidence a pass requires, rather than describing a state the product has
+  moved past.
+
+## [1.0.3] - Superseded, never published
 
 Status: **blocked until every Windows/Linux certification gate passes against
 the same immutable plugin archive**.

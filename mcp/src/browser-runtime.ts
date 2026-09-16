@@ -4,6 +4,7 @@ import { BrowserEvidenceRegistry } from "./browser/browser-evidence.js"
 import { BrowserManager } from "./browser/browser-manager.js"
 import { attestForVerification, browserRun } from "./browser/browser-ops.js"
 import {
+  accessibilitySummary,
   browserCandidates,
   ManagedBrowserSessionFactory,
 } from "./browser/managed-browser-session.js"
@@ -13,6 +14,12 @@ import {
 // exercising. Exposed from this on-demand module so a test can prove the list
 // without a desktop and without loading the browser on the handshake path.
 export { browserCandidates }
+
+// The accessibility gate judges this summary, so its shape is part of the
+// runtime's contract with the control plane rather than an internal detail.
+// Exposed for the same reason as the candidate list: it can be proven without a
+// desktop.
+export { accessibilitySummary }
 
 export interface CycleBrowserRuntime {
   attest(args: Record<string, unknown>): Promise<readonly unknown[]>

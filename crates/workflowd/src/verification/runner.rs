@@ -131,10 +131,28 @@ struct BrowserReceipt {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BrowserAction {
+    /// Present on a snapshot, so the accessibility gate has something to judge.
+    #[serde(default)]
+    accessibility: Option<AccessibilitySummary>,
     digest: String,
     operation: String,
     timestamp: String,
     url: String,
+}
+
+/// What a managed browser found in the accessibility tree.
+///
+/// The gate used to pass on the snapshot operation merely having happened, and
+/// the tree was never persisted, so a page with unnamed controls passed exactly
+/// like one without. A receipt reported that as "passed" indistinguishably from
+/// a gate that had examined something.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccessibilitySummary {
+    interactive: u32,
+    unnamed: u32,
+    #[serde(default, rename = "unnamedRoles")]
+    unnamed_roles: Vec<String>,
 }
 
 fn managed_browser_gate(
@@ -154,12 +172,59 @@ fn managed_browser_gate(
     let valid = attestations.iter().find_map(|attestation| {
         validate_browser_attestation(attestation, manifest.digest(), required)
     });
-    let (session_id, operations, receipt_digest) = valid?;
+    let (session_id, operations, receipt_digest, accessibility) = valid?;
     let started_at = WorkflowTimestamp::now();
-    let output = format!(
-        "Managed browser receipt {receipt_digest} from session {session_id} passed operations: {}.",
-        operations.join(", ")
-    );
+
+    // The accessibility gate judges what the snapshot found. Until 1.0.3 it
+    // judged only that a snapshot had happened, which is a different claim: a
+    // page with unnamed controls satisfied it exactly like a page without, and
+    // the receipt said "passed" either way.
+    let (status, output) = if gate.name == "accessibility:affected-user-flow" {
+        match accessibility {
+            None => (
+                EvidenceStatus::Failed,
+                format!(
+                    "Managed browser receipt {receipt_digest} from session {session_id} carries no \
+                     accessibility summary, so this gate has nothing to judge. Re-run the snapshot \
+                     with a managed browser of this version."
+                ),
+            ),
+            Some(summary) if summary.unnamed > 0 => (
+                EvidenceStatus::Failed,
+                format!(
+                    "Managed browser receipt {receipt_digest} from session {session_id}: {} of {} \
+                     interactive elements carry no accessible name, so a screen reader announces \
+                     them as nothing. Roles missing a name: {}.",
+                    summary.unnamed,
+                    summary.interactive,
+                    if summary.unnamed_roles.is_empty() {
+                        "not recorded".to_owned()
+                    } else {
+                        summary.unnamed_roles.join(", ")
+                    },
+                ),
+            ),
+            Some(summary) => (
+                EvidenceStatus::Passed,
+                format!(
+                    "Managed browser receipt {receipt_digest} from session {session_id} passed \
+                     operations: {}. All {} interactive elements carry an accessible name.",
+                    operations.join(", "),
+                    summary.interactive,
+                ),
+            ),
+        }
+    } else {
+        (
+            EvidenceStatus::Passed,
+            format!(
+                "Managed browser receipt {receipt_digest} from session {session_id} passed \
+                 operations: {}.",
+                operations.join(", ")
+            ),
+        )
+    };
+
     let record = EvidenceRecord {
         id: gate.id,
         candidate_digest: manifest.digest(),
@@ -169,9 +234,9 @@ fn managed_browser_gate(
         tool_version: env!("CARGO_PKG_VERSION").to_owned(),
         started_at,
         finished_at: WorkflowTimestamp::now(),
-        exit_code: Some(0),
+        exit_code: Some(i32::from(status != EvidenceStatus::Passed)),
         output_digest: ContentDigest::of(output.as_bytes()),
-        status: EvidenceStatus::Passed,
+        status,
         skip_reason: None,
     };
     record.validate().ok()?;
@@ -185,7 +250,12 @@ fn validate_browser_attestation(
     attestation: &ManagedBrowserAttestation,
     candidate_digest: ContentDigest,
     required: &[&str],
-) -> Option<(String, Vec<String>, ContentDigest)> {
+) -> Option<(
+    String,
+    Vec<String>,
+    ContentDigest,
+    Option<AccessibilitySummary>,
+)> {
     if attestation.candidate_digest != candidate_digest
         || attestation.session_id.trim().is_empty()
         || attestation.session_id.len() > 256
@@ -212,6 +282,8 @@ fn validate_browser_attestation(
         "close",
     ];
     let mut operations = Vec::with_capacity(receipt.actions.len());
+    // The summary the accessibility gate judges, taken from the snapshot itself.
+    let mut accessibility = None;
     for action in receipt.actions {
         if !allowed.contains(&action.operation.as_str())
             || action.digest.len() != 64
@@ -223,6 +295,9 @@ fn validate_browser_attestation(
             || action.url.chars().any(|character| character.is_control())
         {
             return None;
+        }
+        if action.operation == "snapshot" && action.accessibility.is_some() {
+            accessibility = action.accessibility;
         }
         operations.push(action.operation);
     }
@@ -246,6 +321,7 @@ fn validate_browser_attestation(
             attestation.session_id.clone(),
             operations,
             attestation.receipt_digest,
+            accessibility,
         )
     })
 }

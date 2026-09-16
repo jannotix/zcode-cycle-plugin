@@ -1612,6 +1612,26 @@ function isMissing(error) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
+// src/role-registry.ts
+function isRoleRegistration(value) {
+  return value !== undefined && value.kind !== "workflow_lock" && typeof value.role === "string";
+}
+function isWorkflowLock(value) {
+  return value?.kind === "workflow_lock";
+}
+function orphanedRegistrationKeys(registry, workflowId) {
+  const locked = new Set(Object.values(registry).filter(isWorkflowLock).map((lock) => lock.workflow_id));
+  const keys = [];
+  for (const [key, value] of Object.entries(registry)) {
+    if (!isRoleRegistration(value))
+      continue;
+    const orphaned = workflowId === undefined ? value.workflow_id !== null && !locked.has(value.workflow_id) : value.workflow_id === workflowId;
+    if (orphaned)
+      keys.push(key);
+  }
+  return keys;
+}
+
 // src/server.ts
 import { mkdir as mkdir3, readFile as readFile3, rename as rename3, rm as rm3, writeFile as writeFile2 } from "node:fs/promises";
 import { dirname as dirname2, join as join3 } from "node:path";
@@ -1653,12 +1673,6 @@ async function writeRegistry(registry) {
   await rm3(registryPath, { force: true });
   await rename3(temporary, registryPath);
 }
-function isRoleRegistration(value) {
-  return value !== undefined && value.kind !== "workflow_lock" && typeof value.role === "string";
-}
-function isWorkflowLock(value) {
-  return value?.kind === "workflow_lock";
-}
 function workflowLockKey(workflowId) {
   return `workflow:${workflowId}`;
 }
@@ -1692,16 +1706,12 @@ async function unlockWorkflow(workflowId) {
 }
 async function revokeOrphanedRoleRegistrations(workflowId) {
   const registry = await readRegistry();
-  const revoked = [];
-  for (const [key, value] of Object.entries(registry)) {
-    if (isRoleRegistration(value) && value.workflow_id === workflowId) {
-      revoked.push(`${value.role}:${key}`);
-      delete registry[key];
-    }
-  }
-  if (revoked.length > 0)
+  const keys = orphanedRegistrationKeys(registry, workflowId);
+  for (const key of keys)
+    delete registry[key];
+  if (keys.length > 0)
     await writeRegistry(registry);
-  return revoked;
+  return keys;
 }
 function terminalWorkflowState(value) {
   if (typeof value !== "object" || value === null)
@@ -1752,13 +1762,16 @@ async function callTool(name, rawArgs) {
     }
     case "cycle_control": {
       const workflowId = typeof args.workflow_id === "string" ? args.workflow_id : undefined;
-      const result = await plane.control(projectKey, args.operation ?? "status", workflowId);
-      if (workflowId !== undefined && terminalWorkflowState(result))
-        await unlockWorkflow(workflowId);
-      else if (workflowId !== undefined && args.operation === "recovery") {
-        await revokeOrphanedRoleRegistrations(workflowId);
+      try {
+        const result = await plane.control(projectKey, args.operation ?? "status", workflowId);
+        if (workflowId !== undefined && terminalWorkflowState(result)) {
+          await unlockWorkflow(workflowId);
+        }
+        return result;
+      } finally {
+        if (args.operation === "recovery")
+          await revokeOrphanedRoleRegistrations(workflowId);
       }
-      return result;
     }
     case "cycle_audit": {
       const observation = args.observation;
