@@ -7,8 +7,15 @@ state, candidate bytes, verification evidence and delivery.
 
 ## Release status
 
-- `1.0.4` is the unreleased production version. Do not distribute it until the
+- `1.0.5` is the unreleased production version. Do not distribute it until the
   exact Windows/Linux artifact has completed the release matrix.
+- `1.0.4` is a superseded, never-published candidate. It was sealed and carried
+  through the full thirteen-scenario live campaign: nine scenarios passed, two
+  were partial and two failed, and eight defects were found — among them a
+  mandatory interface gate removed by declaring a write scope one level coarser,
+  a goal completed by citing sixty-four zeros as arbiter evidence, and one
+  workspace holding more than one audit identity. All are closed in `1.0.5`. It
+  must not be installed or reused.
 - `1.0.3` is a superseded, never-published candidate. Its live campaign found
   three defects, two of them fixes from that same release that never ran; those
   are closed in `1.0.4`. It must not be installed or reused.
@@ -31,7 +38,7 @@ state, candidate bytes, verification evidence and delivery.
 - `1.0.0` is withdrawn and must not be installed. Its historical tag is kept
   for auditability and is not reused.
 
-## Supported scope for 1.0.4
+## Supported scope for 1.0.5
 
 | Platform | Status |
 |---|---|
@@ -55,7 +62,7 @@ name another.
 ## Installation
 
 Production users should install the plugin only from the official ZCode public
-marketplace after version `1.0.4` is accepted and published. Official
+marketplace after version `1.0.5` is accepted and published. Official
 installation matters because the role profiles, the hook and the native daemon
 all run with your privileges, and a trusted source is what makes their bytes
 accountable.
@@ -201,7 +208,7 @@ ZCode checks, and SBOM/notices/provenance.
 
 ### Windows code signing
 
-The bundled `workflowd.exe` is **not** Authenticode signed in `1.0.4`. Windows
+The bundled `workflowd.exe` is **not** Authenticode signed in `1.0.5`. Windows
 SmartScreen will warn on first use, some endpoint protection may quarantine it,
 and environments that refuse unsigned executables by policy will refuse it.
 
@@ -213,7 +220,7 @@ Build provenance is attested for the sealed artifacts. Integrity is therefore
 demonstrated; what is missing is the operating system's own trust decision and a
 publisher identity carried inside the file.
 
-Signing returns in a later version. Published versions are immutable, so `1.0.4`
+Signing returns in a later version. Published versions are immutable, so `1.0.5`
 stays unsigned for its whole life.
 
 On Linux there is no Authenticode equivalent and none is claimed. The guarantee
@@ -237,5 +244,5 @@ Cycle for Zcode is an independent integration. It is not affiliated with,
 sponsored by or endorsed by ZCode or its operator. ZCode names and trademarks
 belong to their respective owners.
 
-Development disclosure: changes prepared for `1.0.4` include AI-assisted code
+Development disclosure: changes prepared for `1.0.5` include AI-assisted code
 and documentation and require human owner review before publication.

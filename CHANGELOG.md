@@ -3,10 +3,64 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.4] - Unreleased
+## [1.0.5] - Unreleased
 
 Status: **blocked until every Windows/Linux certification gate passes against
 the same immutable plugin archive**.
+
+`1.0.4` was sealed and carried through the full thirteen-scenario live campaign.
+Nine scenarios passed, two were partial and two failed, and the campaign found
+eight defects. Seven of them are one habit: a mechanism that is present, is
+wired, and in the case it exists for does not decide.
+
+### Fixed
+
+- One workspace now has one audit identity. The project key is a caller-supplied
+  argument and nothing tied it to the directory, so two sessions on the same
+  workspace chose different keys and the ledger split across two project ids. A
+  status call reported "project has no workflow" while a workflow was running
+  under the other one. Indexing now refuses a directory already bound to a
+  different identity.
+- An arbiter's approval can no longer stand against an explicit constraint of the
+  immutable original request. The stored request said "do not modify any test
+  file"; the approved candidate's file list named one. Where a prohibition is
+  plain enough to decide by comparing paths, the approval is refused and the work
+  goes back to the executor. Anything less explicit stays a matter of judgement,
+  and silence from the check is never an approval.
+- A mandatory gate that cannot start now fails instead of stalling. An entire
+  shell expression sat in a gate's `program` field with no arguments, so the
+  metacharacter check — which reads the arguments — never looked at it; the
+  daemon spawns the program directly, and the workflow sat in verification for
+  two and a half hours producing no pass, no fail and no block. A program name is
+  one word, and a spawn failure is now the gate's answer rather than the run's.
+- The browser and accessibility gates follow the files, not the wording. They
+  attached from the architect's phrasing of the write scope, so declaring
+  `public` rather than `public/index.html` removed both and an interface with two
+  unnamed interactive controls was promoted. A directory scope is now expanded to
+  the files under it before the question is asked.
+- Goal completion resolves the evidence it is given. Sixty-four zeros satisfied
+  "independent arbiter evidence" and completed a goal; the check only tested that
+  the field was present and well-formed. The cited digest is now matched against
+  the arbitration receipts recorded for that goal's own linked workflows.
+- A goal-to-workflow link made in error can be corrected. Linking was one-way
+  with no unlink, so a milestone kept asserting a tie to abandoned work for ever.
+  A terminal goal's links still stand: at that point the record is the claim.
+
+### Documentation
+
+- The README claimed the ledger records "which model ran". It records the model
+  each role's profile pins, read from that profile when the event is written.
+  Cycle cannot observe ZCode's dispatch, so the record attests the assignment,
+  not the inference. The models guide says so too.
+- Uninstalling leaves the marketplace's cached copy of the plugin — roughly
+  76 MB, including the native daemon for each supported platform — and ZCode's
+  confirmation dialog does not mention it. The README now says what is kept,
+  where, that it is inert, and how to reclaim the space.
+
+## [1.0.4] - Unreleased, superseded by 1.0.5
+
+Status: **superseded**. Sealed and fully certified live: 9 passed, 2 partial,
+2 failed. Never published.
 
 `1.0.3` was sealed and carried through the full thirteen-scenario live campaign.
 Ten scenarios passed, one was partial and two failed. Two of the failures were
