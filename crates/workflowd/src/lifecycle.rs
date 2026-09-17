@@ -1158,11 +1158,24 @@ fn submit_arbitration(
     let mandatory_gates_passed = !evidence.iter().any(|(record, _, mandatory)| {
         *mandatory && record.status != workflow_core::EvidenceStatus::Passed
     });
+    // DEFECT-15: the constraint the arbiter is meant to judge against lives in
+    // the frozen request, and the candidate's file list is right here. Where the
+    // request forbids touching a path in terms plain enough to decide by
+    // comparison, deciding it here makes it a gate rather than an opinion.
+    let changed_paths = candidate
+        .manifest
+        .files()
+        .iter()
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>();
+    let request_violations =
+        crate::request_constraints::violations(request.original_text(), &changed_paths);
     let refusal = crate::arbitration::refusal(
         verdict.decision,
         reviews_approved,
         mandatory_gates_passed,
         &reviews,
+        !request_violations.is_empty(),
     );
     let timestamp = workflow_core::WorkflowTimestamp::now();
     let receipt = workflow_core::ArbitrationReceipt {

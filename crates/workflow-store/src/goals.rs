@@ -463,6 +463,28 @@ impl Store {
         Ok(())
     }
 
+    /// Removes a goal-to-workflow link, reporting whether one existed.
+    ///
+    /// DEFECT-19: linking was one-way. A workflow could be linked to exactly one
+    /// milestone, re-pointing it was refused as an aggregate conflict, and no
+    /// unlink existed - so a link made in error was permanent and the milestone
+    /// kept asserting a tie to work that had been abandoned. The refusal was
+    /// right; what was missing was the way back.
+    pub fn unlink_goal_workflow(
+        &mut self,
+        goal_id: GoalId,
+        workflow_id: WorkflowId,
+    ) -> Result<bool, StoreError> {
+        if self.mode != StoreMode::ReadWrite {
+            return Err(StoreError::ReadOnly);
+        }
+        let removed = self.connection.execute(
+            "DELETE FROM goal_workflows WHERE goal_id = ?1 AND workflow_id = ?2",
+            params![goal_id.to_string(), workflow_id.to_string()],
+        )?;
+        Ok(removed > 0)
+    }
+
     pub fn goal_workflows(&self, goal_id: GoalId) -> Result<Vec<(WorkflowId, String)>, StoreError> {
         let mut statement = self.connection.prepare(
             "SELECT workflow_id, milestone FROM goal_workflows

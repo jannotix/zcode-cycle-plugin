@@ -2139,7 +2139,7 @@ var TOOLS = {
     }
   },
   cycle_goal: {
-    description: "Manage persistent goals: create, amend, focus, link workflows, save versioned plans, control lifecycle.",
+    description: "Manage persistent goals: create, amend, focus, link and unlink workflows, save versioned plans, control lifecycle.",
     inputSchema: {
       type: "object",
       properties: { project_key: { type: "string" }, operation: { type: "object" } },

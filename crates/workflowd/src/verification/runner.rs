@@ -396,26 +396,48 @@ async fn run_gate(
             ),
             VerificationExecutor::Command { arguments, program } => {
                 let tool_version = probe_tool_version(repository, program).await;
-                let command = execute_command(
+                match execute_command(
                     repository,
                     program,
                     arguments,
                     Duration::from_secs(gate.timeout_seconds),
                 )
-                .await?;
-                (
-                    Some(command.exit_code),
-                    command.output,
-                    command.output_digest,
-                    if command.exit_code == 0 {
-                        EvidenceStatus::Passed
-                    } else {
-                        EvidenceStatus::Failed
-                    },
-                    None,
-                    program.clone(),
-                    tool_version,
-                )
+                .await
+                {
+                    Ok(command) => (
+                        Some(command.exit_code),
+                        command.output,
+                        command.output_digest,
+                        if command.exit_code == 0 {
+                            EvidenceStatus::Passed
+                        } else {
+                            EvidenceStatus::Failed
+                        },
+                        None,
+                        program.clone(),
+                        tool_version,
+                    ),
+                    // DEFECT-16: a gate that cannot start is the gate's answer,
+                    // not the run's. Propagating this abandoned the whole
+                    // verification, so a malformed mandatory gate produced no
+                    // pass, no fail and no block - and for a system that
+                    // promotes only on evidence, silence is indistinguishable
+                    // from still working. Failing the gate stops promotion and
+                    // says why.
+                    Err(error) => {
+                        let output = format!("gate could not start: {error}");
+                        let digest = ContentDigest::of(output.as_bytes());
+                        (
+                            None,
+                            output,
+                            digest,
+                            EvidenceStatus::Failed,
+                            None,
+                            program.clone(),
+                            tool_version,
+                        )
+                    }
+                }
             }
         };
     let record = EvidenceRecord {

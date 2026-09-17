@@ -127,6 +127,13 @@ pub enum GoalOperation {
         milestone: String,
         workflow_id: WorkflowId,
     },
+    /// DEFECT-19: a workflow could be linked to exactly one milestone and there
+    /// was no way back, so a link made in error was permanent and the goal
+    /// record kept asserting a tie to work that had been abandoned.
+    UnlinkWorkflow {
+        goal_id: GoalId,
+        workflow_id: WorkflowId,
+    },
     List {},
     SavePlan {
         content: String,

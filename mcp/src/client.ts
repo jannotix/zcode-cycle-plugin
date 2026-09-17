@@ -160,6 +160,9 @@ export type GoalOperation =
     }
   | { readonly type: "focus"; readonly goal_id: string; readonly session_id: string }
   | { readonly type: "link_workflow"; readonly goal_id: string; readonly milestone: string; readonly workflow_id: string }
+  // DEFECT-19: linking was one-way, so a link made in error was permanent and
+  // the milestone kept asserting a tie to abandoned work.
+  | { readonly type: "unlink_workflow"; readonly goal_id: string; readonly workflow_id: string }
   | { readonly type: "list" }
   | { readonly type: "save_plan"; readonly content: string; readonly goal_id: string; readonly source_session_id: string }
   | { readonly type: "status"; readonly goal_id: string | null; readonly session_id: string }

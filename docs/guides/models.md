@@ -49,11 +49,18 @@ model ZCode offers.
 
 ## What the ledger records
 
-Every event a role produces records the model pinned in its profile, so
-`/cycle:history` and an exported receipt answer *which model approved this
-candidate*, not merely that one did. `inherit` is recorded as `inherit`: the
+Every event a role produces records the model pinned in its profile, read from
+that profile when the event is written. `inherit` is recorded as `inherit`: the
 session's model is a weaker claim than a pinned one, and the record does not
 flatten the difference.
+
+Read what that claim is, exactly. Cycle cannot see ZCode's dispatch, so the
+ledger attests **the model the role was assigned**, not the model that answered.
+`/cycle:history` and an exported receipt therefore answer *which model this role
+was pinned to when it approved your candidate* — and, because a profile edited
+away from its managed baseline is reported as drift and blocks a run, that
+assignment is one the control plane has checked. It is not an observation of the
+inference itself, and no audit trail written outside the host can make it one.
 
 ## Choosing models
 

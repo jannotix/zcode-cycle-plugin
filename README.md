@@ -102,10 +102,12 @@ arms a governed run.
 - `/cycle:setup install` writes five managed files under the current project's
   `.zcode/agents`; repair, model changes and removal require their explicit
   setup/model command forms and never overwrite an unowned conflicting file.
-- Each role can be pinned to its own model, and the ledger records which model
-  ran. Governed roles accept only the models ZCode ships for the Z.ai coding
-  plan; third-party models you add to ZCode are not accepted for a role, and a
-  profile naming one is reported as drift. Your main session is unaffected.
+- Each role can be pinned to its own model, and the ledger records the model
+  that role's profile pins — Cycle cannot observe ZCode's dispatch, so the
+  record attests the assignment, not the inference. Governed roles accept only
+  the models ZCode ships for the Z.ai coding plan; third-party models you add to
+  ZCode are not accepted for a role, and a profile naming one is reported as
+  drift. Your main session is unaffected.
 - The executor modifies an isolated Git worktree within declared write scopes.
   It may stage and commit those worktree changes.
 - The executor is not sandboxed: it holds edit and shell tools. What bounds it
@@ -175,6 +177,13 @@ See [the user manual](docs/USER_MANUAL.md), [command reference](docs/commands/re
 - Before uninstalling, run `/cycle:setup remove` in every configured project;
   then remove the plugin in ZCode. Remove the data directory separately only
   if the ledger, memory, evidence and recovery state are no longer required.
+- Uninstalling removes the active installation, not the marketplace's cached
+  copy. ZCode keeps the plugin it downloaded — roughly 76 MB, including the
+  native daemon for each supported platform — under the marketplace cache in
+  your ZCode profile, and its confirmation dialog does not say so. The copy is
+  inert: it is not listed in `installed_plugins.json`, so nothing loads it and
+  no daemon runs from it. To reclaim the space, remove the marketplace itself in
+  ZCode after uninstalling the plugin.
 
 ## Development checks
 

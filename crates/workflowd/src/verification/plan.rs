@@ -142,12 +142,7 @@ pub fn discover_for(
         timeout_seconds: 120,
     });
 
-    let scopes: Vec<_> = architecture
-        .tasks
-        .iter()
-        .flat_map(|task| task.write_scopes.iter())
-        .map(|scope| scope.to_ascii_lowercase().replace('\\', "/"))
-        .collect();
+    let scopes = expanded_scopes(repository, architecture);
     if scopes.iter().any(|scope| database_scope(scope))
         && !gates.iter().any(|gate| gate.kind == EvidenceKind::Database)
     {
@@ -334,6 +329,20 @@ fn add_command(
 }
 
 fn validate_command(program: &str, arguments: &[String]) -> Result<(), VerificationPlanError> {
+    // DEFECT-16: the metacharacter check below reads the arguments, so a whole
+    // shell expression parked in `program` with no arguments passed every test
+    // and was accepted as a mandatory gate. The daemon spawns `program`
+    // directly, so no such executable exists: the gate could never start, and a
+    // gate that cannot start yields neither a pass nor a fail. A program name is
+    // one word - anything else is a shell line, and this is the last place that
+    // can say so before the plan is accepted.
+    if program.split_whitespace().count() != 1
+        || program.contains([
+            '&', '|', ';', '<', '>', '$', '`', '\'', '"', '*', '?', '(', ')',
+        ])
+    {
+        return Err(VerificationPlanError::InvalidCommand);
+    }
     if program.trim().is_empty()
         || program.contains(['\0', '\n', '\r'])
         || arguments.iter().any(|argument| {
@@ -420,6 +429,68 @@ fn unavailable(name: &str, kind: EvidenceKind, reason: &str) -> VerificationGate
         risk: VerificationRisk::InternalInspection,
         timeout_seconds: 1,
     }
+}
+
+/// Every declared write scope, plus the files beneath any scope that names a
+/// directory in the repository.
+///
+/// DEFECT-17: the mandatory browser and accessibility gates attach from the
+/// architect's own wording of the scope. Declaring `public` rather than
+/// `public/index.html` removed both, and an interface with two unnamed controls
+/// passed every gate in its plan and was promoted. No deception is needed -
+/// naming a directory as a write scope is an ordinary thing to do.
+///
+/// A scope is a claim about where the work may write, so a directory scope
+/// covers every file under it. Expanding it here means the classification is
+/// decided by what is actually in the tree rather than by how coarsely the
+/// scope was phrased.
+fn expanded_scopes(repository: &Path, architecture: &ArchitecturePlan) -> Vec<String> {
+    const SCOPE_FILE_BUDGET: usize = 4_096;
+
+    let mut scopes = Vec::new();
+    for declared in architecture
+        .tasks
+        .iter()
+        .flat_map(|task| task.write_scopes.iter())
+    {
+        let normalized = declared.to_ascii_lowercase().replace('\\', "/");
+        scopes.push(normalized.clone());
+
+        // A scope that resolves to a directory inside the repository stands for
+        // the files under it. A scope that escapes the repository is ignored
+        // here: it is the write-scope enforcement's business, not the plan's.
+        let candidate = repository.join(normalized.trim_start_matches('/'));
+        if !candidate.starts_with(repository) || !candidate.is_dir() {
+            continue;
+        }
+        let mut pending = vec![candidate];
+        while let Some(directory) = pending.pop() {
+            if scopes.len() >= SCOPE_FILE_BUDGET {
+                break;
+            }
+            let Ok(entries) = std::fs::read_dir(&directory) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                if matches!(name.as_str(), ".git" | "node_modules" | "target" | "dist") {
+                    continue;
+                }
+                if path.is_dir() {
+                    pending.push(path);
+                } else if let Ok(relative) = path.strip_prefix(repository) {
+                    scopes.push(
+                        relative
+                            .to_string_lossy()
+                            .to_ascii_lowercase()
+                            .replace('\\', "/"),
+                    );
+                }
+            }
+        }
+    }
+    scopes
 }
 
 fn database_scope(scope: &str) -> bool {

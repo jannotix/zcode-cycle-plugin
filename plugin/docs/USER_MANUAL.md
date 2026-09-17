@@ -129,6 +129,29 @@ blocked until you explicitly approve them, actions and logs recorded as
 a receipt bound to the candidate digest. Interactive actions are
 executor-only. See the browser guide.
 
+Whether a change affects the interface is decided from the files a write
+scope covers, not from how the scope was worded: a scope naming a
+directory is expanded to the files under it before the question is
+asked, so declaring `public` rather than `public/index.html` does not
+remove the gates.
+
+## What blocks a promotion
+
+A mandatory gate that fails blocks promotion, and so does one that
+cannot start: a gate whose program cannot be spawned is recorded as
+failed with the reason, never left pending. A verification plan is
+refused outright if a gate's program is a shell expression rather than
+an executable, because the daemon spawns it directly.
+
+An arbiter's approval is refused where it contradicts something the
+record already holds: a live reviewer rejection, a mandatory gate that
+did not pass, or an explicit constraint of the immutable original
+request. The last of these is checked mechanically only where the
+request is plain enough to decide by comparing paths — "do not modify
+any test file" against the candidate's file list. Anything less explicit
+stays a matter of judgement, and silence from this check is never an
+approval.
+
 ## Project memory and history
 
 Every action lands in a tamper-evident ledger (hash chain plus signed

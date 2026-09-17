@@ -23,6 +23,8 @@ pub enum GraphStoreError {
     Incomplete,
     IntegerRange,
     MissingSchema,
+    /// DEFECT-14: one workspace was recorded under more than one audit identity.
+    ProjectIdentityConflict,
     Serialization(serde_json::Error),
     Sqlite(rusqlite::Error),
 }
@@ -37,6 +39,9 @@ impl std::fmt::Display for GraphStoreError {
                 formatter.write_str("graph generation is outside the supported range")
             }
             Self::MissingSchema => formatter.write_str("code intelligence schema is unavailable"),
+            Self::ProjectIdentityConflict => formatter.write_str(
+                "this directory is already indexed under a different project identity; one workspace has one audit identity",
+            ),
             Self::Serialization(error) => error.fmt(formatter),
             Self::Sqlite(error) => error.fmt(formatter),
         }
@@ -170,6 +175,29 @@ impl GraphStore {
         fingerprint: &str,
         timestamp: WorkflowTimestamp,
     ) -> Result<(), GraphStoreError> {
+        // DEFECT-14: the project key arrives as a caller-supplied argument and
+        // nothing tied it to the workspace, so two sessions on one directory
+        // chose different keys and the ledger split across two identities. A
+        // project-scoped question then answered about whichever half the
+        // caller's key selected: a status call reported "project has no
+        // workflow" while a workflow was running under the other id.
+        //
+        // The row is keyed on project_id, so the same path under a second
+        // identity inserts cleanly. One workspace has one audit identity, and
+        // this is the place that can say so.
+        let conflicting: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT project_id FROM code_index_state
+                 WHERE repository_path = ?1 AND project_id <> ?2",
+                params![repository_path, project_id.to_string()],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(GraphStoreError::Sqlite)?;
+        if conflicting.is_some() {
+            return Err(GraphStoreError::ProjectIdentityConflict);
+        }
         self.connection.execute(
             "INSERT INTO code_index_state(project_id, repository_path, fingerprint, updated_at)
              VALUES (?1, ?2, ?3, ?4)

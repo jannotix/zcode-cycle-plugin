@@ -17,10 +17,24 @@ Each implementation milestone is a normal governed workflow, linked with
 - every linked milestone must have a COMPLETED workflow — cancelled
   does not count;
 - `approve_completion` must cite the arbiter's receipt digest as
-  `completion_evidence`. No evidence, no completion.
+  `completion_evidence`, and that digest is resolved against the
+  arbitration receipts recorded for this goal's own linked workflows. A
+  well-formed digest that names no such receipt is refused, and so is a
+  real receipt belonging to work linked elsewhere. No evidence, no
+  completion.
 
 Continuations are bounded (default five): a goal can be continued
 across sessions without living forever.
+
+## Correcting a link
+
+A workflow belongs to one milestone, so re-pointing it is refused while
+it is still linked. Use `unlink_workflow` first, then link it where it
+belongs — a link made in error is a mistake to correct, not a fact to
+live with.
+
+Once a goal is completed or aborted its links are part of what it
+claims, and unlinking is refused: at that point the record stands.
 
 ## Consultations without a cycle
 
