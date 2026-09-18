@@ -44,6 +44,22 @@ pub enum EventData {
         revision: String,
     },
     Verification {
+        /// True when a caller told the ledger this gate's outcome, rather than
+        /// the control plane having run it.
+        ///
+        /// DEFECT-24: a gate entry the control plane produced after really
+        /// running the gate, and one a session simply asserted, were identical
+        /// in `data` - `{"type":"verification","gate":"test:npm test",
+        /// "status":"passed"}` byte for byte. The only signals separating them
+        /// sat elsewhere, in a free-text `actor.id` and in whether an evidence
+        /// row happened to exist, so a reader of the gate record could not tell
+        /// a verified pass from a claimed one. A ledger that cannot distinguish
+        /// the two does not carry the weight its name implies.
+        ///
+        /// Absent means the control plane ran it; only `audit::record`, the
+        /// caller-facing path, can set this, and it always does.
+        #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+        declared: bool,
         gate: String,
         status: String,
     },
@@ -139,7 +155,7 @@ fn validate_data(data: &EventData) -> Result<(), EventError> {
             permission,
         } => &[decision, permission],
         EventData::Git { revision, .. } => &[revision],
-        EventData::Verification { gate, status } => &[gate, status],
+        EventData::Verification { gate, status, .. } => &[gate, status],
     };
     if fields.iter().any(|value| value.trim().is_empty()) {
         Err(EventError::EmptyData)

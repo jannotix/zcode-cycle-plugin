@@ -329,27 +329,25 @@ fn add_command(
 }
 
 fn validate_command(program: &str, arguments: &[String]) -> Result<(), VerificationPlanError> {
-    // DEFECT-16: the metacharacter check below reads the arguments, so a whole
-    // shell expression parked in `program` with no arguments passed every test
-    // and was accepted as a mandatory gate. The daemon spawns `program`
-    // directly, so no such executable exists: the gate could never start, and a
-    // gate that cannot start yields neither a pass nor a fail. A program name is
-    // one word - anything else is a shell line, and this is the last place that
-    // can say so before the plan is accepted.
-    if program.split_whitespace().count() != 1
-        || program.contains([
-            '&', '|', ';', '<', '>', '$', '`', '\'', '"', '*', '?', '(', ')',
-        ])
-    {
+    // DEFECT-16: the metacharacter check read the arguments, so a whole shell
+    // expression parked in `program` with no arguments passed every test and was
+    // accepted as a mandatory gate. The daemon spawns `program` directly, so no
+    // such executable exists: the gate could never start, and a gate that cannot
+    // start yields neither a pass nor a fail.
+    //
+    // DEFECT-23: that fix enumerated what a program may not contain, and
+    // `CI=1 npm run check:changelog` slipped through it - `CI=1` is one word,
+    // carries no metacharacter and is on no denylist, yet it is an environment
+    // assignment the shell would have consumed and not a program at all. A
+    // denylist is a guess about every way a string can fail to be an executable.
+    // Saying what a program *may* be settles the whole class at once.
+    if !is_program_name(program) {
         return Err(VerificationPlanError::InvalidCommand);
     }
-    if program.trim().is_empty()
-        || program.contains(['\0', '\n', '\r'])
-        || arguments.iter().any(|argument| {
-            argument.contains(['\0', '\n', '\r'])
-                || matches!(argument.as_str(), "&&" | "||" | ";" | "|" | "<" | ">")
-        })
-    {
+    if arguments.iter().any(|argument| {
+        argument.contains(['\0', '\n', '\r'])
+            || matches!(argument.as_str(), "&&" | "||" | ";" | "|" | "<" | ">")
+    }) {
         return Err(VerificationPlanError::InvalidCommand);
     }
     let executable = program
@@ -371,6 +369,32 @@ fn validate_command(program: &str, arguments: &[String]) -> Result<(), Verificat
         return Err(VerificationPlanError::InvalidCommand);
     }
     Ok(())
+}
+
+/// Whether `program` can name an executable at all.
+///
+/// A program is a bare command name, or a path whose final component is one. A
+/// command name is made of the characters an executable on any supported
+/// platform may carry: letters, digits, and `_ - . +`. Everything else - an `=`,
+/// a space, a quote, a redirection, a substitution - belongs to a shell, and the
+/// daemon has no shell to give it to.
+///
+/// Path separators and a Windows drive colon are allowed in the rest of the
+/// string so that `./scripts/check.sh` and `C:\tools\node.exe` still resolve;
+/// the final component is held to the stricter rule either way.
+fn is_program_name(program: &str) -> bool {
+    fn command_character(character: char) -> bool {
+        character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.' | '+')
+    }
+
+    let name = program.rsplit(['/', '\\']).next().unwrap_or(program);
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && name.chars().all(command_character)
+        && program
+            .chars()
+            .all(|character| command_character(character) || matches!(character, '/' | '\\' | ':'))
 }
 
 fn classify(command: &str) -> (String, EvidenceKind) {
@@ -544,4 +568,59 @@ fn packaging_scope(scope: &str) -> bool {
 
 fn contains_any(value: &str, candidates: &[&str]) -> bool {
     candidates.iter().any(|candidate| value.contains(candidate))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{VerificationPlanError, is_program_name, validate_command};
+
+    #[test]
+    fn an_environment_assignment_is_not_a_program() {
+        // DEFECT-23, exactly as the live 1.0.5 certification found it: the gate
+        // `CI=1 npm run check:changelog` splits into program `CI=1`, which the
+        // 1.0.5 denylist accepted as a mandatory gate.
+        assert!(!is_program_name("CI=1"));
+        assert!(!is_program_name("FOO=bar"));
+        assert_eq!(
+            validate_command("CI=1", &["npm".to_owned(), "test".to_owned()]),
+            Err(VerificationPlanError::InvalidCommand)
+        );
+    }
+
+    #[test]
+    fn ordinary_programs_and_paths_are_still_accepted() {
+        for program in [
+            "npm",
+            "node",
+            "cargo",
+            "python3",
+            "pnpm",
+            "dotnet",
+            "node.exe",
+            "./scripts/check.sh",
+            ".\\gradlew.bat",
+            "C:\\tools\\node.exe",
+        ] {
+            assert!(is_program_name(program), "rejected {program}");
+        }
+        assert_eq!(validate_command("npm", &["test".to_owned()]), Ok(()));
+    }
+
+    #[test]
+    fn shell_lines_and_empty_names_are_refused() {
+        for program in [
+            "",
+            ".",
+            "..",
+            "npm test",
+            "npm&&rm",
+            "$(whoami)",
+            "a|b",
+            "say \"hi\"",
+            "scripts/",
+            "npm\n",
+        ] {
+            assert!(!is_program_name(program), "accepted {program}");
+        }
+    }
 }

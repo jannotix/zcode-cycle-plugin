@@ -29,10 +29,59 @@ interface RoleProfileOptions {
   readonly confirmation?: string
   readonly model?: string
   readonly operation: Operation
+  /** Where the record of deliberate per-role model pins lives. See `readPins`. */
+  readonly pinStorePath?: string
   readonly pluginRoot: string
   readonly projectRoot: string
   readonly role?: string
   readonly thoughtLevel?: string
+}
+
+interface Pin {
+  readonly model: string
+  readonly recorded_at: string
+  readonly thought_level: string
+}
+
+type PinStore = Record<string, Record<string, Pin>>
+
+/**
+ * A per-role model pin is the operator's one control over *which model renders a
+ * verdict*. It is how the arbiter's independence from the executor stops being
+ * nominal, so losing one silently is not a cosmetic failure.
+ *
+ * DEFECT-25: the pin lived only in the profile's `model:` line, which is both the
+ * request and the resolution of that request. Anything that rewrote the profile
+ * from its template therefore erased the request with no trace, and the ledger
+ * went on faithfully recording `inherit` for a role the operator believed was
+ * pinned. In the live 1.0.5 certification the arbiter's pin was set through the
+ * supported path, verified on disk, and was gone four minutes before the arbiter
+ * was dispatched.
+ *
+ * So the request is recorded separately from its resolution, outside the project
+ * tree, and the two are compared on every call. A rewrite can still happen - this
+ * does not prevent it - but it can no longer happen quietly.
+ */
+async function readPins(path: string | undefined): Promise<PinStore> {
+  if (!path) return {}
+  try {
+    const parsed: unknown = JSON.parse(await readBoundedRegularFile(path, "role-model pin record"))
+    return parsed !== null && typeof parsed === "object" ? (parsed as PinStore) : {}
+  } catch (error) {
+    if (isMissing(error)) return {}
+    throw error
+  }
+}
+
+async function writePins(path: string | undefined, pins: PinStore): Promise<void> {
+  if (!path) return
+  await mkdir(dirname(path), { recursive: true })
+  const temporary = `${path}.${randomUUID()}.tmp`
+  await writeFile(temporary, `${JSON.stringify(pins, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  })
+  await rename(temporary, path)
 }
 
 interface ProfileRecord {
@@ -72,7 +121,12 @@ export async function manageRoleProfiles(options: RoleProfileOptions): Promise<o
 
   switch (options.operation) {
     case "status":
-      return report(projectRoot, records, false)
+      return report(
+        projectRoot,
+        records,
+        false,
+        (await readPins(options.pinStorePath))[projectRoot] ?? {},
+      )
     case "install":
       requireConfirmation(options.confirmation, "INSTALL_ZCODE_CYCLE_ROLE_PROFILES")
       rejectStates(records, new Set(["managed-drift", "conflict"]), "install")
@@ -83,16 +137,25 @@ export async function manageRoleProfiles(options: RoleProfileOptions): Promise<o
         }
       }
       break
-    case "repair":
+    case "repair": {
       requireConfirmation(options.confirmation, "REPAIR_ZCODE_CYCLE_ROLE_PROFILES")
       rejectStates(records, new Set(["conflict"]), "repair")
+      const pins = (await readPins(options.pinStorePath))[projectRoot] ?? {}
       for (const record of records) {
-        if (record.state !== "current") {
+        // DEFECT-25: a profile rewritten from its own template is structurally
+        // perfect - that is exactly how the pin was lost, and why a repair keyed
+        // only on damage could never put it back. A pin that is no longer in the
+        // file it was set on is the thing needing repair, whatever the file's
+        // state says.
+        const pinned = pins[record.role]
+        const lostPin = pinned !== undefined && (record.model ?? INHERIT_MODEL) !== pinned.model
+        if (record.state !== "current" || lostPin) {
           const template = templates.get(record.role)!
           const settings =
-            record.state === "managed-drift" && record.content
+            pinned ??
+            (record.state === "managed-drift" && record.content
               ? extractManagedSettings(record.content, record.role)
-              : null
+              : null)
           const repaired = settings
             ? template
                 .replace(/^model:.*$/mu, `model: ${settings.model}`)
@@ -103,6 +166,7 @@ export async function manageRoleProfiles(options: RoleProfileOptions): Promise<o
         }
       }
       break
+    }
     case "configure": {
       requireConfirmation(options.confirmation, "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE")
       rejectStates(records, new Set(["missing", "managed-drift", "conflict"]), "configure")
@@ -132,6 +196,23 @@ export async function manageRoleProfiles(options: RoleProfileOptions): Promise<o
         await writeAtomic(record.target, configured, true)
         changed = true
       }
+      // DEFECT-25: the request is recorded where a rewrite of the project tree
+      // cannot reach it. `inherit` is the absence of a pin, not a pin on the
+      // session model, so it clears the record instead of adding to it.
+      {
+        const pins = await readPins(options.pinStorePath)
+        const forProject = { ...(pins[projectRoot] ?? {}) }
+        if (model === INHERIT_MODEL) {
+          delete forProject[role]
+        } else {
+          forProject[role] = {
+            model,
+            recorded_at: new Date().toISOString(),
+            thought_level: thoughtLevel,
+          }
+        }
+        await writePins(options.pinStorePath, { ...pins, [projectRoot]: forProject })
+      }
       break
     }
     case "remove":
@@ -154,7 +235,8 @@ export async function manageRoleProfiles(options: RoleProfileOptions): Promise<o
       inspectProfile(afterDirectory, profile.role, profile.file, templates.get(profile.role)!),
     ),
   )
-  return report(projectRoot, after, changed)
+  const pins = (await readPins(options.pinStorePath))[projectRoot] ?? {}
+  return report(projectRoot, after, changed, pins)
 }
 
 function canonicalRole(value: string | undefined): Role {
@@ -323,7 +405,23 @@ async function writeAtomic(target: string, content: string, replace: boolean): P
   }
 }
 
-function report(projectRoot: string, records: readonly ProfileRecord[], changed: boolean): object {
+function report(
+  projectRoot: string,
+  records: readonly ProfileRecord[],
+  changed: boolean,
+  pins: Record<string, Pin>,
+): object {
+  // DEFECT-25: what was asked for, against what is on disk and will actually be
+  // dispatched. A pin that no longer appears in its profile is reported by name
+  // rather than left for the operator to notice from a ledger entry after the
+  // verdict has already been rendered.
+  const drift = records.flatMap((record) => {
+    const pinned = pins[record.role]
+    if (!pinned) return []
+    const resolved = record.model ?? INHERIT_MODEL
+    if (resolved === pinned.model) return []
+    return [{ on_disk: resolved, pinned: pinned.model, role: record.role }]
+  })
   return {
     changed,
     profile_directory: join(projectRoot, ".zcode", "agents"),
@@ -331,12 +429,24 @@ function report(projectRoot: string, records: readonly ProfileRecord[], changed:
       ...(digest ? { digest } : {}),
       file: `zcode-cycle-${file}`,
       ...(model ? { model } : {}),
+      ...(pins[role] ? { model_requested: pins[role]!.model } : {}),
       role,
       state,
       ...(thought_level ? { thought_level } : {}),
     })),
-    ready: records.every((record) => record.state === "current"),
+    ready: records.every((record) => record.state === "current") && drift.length === 0,
     requires_session_restart: changed,
+    ...(drift.length > 0
+      ? {
+          pin_drift: drift,
+          warning:
+            `${drift.length === 1 ? "a role profile no longer carries" : "role profiles no longer carry"} ` +
+            `the model it was pinned to, so ${drift.length === 1 ? "that role" : "those roles"} will be ` +
+            `dispatched on ${drift.map((item) => `${item.role} on ${item.on_disk} instead of ${item.pinned}`).join(", ")}. ` +
+            `Run cycle_role_profiles repair to restore the pinned model before dispatching, or configure the ` +
+            `role to inherit if the pin is no longer wanted.`,
+        }
+      : {}),
   }
 }
 

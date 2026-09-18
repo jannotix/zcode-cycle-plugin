@@ -3,7 +3,15 @@ use std::collections::BTreeMap;
 use workflow_core::{ProjectId, WorkflowId, WorkflowTimestamp};
 use workflow_ledger::{Actor, EventData, LedgerEvent, Redactor};
 
+#[allow(dead_code)]
 pub fn event(action: &str) -> LedgerEvent {
+    event_with_data(EventData::Workflow {
+        action: action.to_owned(),
+    })
+}
+
+#[allow(dead_code)]
+pub fn event_with_data(data: EventData) -> LedgerEvent {
     LedgerEvent::new(
         Actor {
             id: "workflowd".to_owned(),
@@ -12,9 +20,7 @@ pub fn event(action: &str) -> LedgerEvent {
             session_id: None,
         },
         None,
-        EventData::Workflow {
-            action: action.to_owned(),
-        },
+        data,
         [],
         ["src/lib.rs".to_owned()],
         BTreeMap::new(),

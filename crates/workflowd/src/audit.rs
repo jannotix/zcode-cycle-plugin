@@ -26,10 +26,34 @@ impl std::fmt::Display for AuditError {
 
 impl std::error::Error for AuditError {}
 
+/// Records an observation a caller supplied.
+///
+/// DEFECT-24: everything arriving here is something a session said happened, so
+/// a gate outcome recorded through this path is marked `declared`. The control
+/// plane records the gates it actually ran through [`record_verified`].
 pub fn record(
     store: &mut Store,
     checkpoint_key: &CheckpointKey,
     observation: AuditObservation,
+) -> Result<LedgerEntry, AuditError> {
+    record_with_provenance(store, checkpoint_key, observation, true)
+}
+
+/// Records what the control plane itself did. Never reachable from a client
+/// message: the only callers are the daemon's own lifecycle paths.
+pub fn record_verified(
+    store: &mut Store,
+    checkpoint_key: &CheckpointKey,
+    observation: AuditObservation,
+) -> Result<LedgerEntry, AuditError> {
+    record_with_provenance(store, checkpoint_key, observation, false)
+}
+
+fn record_with_provenance(
+    store: &mut Store,
+    checkpoint_key: &CheckpointKey,
+    observation: AuditObservation,
+    declared: bool,
 ) -> Result<LedgerEntry, AuditError> {
     let timestamp = i128::from(observation.timestamp_unix_millis)
         .checked_mul(1_000_000)
@@ -58,7 +82,11 @@ pub fn record(
             externally_attributed,
             revision,
         },
-        AuditData::Verification { gate, status } => EventData::Verification { gate, status },
+        AuditData::Verification { gate, status } => EventData::Verification {
+            declared,
+            gate,
+            status,
+        },
     };
     // DEFECT-10. An observation carrying a role may declare its own model, and a
     // role attesting to its own identity proves nothing. Where the role is known,

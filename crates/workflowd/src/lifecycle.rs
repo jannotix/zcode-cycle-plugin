@@ -1530,7 +1530,7 @@ async fn verify_candidate(
                 workflow_core::WorkflowTimestamp::now(),
             )
             .map_err(|error| error.to_string())?;
-        crate::audit::record(
+        crate::audit::record_verified(
             &mut store,
             &checkpoint_key,
             workflow_ipc::audit::AuditObservation {

@@ -32,7 +32,7 @@ use std::{
 
 use rusqlite::{Connection, OpenFlags};
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 17;
+pub const CURRENT_SCHEMA_VERSION: u32 = 18;
 
 pub fn backup_existing_database(
     source: impl AsRef<Path>,

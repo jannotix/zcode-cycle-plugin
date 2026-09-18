@@ -282,6 +282,7 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
       if (!pluginRoot) throw new Error("cycle_role_profiles requires ZCODE_PLUGIN_ROOT")
       return manageRoleProfiles({
         operation,
+        pinStorePath: join(dataDirectory, "runtime", "role-model-pins.json"),
         pluginRoot,
         projectRoot: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
         ...(typeof args.confirmation === "string" ? { confirmation: args.confirmation } : {}),

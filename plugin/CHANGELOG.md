@@ -3,7 +3,62 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.5] - Unreleased
+## [1.0.6] - Unreleased
+
+Status: **blocked until every Windows/Linux certification gate passes against
+the same immutable plugin archive**.
+
+`1.0.5` was sealed and carried through the full thirteen-scenario live campaign
+a second time. Ten scenarios passed, one was partial and two failed. Two of the
+four defects it closed stayed closed; four new ones were found, and three of
+those are the same habit again — a record that is kept faithfully while the
+thing it records has already been decided elsewhere.
+
+### Fixed
+
+- A per-role model pin is no longer lost in silence. The pin lived only in the
+  profile's `model:` line, which is both the request and the resolution of that
+  request, so anything that rewrote the profile from its template erased the
+  request without trace: the arbiter was pinned through the supported path, read
+  back from disk, and was running on `inherit` four minutes later with the ledger
+  faithfully recording it. The request is now kept apart from its resolution,
+  outside the project tree, and the two are compared on every call. A profile
+  rewritten from its own template is structurally perfect, which is why a repair
+  keyed on damage could never put the pin back; a pin missing from the file it
+  was set on is now itself the thing to repair, and a role about to be dispatched
+  on a model other than the one asked for is named before it runs.
+- A gate the control plane ran and a gate a session merely asserted are no
+  longer identical in the record. Both serialised to
+  `{"type":"verification","gate":"…","status":"passed"}` byte for byte, and the
+  only signals separating them — a free-text actor id, and whether an evidence
+  row happened to exist — sat outside the gate entry. A claimed outcome now
+  carries `declared`, which only the caller-facing path can set and always does.
+  Entries written before this field keep their exact bytes and read as what they
+  were.
+- A repaired candidate can be verified again. Evidence ids come from the
+  verification plan and a repair reuses that plan, while evidence was keyed on
+  the evidence id alone — so the refrozen candidate arrived carrying the failed
+  candidate's ids and every gate was refused as "already recorded with a
+  different identity". A gate result belongs to the candidate it was run
+  against, so that is what it is keyed on now, and both candidates keep their
+  rows: the failed run stays in the record rather than being overwritten by the
+  run that fixed it.
+- `CI=1` is no longer accepted as a program name. The `1.0.5` fix enumerated
+  what a program may not contain, and an environment assignment is one word,
+  carries no metacharacter and is on no denylist — yet it is something a shell
+  would have consumed, and the daemon has no shell. A program is now stated
+  positively: a command name, or a path whose final component is one.
+
+### Known and not fixed
+
+- Uninstalling still leaves the marketplace's cached copy of the plugin —
+  roughly 76 MB including a native daemon per platform — in your ZCode profile.
+  That cache belongs to ZCode rather than to the plugin, and deleting the host's
+  marketplace registry from inside a plugin would be a worse fault than the one
+  it fixes. It is inert, it is documented in the README with the exact way to
+  reclaim the space, and it is disclosed here rather than quietly closed.
+
+## [1.0.5] - Superseded by 1.0.6
 
 Status: **blocked until every Windows/Linux certification gate passes against
 the same immutable plugin archive**.

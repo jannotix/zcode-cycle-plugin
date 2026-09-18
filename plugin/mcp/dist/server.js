@@ -1358,6 +1358,30 @@ var ROLE_PROFILES = [
   { file: "security-reviewer.md", role: "security-reviewer" },
   { file: "arbiter.md", role: "arbiter" }
 ];
+async function readPins(path) {
+  if (!path)
+    return {};
+  try {
+    const parsed = JSON.parse(await readBoundedRegularFile(path, "role-model pin record"));
+    return parsed !== null && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    if (isMissing(error))
+      return {};
+    throw error;
+  }
+}
+async function writePins(path, pins) {
+  if (!path)
+    return;
+  await mkdir2(dirname(path), { recursive: true });
+  const temporary = `${path}.${randomUUID2()}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(pins, null, 2)}
+`, {
+    encoding: "utf8",
+    mode: 384
+  });
+  await rename2(temporary, path);
+}
 async function manageRoleProfiles(options) {
   const projectRoot = resolve2(options.projectRoot);
   const pluginRoot = resolve2(options.pluginRoot);
@@ -1377,7 +1401,7 @@ async function manageRoleProfiles(options) {
   const records = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(targetDirectory, profile.role, profile.file, templates.get(profile.role))));
   switch (options.operation) {
     case "status":
-      return report(projectRoot, records, false);
+      return report(projectRoot, records, false, (await readPins(options.pinStorePath))[projectRoot] ?? {});
     case "install":
       requireConfirmation(options.confirmation, "INSTALL_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["managed-drift", "conflict"]), "install");
@@ -1388,19 +1412,23 @@ async function manageRoleProfiles(options) {
         }
       }
       break;
-    case "repair":
+    case "repair": {
       requireConfirmation(options.confirmation, "REPAIR_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["conflict"]), "repair");
+      const pins2 = (await readPins(options.pinStorePath))[projectRoot] ?? {};
       for (const record2 of records) {
-        if (record2.state !== "current") {
+        const pinned = pins2[record2.role];
+        const lostPin = pinned !== undefined && (record2.model ?? INHERIT_MODEL) !== pinned.model;
+        if (record2.state !== "current" || lostPin) {
           const template = templates.get(record2.role);
-          const settings = record2.state === "managed-drift" && record2.content ? extractManagedSettings(record2.content, record2.role) : null;
+          const settings = pinned ?? (record2.state === "managed-drift" && record2.content ? extractManagedSettings(record2.content, record2.role) : null);
           const repaired = settings ? template.replace(/^model:.*$/mu, `model: ${settings.model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${settings.thought_level}`) : template;
           await writeAtomic(record2.target, repaired, record2.state !== "missing");
           changed = true;
         }
       }
       break;
+    }
     case "configure": {
       requireConfirmation(options.confirmation, "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE");
       rejectStates(records, new Set(["missing", "managed-drift", "conflict"]), "configure");
@@ -1422,6 +1450,20 @@ async function manageRoleProfiles(options) {
         await writeAtomic(record2.target, configured, true);
         changed = true;
       }
+      {
+        const pins2 = await readPins(options.pinStorePath);
+        const forProject = { ...pins2[projectRoot] ?? {} };
+        if (model === INHERIT_MODEL) {
+          delete forProject[role];
+        } else {
+          forProject[role] = {
+            model,
+            recorded_at: new Date().toISOString(),
+            thought_level: thoughtLevel
+          };
+        }
+        await writePins(options.pinStorePath, { ...pins2, [projectRoot]: forProject });
+      }
       break;
     }
     case "remove":
@@ -1439,7 +1481,8 @@ async function manageRoleProfiles(options) {
   }
   const afterDirectory = await roleProfileDirectory(projectRoot, false);
   const after = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(afterDirectory, profile.role, profile.file, templates.get(profile.role))));
-  return report(projectRoot, after, changed);
+  const pins = (await readPins(options.pinStorePath))[projectRoot] ?? {};
+  return report(projectRoot, after, changed, pins);
 }
 function canonicalRole(value) {
   const role = ROLE_PROFILES.find((item) => item.role === value)?.role;
@@ -1589,7 +1632,16 @@ async function writeAtomic(target, content, replace) {
     await rm2(backup, { force: true });
   }
 }
-function report(projectRoot, records, changed) {
+function report(projectRoot, records, changed, pins) {
+  const drift = records.flatMap((record2) => {
+    const pinned = pins[record2.role];
+    if (!pinned)
+      return [];
+    const resolved = record2.model ?? INHERIT_MODEL;
+    if (resolved === pinned.model)
+      return [];
+    return [{ on_disk: resolved, pinned: pinned.model, role: record2.role }];
+  });
   return {
     changed,
     profile_directory: join2(projectRoot, ".zcode", "agents"),
@@ -1597,12 +1649,17 @@ function report(projectRoot, records, changed) {
       ...digest ? { digest } : {},
       file: `zcode-cycle-${file}`,
       ...model ? { model } : {},
+      ...pins[role] ? { model_requested: pins[role].model } : {},
       role,
       state,
       ...thought_level ? { thought_level } : {}
     })),
-    ready: records.every((record2) => record2.state === "current"),
-    requires_session_restart: changed
+    ready: records.every((record2) => record2.state === "current") && drift.length === 0,
+    requires_session_restart: changed,
+    ...drift.length > 0 ? {
+      pin_drift: drift,
+      warning: `${drift.length === 1 ? "a role profile no longer carries" : "role profiles no longer carry"} ` + `the model it was pinned to, so ${drift.length === 1 ? "that role" : "those roles"} will be ` + `dispatched on ${drift.map((item) => `${item.role} on ${item.on_disk} instead of ${item.pinned}`).join(", ")}. ` + `Run cycle_role_profiles repair to restore the pinned model before dispatching, or configure the ` + `role to inherit if the pin is no longer wanted.`
+    } : {}
   };
 }
 function sha256(value) {
@@ -1795,6 +1852,7 @@ async function callTool(name, rawArgs) {
         throw new Error("cycle_role_profiles requires ZCODE_PLUGIN_ROOT");
       return manageRoleProfiles({
         operation,
+        pinStorePath: join3(dataDirectory, "runtime", "role-model-pins.json"),
         pluginRoot,
         projectRoot: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
         ...typeof args.confirmation === "string" ? { confirmation: args.confirmation } : {},
