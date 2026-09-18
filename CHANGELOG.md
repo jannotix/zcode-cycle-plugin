@@ -49,6 +49,26 @@ thing it records has already been decided elsewhere.
   would have consumed, and the daemon has no shell. A program is now stated
   positively: a command name, or a path whose final component is one.
 
+### Fixed in the release lane
+
+- The gate that compares a tracked daemon against the plugin manifest now asks
+  the daemon instead of searching it. It scanned the executable for the expected
+  version as a substring, and in a 39 MB binary that sequence occurs on its own:
+  a 1.0.5 Linux daemon was reported as declaring 1.0.6 and passed the gate whose
+  one job is to stop an installation that cannot start. `workflowd --version`
+  answers without a data directory or an IPC handshake. A daemon built for
+  another platform cannot be asked on this one, so it is reported as unverified
+  rather than waved through, and each CI job names with `--require` the daemon it
+  must have actually executed.
+- The tracked Linux daemon carries its executable bit again. It had regressed to
+  `100644`, in 1.0.5 as well. **This was not user-visible**: the control plane
+  never runs the daemon from the plugin tree — it copies it into the data
+  directory at `runtime/native/<target>/<digest>/` with mode `0700` and runs it
+  from there, so neither a checkout nor the sealed archive depends on the bit.
+  What it actually broke was the new gate above, which runs the binary in place
+  to ask its version. The same missing bit *was* user-visible before that
+  staging existed, and is recorded under `1.0.1` for that reason.
+
 ### Recorded as a ZCode limitation
 
 - Uninstalling still leaves the marketplace's cached copy of the plugin —
