@@ -20,13 +20,15 @@ const copy = COPY_MAPPINGS
 // because the bridge rejects a daemon whose version disagrees with the
 // manifest. Checking here also means a refusal leaves the existing plugin
 // directory untouched instead of half-rebuilt.
+// A daemon built for another platform cannot be asked here, and assembling on
+// the strength of a version nobody read is what the scan used to do. Only a
+// daemon that answered, and answered wrong, blocks assembly; one that could not
+// be asked is left to the CI job that can run it.
 const { expected, results } = await checkNativeVersions(root, STAGING_TARGETS)
-const stale = results.filter((result) => result.foreign.length > 0 || !result.declares)
+const stale = results.filter((result) => result.verified && result.declared !== expected)
 if (stale.length > 0) {
-  for (const { declares, foreign, target } of stale) {
-    const detail =
-      foreign.length > 0 ? `carries ${foreign.join(", ")}` : `does not declare ${expected}`
-    console.error(`  ${target} — ${detail}`)
+  for (const { declared, target } of stale) {
+    console.error(`  ${target} — declares ${declared}, expected ${expected}`)
   }
   throw new Error(
     `refusing to assemble: ${stale.length} tracked daemon(s) disagree with plugin version ${expected}`,
