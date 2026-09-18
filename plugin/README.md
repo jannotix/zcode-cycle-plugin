@@ -171,8 +171,9 @@ separate, explicit data-destruction decision after taking any required backup.
    loop; interruption is recovered by `/cycle:resume`.
 
 See [the user manual](docs/USER_MANUAL.md), [command reference](docs/commands/reference.md),
-[threat model](docs/security/threat-model.md) and
-[release plan](https://github.com/jannotix/zcode-cycle-plugin/blob/main/docs/releases/production-release-plan.md).
+[threat model](docs/security/threat-model.md), [release verification](docs/releases/verification.md)
+and the [live certification criteria](docs/releases/zcode-live-certification.md) every
+release is measured against.
 
 ## Update, rollback and removal
 

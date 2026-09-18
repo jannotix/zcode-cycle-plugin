@@ -92,8 +92,21 @@ digest-bound evidence file:
     directory with a build declaring a lower schema version and observe the
     documented safe read-only mode. The stored bytes must be unchanged
     afterwards, compared by digest and not by inspection.
-11. `uninstall`: run `/cycle:setup remove`, uninstall the plugin, verify plugin
-    and project-profile residue is absent while audit data remains intact.
+11. `uninstall`: run `/cycle:setup remove`, uninstall the plugin, and verify the
+    active installation and the project role profiles are absent while audit
+    data remains intact. Any copy the host retains outside the installation must
+    be **inert** - absent from `installed_plugins.json`, with no daemon process
+    running from it - and disclosed in the documentation.
+
+    This row asked for *all* plugin residue to be absent until 1.0.6, and that
+    could never pass. ZCode keeps its marketplace's cached copy of the plugin
+    after an uninstall, and that cache belongs to the host: a plugin reaching
+    into ZCode's registry to erase entries would be a worse fault than the disk
+    space it recovers. The row now measures what this product controls -
+    nothing live is left behind - rather than a host behaviour it cannot change.
+    It is not a weaker test: an inert copy still has to be *proven* inert, by
+    reading `installed_plugins.json` and by counting daemon processes, and the
+    disclosure still has to exist.
 12. `history-survives-version-change`: after scenario 10, reinstall 1.0.4 over
     the same data directory and prove the record came through intact - every
     ledger entry present, the hash chain verifying end to end, every checkpoint
