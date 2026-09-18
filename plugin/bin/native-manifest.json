@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "product_version": "1.0.5",
+  "product_version": "1.0.6",
   "targets": {
     "linux-x64": {
       "path": "bin/linux-x64/workflowd",
-      "sha256": "3b8508e6d80bed56bc928fc414c7cb60e4de1d1946f94833bcf9eb7a042c4e5a",
-      "size": 39196504
+      "sha256": "53e3dc9682cfba5ddd512ff0d0c0cb0e2dc1a844ab3919e768d777f26a091f0c",
+      "size": 39207384
     },
     "win32-x64": {
       "path": "bin/win32-x64/workflowd.exe",
-      "sha256": "577f06834dcbb33337346422514cf10913bfd79bea657b26b371f1d13c13da33",
-      "size": 38027264
+      "sha256": "02ef36fa4def1e875646014fe102c843a585de2fa5177e5c43f952487f374e8a",
+      "size": 38036992
     }
   }
 }

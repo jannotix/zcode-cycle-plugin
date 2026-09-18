@@ -62,6 +62,33 @@ away from its managed baseline is reported as drift and blocks a run, that
 assignment is one the control plane has checked. It is not an observation of the
 inference itself, and no audit trail written outside the host can make it one.
 
+## A pin that goes missing says so
+
+An assignment is recorded apart from the profile it was written into, outside
+the project tree, and the two are compared every time you run `/cycle:setup`.
+When a profile no longer carries the model it was assigned, the result names the
+role, what was asked for and what is actually on disk, and the command reports
+that before anything else.
+
+This exists because the profile's `model:` line used to be both the request and
+its resolution. Anything that rewrote the profile from its managed template
+erased the request without trace, and the run went ahead on the session model
+with the ledger faithfully recording `inherit` — accurate about what it saw, and
+silent about what you had asked for. A profile rewritten from its own template
+is structurally perfect, so `repair` no longer waits for damage: a pin missing
+from the file it was set on is itself the thing to repair.
+
+`/cycle:models <role> inherit` withdraws a pin deliberately, and is not drift.
+
+## Verified and claimed gate results are not the same entry
+
+A gate the control plane ran and a gate a session reported are distinguishable
+in the record: a reported one carries `declared`. Only the caller-facing audit
+path can set it, and it always does, so a claimed pass cannot be mistaken for a
+verified one by anything reading the entry. Entries written before this field
+existed carry their original bytes and read as what they were — produced by the
+control plane.
+
 ## Choosing models
 
 - The **architect** and **arbiter** benefit from the strongest reasoning
