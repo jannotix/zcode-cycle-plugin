@@ -182,6 +182,16 @@ on Linux), never inside the ZCode installation or your repository. The five
 non-secret role configuration files live in `.zcode/agents`; remove them with
 `/cycle:setup remove` before uninstalling. Uninstalling preserves audit data.
 
+Two things about an uninstall are ZCode's behaviour rather than Cycle's, and
+neither can be changed from inside a plugin. ZCode's confirmation dialog warns
+that it removes the plugin's cached files and data directory and that this
+cannot be undone; read that as describing the installation. It does **not**
+remove the marketplace's cached copy of the plugin — roughly 76 MB including a
+native daemon per platform, inert and loaded by nothing — which you reclaim by
+removing the marketplace itself afterwards. And it does not touch your audit
+data, which is the point of keeping the control plane outside the plugin tree.
+See "Known ZCode limitations" in the README.
+
 ## License
 
 Copyright 2026 Gianluca Iannotta. FSL-1.1-MIT: every version becomes

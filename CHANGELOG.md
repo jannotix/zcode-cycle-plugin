@@ -49,14 +49,17 @@ thing it records has already been decided elsewhere.
   would have consumed, and the daemon has no shell. A program is now stated
   positively: a command name, or a path whose final component is one.
 
-### Known and not fixed
+### Recorded as a ZCode limitation
 
 - Uninstalling still leaves the marketplace's cached copy of the plugin —
   roughly 76 MB including a native daemon per platform — in your ZCode profile.
-  That cache belongs to ZCode rather than to the plugin, and deleting the host's
-  marketplace registry from inside a plugin would be a worse fault than the one
-  it fixes. It is inert, it is documented in the README with the exact way to
-  reclaim the space, and it is disclosed here rather than quietly closed.
+  This is host behaviour: the cache and its registry belong to ZCode, and a
+  plugin reaching into them to erase entries would be a worse fault than the
+  disk space it recovers. ZCode's confirmation dialog compounds it by promising
+  to remove "the plugin's cached files" and then not removing those. The
+  retained copy is inert, and the README now carries a **Known ZCode
+  limitations** section saying so plainly, with the way to reclaim the space.
+  Recorded as a limitation of the host rather than closed as a defect of Cycle.
 
 ## [1.0.5] - Superseded by 1.0.6
 

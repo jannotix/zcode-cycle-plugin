@@ -184,13 +184,37 @@ See [the user manual](docs/USER_MANUAL.md), [command reference](docs/commands/re
 - Before uninstalling, run `/cycle:setup remove` in every configured project;
   then remove the plugin in ZCode. Remove the data directory separately only
   if the ledger, memory, evidence and recovery state are no longer required.
-- Uninstalling removes the active installation, not the marketplace's cached
-  copy. ZCode keeps the plugin it downloaded — roughly 76 MB, including the
-  native daemon for each supported platform — under the marketplace cache in
-  your ZCode profile, and its confirmation dialog does not say so. The copy is
-  inert: it is not listed in `installed_plugins.json`, so nothing loads it and
-  no daemon runs from it. To reclaim the space, remove the marketplace itself in
-  ZCode after uninstalling the plugin.
+- **A ZCode limitation, not a Cycle one:** uninstalling removes the active
+  installation and leaves the marketplace's cached copy behind. See below.
+
+## Known ZCode limitations
+
+These are host behaviours. Cycle cannot change them from inside a plugin, and
+they are recorded here so that what you see after an uninstall is expected
+rather than alarming.
+
+**An uninstall does not remove the marketplace's cached copy.** ZCode keeps the
+plugin it downloaded — roughly 76 MB, including the native daemon for each
+supported platform — under the marketplace cache in your ZCode profile.
+
+ZCode's confirmation dialog states that it removes "the plugin's cached files,
+its data directory, and any saved configuration" and that this "cannot be
+undone". The cached files under the marketplace are not among them. Treat the
+dialog's wording as describing the installation, not the cache.
+
+The retained copy is inert: it is not listed in `installed_plugins.json`, so
+nothing loads it, and no daemon process runs from it after an uninstall. It
+costs disk space and nothing else.
+
+To reclaim the space, remove the marketplace itself in ZCode after uninstalling
+the plugin. Cycle deliberately does not delete it for you: the marketplace cache
+and its registry belong to ZCode, and a plugin reaching into the host's registry
+to erase entries would be a worse fault than the disk space it recovers.
+
+Your audit data is a separate matter and is **not** removed by an uninstall.
+The Cycle control plane lives outside the plugin tree precisely so that removing
+the plugin cannot destroy the ledger, memory, evidence and recovery state.
+Delete that directory yourself only when you no longer need the record.
 
 ## Development checks
 
