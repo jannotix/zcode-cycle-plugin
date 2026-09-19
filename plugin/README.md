@@ -7,8 +7,17 @@ state, candidate bytes, verification evidence and delivery.
 
 ## Release status
 
-- `1.0.5` is the unreleased production version. Do not distribute it until the
-  exact Windows/Linux artifact has completed the release matrix.
+- `1.0.7` is the current production version. It is `1.0.6` with six defects
+  closed, all of them found by running `1.0.6`'s own published archive through
+  the thirteen-scenario live campaign on Windows and Linux. See the
+  [changelog](CHANGELOG.md).
+- `1.0.6` is published and superseded. Eleven of thirteen scenarios passed; the
+  two that failed — per-role model dispatch and recovery after an abrupt stop —
+  are closed in `1.0.7`, along with a project-identity split, a first-run
+  deadlock, path-blind risk routing and one documentation error. Do not install
+  it in preference to `1.0.7`.
+- `1.0.5` was never published. It was sealed and carried through the full
+  campaign a second time: ten scenarios passed, one was partial and two failed.
 - `1.0.4` is a superseded, never-published candidate. It was sealed and carried
   through the full thirteen-scenario live campaign: nine scenarios passed, two
   were partial and two failed, and eight defects were found — among them a
@@ -38,7 +47,7 @@ state, candidate bytes, verification evidence and delivery.
 - `1.0.0` is withdrawn and must not be installed. Its historical tag is kept
   for auditability and is not reused.
 
-## Supported scope for 1.0.5
+## Supported scope for 1.0.7
 
 | Platform | Status |
 |---|---|
@@ -62,7 +71,7 @@ name another.
 ## Installation
 
 Production users should install the plugin only from the official ZCode public
-marketplace after version `1.0.5` is accepted and published. Official
+marketplace after version `1.0.7` is accepted and published. Official
 installation matters because the role profiles, the hook and the native daemon
 all run with your privileges, and a trusted source is what makes their bytes
 accountable.
@@ -111,10 +120,13 @@ arms a governed run.
   setup/model command forms and never overwrite an unowned conflicting file.
 - Each role can be pinned to its own model, and the ledger records the model
   that role's profile pins — Cycle cannot observe ZCode's dispatch, so the
-  record attests the assignment, not the inference. Governed roles accept only
-  the models ZCode ships for the Z.ai coding plan; third-party models you add to
-  ZCode are not accepted for a role, and a profile naming one is reported as
-  drift. Your main session is unaffected.
+  record attests the assignment, not the inference. Cycle validates the *shape*
+  of a model reference and nothing more: only ZCode resolves providers, and it
+  answers when a role is dispatched. A pinned role is therefore reported as
+  `dispatch_unverified` until it has started once, and a governed run probes
+  every pinned role before it begins — so a provider ZCode cannot resolve costs
+  you seconds rather than a whole architecture, execution and verification pass.
+  Your main session is unaffected.
 - The executor modifies an isolated Git worktree within declared write scopes.
   It may stage and commit those worktree changes.
 - The executor is not sandboxed: it holds edit and shell tools. What bounds it
@@ -186,7 +198,7 @@ release is measured against.
   then remove the plugin in ZCode. Remove the data directory separately only
   if the ledger, memory, evidence and recovery state are no longer required.
 - **A ZCode limitation, not a Cycle one:** uninstalling removes the active
-  installation and leaves the marketplace's cached copy behind. See below.
+  installation and leaves the marketplace's own mirror behind. See below.
 
 ## Known ZCode limitations
 
@@ -194,23 +206,31 @@ These are host behaviours. Cycle cannot change them from inside a plugin, and
 they are recorded here so that what you see after an uninstall is expected
 rather than alarming.
 
-**An uninstall does not remove the marketplace's cached copy.** ZCode keeps the
-plugin it downloaded — roughly 76 MB, including the native daemon for each
-supported platform — under the marketplace cache in your ZCode profile.
+**An uninstall does not remove the marketplace's mirror of the plugin.** The
+installed copy under `plugins/cache/<marketplace>/<plugin>/<version>/` *is*
+removed — that directory is emptied completely. What remains is ZCode's mirror
+of the marketplace source, under `plugins/marketplaces/<marketplace>/` in your
+ZCode profile: roughly 76 MB, and larger than the installation was, because it
+carries the native daemon for **every** supported platform rather than only
+yours.
+
+Look in the right place. Someone who checks the plugin cache after an uninstall
+finds it empty and concludes the removal was complete; the 76 MB is elsewhere.
 
 ZCode's confirmation dialog states that it removes "the plugin's cached files,
 its data directory, and any saved configuration" and that this "cannot be
-undone". The cached files under the marketplace are not among them. Treat the
-dialog's wording as describing the installation, not the cache.
+undone". The marketplace mirror is not among them, and neither is your Cycle
+data directory — the dialog means ZCode's own per-plugin data directory under
+`plugins/data/`. Treat the wording as describing the installation.
 
 The retained copy is inert: it is not listed in `installed_plugins.json`, so
 nothing loads it, and no daemon process runs from it after an uninstall. It
 costs disk space and nothing else.
 
 To reclaim the space, remove the marketplace itself in ZCode after uninstalling
-the plugin. Cycle deliberately does not delete it for you: the marketplace cache
-and its registry belong to ZCode, and a plugin reaching into the host's registry
-to erase entries would be a worse fault than the disk space it recovers.
+the plugin. Cycle deliberately does not delete it for you: the mirror and its
+registry belong to ZCode, and a plugin reaching into the host's registry to
+erase entries would be a worse fault than the disk space it recovers.
 
 Your audit data is a separate matter and is **not** removed by an uninstall.
 The Cycle control plane lives outside the plugin tree precisely so that removing
@@ -243,7 +263,7 @@ are the bytes that were published, then tell Windows you accept them.
 on the release page:
 
 ```powershell
-Get-FileHash .\zcode-cycle-1.0.6.zip -Algorithm SHA256
+Get-FileHash .\zcode-cycle-1.0.7.zip -Algorithm SHA256
 ```
 
 **2. Verify the build provenance** — this proves the archive was built by this
@@ -251,7 +271,7 @@ repository's release workflow, from the commit the release names, and not
 assembled by someone else:
 
 ```powershell
-gh attestation verify .\zcode-cycle-1.0.6.zip --repo jannotix/zcode-cycle-plugin
+gh attestation verify .\zcode-cycle-1.0.7.zip --repo jannotix/zcode-cycle-plugin
 ```
 
 **3. Only if both check out**, remove the Mark of the Web:
@@ -296,7 +316,7 @@ ZCode checks, and SBOM/notices/provenance.
 
 ### Windows code signing
 
-The bundled `workflowd.exe` is **not** Authenticode signed in `1.0.5`. Windows
+The bundled `workflowd.exe` is **not** Authenticode signed in `1.0.7`. Windows
 SmartScreen will warn on first use, some endpoint protection may quarantine it,
 and environments that refuse unsigned executables by policy will refuse it.
 
@@ -308,7 +328,7 @@ Build provenance is attested for the sealed artifacts. Integrity is therefore
 demonstrated; what is missing is the operating system's own trust decision and a
 publisher identity carried inside the file.
 
-Signing returns in a later version. Published versions are immutable, so `1.0.5`
+Signing returns in a later version. Published versions are immutable, so `1.0.7`
 stays unsigned for its whole life.
 
 On Linux there is no Authenticode equivalent and none is claimed. The guarantee
@@ -331,6 +351,3 @@ date. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 Cycle for Zcode is an independent integration. It is not affiliated with,
 sponsored by or endorsed by ZCode or its operator. ZCode names and trademarks
 belong to their respective owners.
-
-Development disclosure: changes prepared for `1.0.5` include AI-assisted code
-and documentation and require human owner review before publication.

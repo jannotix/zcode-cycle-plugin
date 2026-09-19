@@ -299,11 +299,43 @@ fn early_recovery(
             }
         })
         .map_err(|error| format!("workflow worktree cannot be inspected: {error}"))?;
-    if worktree_exists != base_revision.is_some() {
-        return Err("workflow worktree recovery state is inconsistent".to_owned());
-    }
+    // A worktree exists on disk if and only if a base revision was recorded.
+    // When a session dies between those two writes the invariant breaks, and
+    // until 1.0.7 recovery refused outright.
+    //
+    // Refusing was the wrong answer twice over. Recovery only READS: the guards
+    // that matter live on prepare_worktree and freeze, and they still hold. And
+    // the refusal returned before `originalRequest` was assembled, so the one
+    // thing an interrupted operator cannot reconstruct - the immutable request
+    // text - was withheld precisely when it was needed. The 1.0.6 certification
+    // hit this: the workflow could not continue, could not be reconciled, the
+    // request had to be retyped, and the project stayed mutation-locked until
+    // the operator discovered the cancel path unaided.
+    //
+    // So name the inconsistency and hand back everything known about it.
+    let worktree_state = match (worktree_exists, base_revision.is_some()) {
+        (true, true) | (false, false) => "consistent",
+        // A directory was created before its base revision reached the store.
+        // Nothing was executed against it; it is safe to discard and re-prepare.
+        (true, false) => "orphaned_worktree",
+        // The store remembers a base revision whose directory is gone.
+        (false, true) => "missing_worktree",
+    };
 
     let mut result = serde_json::Map::new();
+    result.insert("worktreeState".to_owned(), json!(worktree_state));
+    if worktree_state != "consistent" {
+        result.insert(
+            "recoveryAction".to_owned(),
+            json!(if worktree_state == "orphaned_worktree" {
+                "Discard the worktree directory and prepare it again, or cancel the workflow. \
+                 No task was executed against it."
+            } else {
+                "Prepare the worktree again from the recorded base revision, or cancel the \
+                 workflow. The recorded base revision is returned as baseRevision."
+            }),
+        );
+    }
     result.insert("mode".to_owned(), json!(mode));
     result.insert("originalRequest".to_owned(), json!(request.original_text()));
     result.insert("requestDigest".to_owned(), json!(request.digest()));

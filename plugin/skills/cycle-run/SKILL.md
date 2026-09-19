@@ -9,7 +9,10 @@ The daemon owns every transition and refuses out-of-order submissions. Your
 job is to feed it exact inputs, dispatch roles, and relay outcomes. Never
 fabricate a state the daemon did not return.
 
-Throughout: `project_key` is this workspace's stable project key. Before every
+Throughout: pass the project's absolute directory as `project_key`. The bridge
+derives the project identity from the directory it was started for and uses that
+regardless, so the value you pass cannot split one project into two. Do not
+invent a slug, and do not carry a key over from an earlier session. Before every
 role dispatch, generate a fresh UUID role token, call `cycle_role_register`
 with that token as `session_id`, the exact role, project key and workflow id,
 and include the token in the dispatched prompt. Revoke that exact token after
@@ -22,6 +25,23 @@ cannot start for any reason (including an unsupported model or thought level),
 cancel or block the workflow and report the configuration error. Never retry
 with `general-purpose`, another profile, another model, or an unregistered
 session. A substitute agent is not evidence for the configured role.
+
+## 0a. Probe every pinned role before any work
+
+Call `cycle_role_profiles` with the `status` operation. Every role reported with
+`dispatch_unverified: true` carries a model this plugin cannot vouch for: only
+the host resolves providers, and it answers at dispatch. Before `cycle_start`,
+dispatch each such role once with a throwaway prompt that asks for a single word
+and nothing else.
+
+If a probe cannot start, stop here and report the configuration error with the
+host's exact message. Do not begin a workflow. A pinned model that cannot be
+dispatched otherwise surfaces only at the review phase, after an architecture, an
+execution and five verification gates have already been paid for — which is what
+the 1.0.6 certification measured, three times.
+
+Roles on `inherit` need no probe: that is the model the session is already
+running on.
 
 ## 0. Capture and start
 

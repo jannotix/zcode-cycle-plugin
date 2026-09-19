@@ -10,6 +10,7 @@ import {
   type MemoryOperation,
 } from "./client.js"
 import { architecturePlanSchema, validateArchitecturePlan } from "./architecture-plan.js"
+import { canonicalProjectKey } from "./project-key.js"
 import { manageRoleProfiles } from "./role-profiles.js"
 import { productVersion } from "./version.js"
 
@@ -191,7 +192,9 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
     string,
     unknown
   >
-  const projectKey = typeof args.project_key === "string" ? args.project_key : ""
+  // One directory, one project identity. The caller's `project_key` is accepted
+  // for compatibility and deliberately ignored - see canonicalProjectKey.
+  const projectKey = canonicalProjectKey()
   switch (name) {
     case "cycle_health":
       return { ...(await plane.health()), data_directory: dataDirectory }

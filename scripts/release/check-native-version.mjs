@@ -73,14 +73,29 @@ export async function checkNativeVersions(
       continue
     }
     if (!runnableHere(target, platform)) {
-      results.push({ reason: "built for another platform", target, verified: false })
+      results.push({
+        reason: "built for another platform",
+        runnable: false,
+        target,
+        verified: false,
+      })
       continue
     }
     try {
       const { stdout } = await run(path, ["--version"], { timeout: 30_000 })
-      results.push({ declared: stdout.trim(), target, verified: true })
+      results.push({ declared: stdout.trim(), runnable: true, target, verified: true })
     } catch (error) {
-      results.push({ reason: `could not be asked: ${error.message}`, target, verified: false })
+      // A daemon that runs on this machine and still will not answer is not a
+      // skip. `--version` was added in 1.0.6, so the one thing that cannot
+      // answer is a daemon older than the release that introduced the flag -
+      // exactly what this gate exists to catch. Reported as a skip it passed,
+      // and `runnable` is what separates it from a binary for another platform.
+      results.push({
+        reason: `could not be asked: ${error.message}`,
+        runnable: true,
+        target,
+        verified: false,
+      })
     }
   }
   return { expected, results }
@@ -98,9 +113,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 
   const { expected, results } = await checkNativeVersions()
   let failed = false
-  for (const { declared, reason, target, verified } of results) {
+  for (const { declared, reason, runnable, target, verified } of results) {
     if (!verified) {
-      process.stdout.write(`${target}: not verified here (${reason})\n`)
+      if (runnable) {
+        failed = true
+        process.stdout.write(`${target}: runs here and would not answer --version (${reason})\n`)
+      } else {
+        process.stdout.write(`${target}: not verified here (${reason})\n`)
+      }
       continue
     }
     if (declared === expected) {

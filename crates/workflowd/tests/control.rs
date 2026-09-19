@@ -574,6 +574,110 @@ fn recovery_returns_quick_execution_plan_before_worktree_creation() {
     assert_eq!(recovery["plan"], serde_json::json!(plan));
     assert!(recovery.get("baseRevision").is_none());
     assert!(!worktrees.exists());
+    assert_eq!(recovery["worktreeState"], "consistent");
+    assert!(recovery.get("recoveryAction").is_none());
+}
+
+/// A session killed between creating the worktree directory and recording its
+/// base revision leaves the two out of step. Until 1.0.7 recovery refused with
+/// "workflow worktree recovery state is inconsistent" and returned nothing -
+/// including the immutable request text, which is the one thing an interrupted
+/// operator cannot reconstruct. The 1.0.6 certification reproduced exactly this:
+/// the workflow could not continue, could not be reconciled, and the project
+/// stayed mutation-locked until the operator found the cancel path unaided.
+#[test]
+fn recovery_reports_an_orphaned_worktree_instead_of_refusing() {
+    let temporary = tempfile::tempdir().unwrap();
+    let worktrees = temporary.path().join("worktrees");
+    let mut store = Store::open(
+        temporary.path().join("workflow.db"),
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .unwrap();
+    let workflow_id = WorkflowId::new();
+    let project_key = "orphaned-worktree-project";
+    let project_id = ProjectId::from_stable_key(project_key);
+    let request = RequestRecord::new("Add a clampToPercent helper.".to_owned(), vec![]);
+    let timestamp = WorkflowTimestamp::now();
+    store
+        .save_request_once(workflow_id, project_id, &request, timestamp)
+        .unwrap();
+    store
+        .apply_workflow_command(
+            workflow_id,
+            "intake",
+            WorkflowCommand::CompleteIntake,
+            timestamp,
+        )
+        .unwrap();
+    store
+        .apply_workflow_command(
+            workflow_id,
+            "route",
+            WorkflowCommand::Route(WorkflowMode::Quick),
+            timestamp,
+        )
+        .unwrap();
+
+    // Quick execution recovers its plan, so the architecture must exist - as it
+    // did in the run this reproduces, where the kill landed after the plan was
+    // accepted and before the worktree was recorded.
+    let plan = ArchitecturePlan::validate(
+        request.digest(),
+        vec![Requirement {
+            acceptance_criteria: vec!["clampToPercent clamps into 0..=100.".to_owned()],
+            id: "REQ-1".to_owned(),
+            statement: "utils.js exposes clampToPercent.".to_owned(),
+        }],
+        vec![PlannedTask {
+            acceptance_criteria: vec!["The regression test passes.".to_owned()],
+            dependencies: vec![],
+            id: TaskId::new(),
+            objective: "Add clampToPercent.".to_owned(),
+            requirement_ids: vec!["REQ-1".to_owned()],
+            title: "Add clampToPercent".to_owned(),
+            verification_commands: vec!["npm test".to_owned()],
+            write_scopes: vec!["utils.js".to_owned()],
+        }],
+        vec![],
+        vec![],
+        vec!["Run the complete test suite.".to_owned()],
+    )
+    .unwrap();
+    store
+        .save_architecture_once(workflow_id, &plan, timestamp)
+        .unwrap();
+
+    // The directory reached the disk; its base revision never reached the store.
+    std::fs::create_dir_all(
+        worktrees
+            .join(project_id.to_string())
+            .join(workflow_id.to_string()),
+    )
+    .unwrap();
+
+    let recovery = workflowd::control::execute(
+        &mut store,
+        &CheckpointKey::generate().unwrap(),
+        &worktrees,
+        project_key,
+        Some(workflow_id),
+        ControlOperation::Recovery,
+        ReceiptId::new(),
+    )
+    .expect("recovery must report an inconsistency, not refuse to speak");
+
+    assert_eq!(recovery["worktreeState"], "orphaned_worktree");
+    assert!(
+        recovery["recoveryAction"]
+            .as_str()
+            .unwrap()
+            .contains("Discard the worktree directory")
+    );
+    // The point of recovering at all: the operator gets their request back.
+    assert_eq!(recovery["originalRequest"], "Add a clampToPercent helper.");
+    assert_eq!(recovery["requestDigest"], request.digest().to_string());
+    assert!(recovery.get("baseRevision").is_none());
 }
 
 #[test]

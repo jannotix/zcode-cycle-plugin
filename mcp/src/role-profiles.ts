@@ -236,7 +236,14 @@ export async function manageRoleProfiles(options: RoleProfileOptions): Promise<o
     ),
   )
   const pins = (await readPins(options.pinStorePath))[projectRoot] ?? {}
-  return report(projectRoot, after, changed, pins)
+  // The profiles this plugin writes are its own, not the operator's work. Keep
+  // them out of the project's change set so a governed cycle can still freeze a
+  // candidate immediately after setup.
+  const gitExcludeWarning =
+    options.operation === "install" || options.operation === "repair"
+      ? await excludeManagedProfilesFromGit(projectRoot)
+      : null
+  return report(projectRoot, after, changed, pins, gitExcludeWarning)
 }
 
 function canonicalRole(value: string | undefined): Role {
@@ -333,26 +340,120 @@ function extractManagedSettings(
   return { model, thought_level: thoughtLevel }
 }
 
+/**
+ * Keep the profiles this plugin writes out of the project's own change set.
+ *
+ * `install` writes five files into `<project>/.zcode/agents/`. In a git project
+ * that leaves the tree dirty, and the freeze guard then refuses a candidate
+ * because "the project changed while this workflow was holding it". Committing
+ * them trades that refusal for another: the freeze also requires the project to
+ * sit at the workflow's start revision, which the commit just moved. Both exits
+ * the first error offers are closed by the second, and the 1.0.6 certification
+ * deadlocked there on its first live full-route run.
+ *
+ * `.git/info/exclude` is git's per-clone ignore list. It is never committed and
+ * never shared, so this changes nothing a collaborator would see - it only stops
+ * the plugin's own managed files from looking like the operator's unreviewed work.
+ *
+ * Failure here is reported, never fatal: a project that is not a git repository,
+ * or a git directory this process cannot write, must not block an install.
+ */
+async function excludeManagedProfilesFromGit(projectRoot: string): Promise<string | null> {
+  const marker = ".zcode/"
+  let gitDirectory: string
+  try {
+    const dotGit = join(projectRoot, ".git")
+    const stats = await lstat(dotGit)
+    if (stats.isDirectory()) {
+      gitDirectory = dotGit
+    } else {
+      // A linked worktree stores `gitdir: <path>`; its exclude file lives in the
+      // common directory when one is recorded.
+      const pointer = (await readFile(dotGit, "utf8")).trim()
+      const target = pointer.startsWith("gitdir:") ? pointer.slice("gitdir:".length).trim() : ""
+      if (target === "") return "the project's .git is neither a directory nor a gitdir pointer"
+      const resolved = resolve(projectRoot, target)
+      const common = await readFile(join(resolved, "commondir"), "utf8").catch(() => null)
+      gitDirectory = common === null ? resolved : resolve(resolved, common.trim())
+    }
+  } catch {
+    return "the project is not a git repository"
+  }
+
+  try {
+    const excludePath = join(gitDirectory, "info", "exclude")
+    const existing = await readFile(excludePath, "utf8").catch(() => "")
+    const alreadyListed = existing
+      .split(/\r?\n/u)
+      .some((line) => line.trim() === marker || line.trim() === ".zcode")
+    if (alreadyListed) return null
+    await mkdir(dirname(excludePath), { recursive: true })
+    const separator = existing === "" || existing.endsWith("\n") ? "" : "\n"
+    await writeFile(
+      excludePath,
+      `${existing}${separator}# Managed by ZCode Cycle: role profiles are not project content.\n${marker}\n`,
+      "utf8",
+    )
+    return null
+  } catch (error) {
+    return `could not update .git/info/exclude: ${(error as Error).message}`
+  }
+}
+
 function validModel(value: string): boolean {
   return value === INHERIT_MODEL || MODEL_REF.test(value) || CUSTOM_MODEL_REF.test(value)
 }
 
+/**
+ * Which model references this plugin will accept.
+ *
+ * Until 1.0.7 the answer was a fixed list of three `custom:builtin:zai-coding-plan:*`
+ * refs. The 1.0.6 certification put all three through a governed run on a host
+ * that resolves providers under `account:zai-individual-coding-plan`, and every
+ * one of them died at dispatch with `provider-not-found` - on the provider
+ * PREFIX, not the model name. The only setting that worked was `inherit`, which
+ * is the absence of the feature the product is named for.
+ *
+ * A plugin cannot enumerate a host's providers, so it has no business deciding
+ * which ones exist. It validates the SHAPE of a reference and lets the host
+ * answer the rest. What it owes the operator instead is that the answer arrives
+ * early and in plain words - see `dispatch_unverified` in the report.
+ */
 function supportedModel(value: string): boolean {
-  return value === INHERIT_MODEL || BUILTIN_ZAI_MODEL_CAPABILITIES.has(value)
+  return validModel(value)
 }
 
+/** Thought levels this product knows how to write into a profile. */
+const KNOWN_THOUGHT_LEVELS: readonly string[] = ["low", "high", "max", "enabled", "off"]
+
 function defaultThoughtLevel(model: string): string {
-  return model === "custom:builtin:zai-coding-plan:GLM-5-Turbo" ? "off" : INHERIT_THOUGHT_LEVEL
+  return BUILTIN_ZAI_MODEL_CAPABILITIES.get(model)?.has("off") === true
+    ? "off"
+    : INHERIT_THOUGHT_LEVEL
 }
 
 function supportsThoughtLevel(model: string, thoughtLevel: string): boolean {
   if (model === INHERIT_MODEL) return thoughtLevel === INHERIT_THOUGHT_LEVEL
-  return BUILTIN_ZAI_MODEL_CAPABILITIES.get(model)?.has(thoughtLevel) ?? false
+  const known = BUILTIN_ZAI_MODEL_CAPABILITIES.get(model)
+  return known ? known.has(thoughtLevel) : KNOWN_THOUGHT_LEVELS.includes(thoughtLevel)
 }
 
 function supportedThoughtLevels(model: string): readonly string[] {
   if (model === INHERIT_MODEL) return [INHERIT_THOUGHT_LEVEL]
-  return [...(BUILTIN_ZAI_MODEL_CAPABILITIES.get(model) ?? [])]
+  return [...(BUILTIN_ZAI_MODEL_CAPABILITIES.get(model) ?? KNOWN_THOUGHT_LEVELS)]
+}
+
+/**
+ * A pinned model the plugin cannot vouch for.
+ *
+ * `inherit` is known to dispatch: it is the model the session itself is running
+ * on. Anything else is the host's to resolve, and the plugin learns whether it
+ * can only when a role is dispatched. Saying so is the difference between a
+ * failure that costs seconds and one that costs a full architecture, execution
+ * and five verification gates.
+ */
+function dispatchUnverified(model: string | undefined): boolean {
+  return model !== undefined && model !== INHERIT_MODEL
 }
 
 function rejectStates(records: readonly ProfileRecord[], denied: ReadonlySet<ProfileState>, action: string): void {
@@ -410,6 +511,8 @@ function report(
   records: readonly ProfileRecord[],
   changed: boolean,
   pins: Record<string, Pin>,
+  /** Why the managed profiles could not be excluded from git, when they could not. */
+  gitExcludeWarning?: string | null,
 ): object {
   // DEFECT-25: what was asked for, against what is on disk and will actually be
   // dispatched. A pin that no longer appears in its profile is reported by name
@@ -427,6 +530,7 @@ function report(
     profile_directory: join(projectRoot, ".zcode", "agents"),
     profiles: records.map(({ digest, file, model, role, state, thought_level }) => ({
       ...(digest ? { digest } : {}),
+      ...(dispatchUnverified(model) ? { dispatch_unverified: true } : {}),
       file: `zcode-cycle-${file}`,
       ...(model ? { model } : {}),
       ...(pins[role] ? { model_requested: pins[role]!.model } : {}),
@@ -436,6 +540,26 @@ function report(
     })),
     ready: records.every((record) => record.state === "current") && drift.length === 0,
     requires_session_restart: changed,
+    ...(records.some((record) => dispatchUnverified(record.model))
+      ? {
+          dispatch_unverified_warning:
+            `${records
+              .filter((record) => dispatchUnverified(record.model))
+              .map((record) => `${record.role} on ${record.model}`)
+              .join(", ")}. This plugin validates the shape of a model reference; only the host can ` +
+            `resolve the provider, and it reports that at dispatch. Probe each pinned role before ` +
+            `starting a governed cycle, so a provider-not-found costs seconds rather than a full ` +
+            `architecture, execution and verification pass.`,
+        }
+      : {}),
+    ...(gitExcludeWarning
+      ? {
+          git_exclude_warning:
+            `${gitExcludeWarning}. The managed role profiles under .zcode/ will therefore appear as ` +
+            `uncommitted project changes, and a governed cycle cannot freeze a candidate while they do. ` +
+            `Add .zcode/ to .git/info/exclude, or commit the profiles before starting a cycle.`,
+        }
+      : {}),
     ...(drift.length > 0
       ? {
           pin_drift: drift,

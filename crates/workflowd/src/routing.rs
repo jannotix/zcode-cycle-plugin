@@ -141,8 +141,98 @@ pub fn decide_and_record(
     })
 }
 
+/// Path markers that raise a CRITICAL category on their own.
+///
+/// Until 1.0.7 no path could raise Authentication, Authorization, Cryptography
+/// or Secrets: only the request text could, and only by literal marker. A change
+/// to `auth.js` therefore routed to `quick` - no independent reviews - unless the
+/// author happened to write the word "authentication" in their request. The 1.0.6
+/// certification demonstrated exactly that, twice, on the same fixture.
+///
+/// Matched as whole tokens, not substrings, so `auth.js` matches and `authors.md`
+/// does not.
+const PATH_MARKERS: &[(RiskCategory, &[&str])] = &[
+    (
+        RiskCategory::Authentication,
+        &[
+            "auth", "login", "logout", "signin", "signup", "oauth", "oidc", "saml", "password",
+            "passwd", "mfa", "totp",
+        ],
+    ),
+    (
+        RiskCategory::Authorization,
+        &[
+            "authz",
+            "rbac",
+            "permission",
+            "permissions",
+            "acl",
+            "entitlement",
+        ],
+    ),
+    (
+        RiskCategory::Cryptography,
+        &[
+            "crypto", "cipher", "encrypt", "decrypt", "keystore", "x509", "tls",
+        ],
+    ),
+    (
+        RiskCategory::Secrets,
+        &[
+            "secret",
+            "secrets",
+            "credential",
+            "credentials",
+            "vault",
+            "keyring",
+        ],
+    ),
+    (RiskCategory::TrustBoundary, &["sandbox", "isolation"]),
+];
+
+/// Extensions that are secret material whatever they are called.
+const SECRET_EXTENSIONS: &[&str] = &[".pem", ".p12", ".pfx", ".jks", ".env"];
+
+/// Split a path the way `contains_marker` splits request text, so a marker only
+/// matches a whole path token.
+fn path_tokens(normalized: &str) -> impl Iterator<Item = &str> {
+    normalized
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+}
+
 fn classify_path(path: &str, rationales: &mut BTreeMap<RiskCategory, BTreeSet<String>>) {
     let normalized = path.replace('\\', "/").to_ascii_lowercase();
+
+    // Documentation cannot introduce an authentication flaw. Classifying
+    // `docs/security/auth.md` as critical would route prose through two
+    // independent reviews, so documentation wins and nothing else is applied.
+    if normalized.starts_with("docs/") || normalized.ends_with(".md") {
+        rationales
+            .entry(RiskCategory::Documentation)
+            .or_default()
+            .insert(path.to_owned());
+        return;
+    }
+
+    for (category, markers) in PATH_MARKERS {
+        if path_tokens(&normalized).any(|token| markers.contains(&token)) {
+            rationales
+                .entry(*category)
+                .or_default()
+                .insert(path.to_owned());
+        }
+    }
+    if SECRET_EXTENSIONS
+        .iter()
+        .any(|extension| normalized.ends_with(extension))
+    {
+        rationales
+            .entry(RiskCategory::Secrets)
+            .or_default()
+            .insert(path.to_owned());
+    }
+
     let mappings = [
         (RiskCategory::DatabaseMigration, ["/migrations/", ".sql"]),
         (RiskCategory::Packaging, ["/installer/", "/packaging/"]),
@@ -169,12 +259,6 @@ fn classify_path(path: &str, rationales: &mut BTreeMap<RiskCategory, BTreeSet<St
     {
         rationales
             .entry(RiskCategory::NewDependency)
-            .or_default()
-            .insert(path.to_owned());
-    }
-    if normalized.starts_with("docs/") || normalized.ends_with(".md") {
-        rationales
-            .entry(RiskCategory::Documentation)
             .or_default()
             .insert(path.to_owned());
     }

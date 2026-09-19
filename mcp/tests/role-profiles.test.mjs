@@ -61,16 +61,21 @@ test("managed project role profiles install, configure, repair and remove fail c
       )
     }
 
-    await assert.rejects(
-      manageRoleProfiles(
-        options(projectRoot, "configure", {
-          confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
-          model: "anthropic/claude-sonnet",
-          role: "executor",
-        }),
-      ),
-      /not supported by this Cycle release/u,
+    // 1.0.7: a well-formed reference this plugin does not recognise is ACCEPTED
+    // and flagged. Only the host resolves providers, and the fixed list this
+    // release used to enforce named three that no host in the 1.0.6 campaign
+    // could dispatch. What the operator is owed is the warning, not a refusal.
+    const foreign = await manageRoleProfiles(
+      options(projectRoot, "configure", {
+        confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+        model: "anthropic/claude-sonnet",
+        role: "executor",
+      }),
     )
+    const executorProfile = foreign.profiles.find((profile) => profile.role === "executor")
+    assert.equal(executorProfile.model, "anthropic/claude-sonnet")
+    assert.equal(executorProfile.dispatch_unverified, true)
+    assert.match(foreign.dispatch_unverified_warning, /only the host can resolve the provider/u)
 
     const turbo = await manageRoleProfiles(
       options(projectRoot, "configure", {

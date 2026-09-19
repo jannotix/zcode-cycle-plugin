@@ -3,10 +3,138 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.6] - Unreleased
+## [1.0.7] - Unreleased
 
-Status: **blocked until every Windows/Linux certification gate passes against
-the same immutable plugin archive**.
+Seven defects closed. Six of them were found by taking `1.0.6`'s **published**
+archive — downloaded with `gh release download`, checksum-verified and checked
+against its build provenance attestation — and running the thirteen-scenario
+live campaign against those exact bytes on Windows and in WSL. Eleven scenarios
+passed. The two that failed are the first two below. The seventh was found while
+assembling this release, and is the last one.
+
+### Per-role model assignment was configurable but not usable
+
+`/cycle:models` accepted exactly three model references, all under the
+`custom:builtin:zai-coding-plan:` prefix, and reported them as applied with no
+warning. All three failed at dispatch with `provider-not-found` — on the provider
+**prefix**, not the model name — because the host resolves providers under
+`account:zai-individual-coding-plan`, a namespace the plugin refused to accept.
+The only setting that worked was `inherit`, which is the absence of the feature
+the product is named for. The failure surfaced only at the review phase, after an
+architecture, an execution and five verification gates had been paid for.
+
+A plugin cannot enumerate a host's providers and has no business deciding which
+ones exist. Cycle now validates the **shape** of a model reference and leaves the
+rest to ZCode. What it owes the operator instead is an early answer: a pinned
+role is reported as `dispatch_unverified`, and the run protocol probes every
+pinned role before a workflow starts, so an unresolvable provider costs seconds.
+
+Every receipt written by `1.0.6` and earlier therefore records a run in which
+architect, executor, both reviewers and the arbiter shared one model — independent
+prompts and tool lists, one judgement. Those receipts do not imply the wider claim.
+
+### An abrupt stop could leave a workflow unrecoverable, and the project locked
+
+Recovery required a worktree to exist on disk **if and only if** a base revision
+was recorded. A session killed between those two writes broke the invariant, and
+recovery refused outright with `workflow worktree recovery state is inconsistent`.
+
+Refusing was wrong twice over. Recovery only reads — the guards that matter live
+on `prepare_worktree` and `freeze`, and they still hold. And the refusal returned
+before the immutable request text was assembled, so the one thing an interrupted
+operator cannot reconstruct was withheld exactly when it was needed. Meanwhile the
+mutation lock kept the project read-only, including for an unrelated delivery that
+was already sitting uncommitted.
+
+Recovery now names the inconsistency — `worktreeState` is `orphaned_worktree` or
+`missing_worktree` — returns a `recoveryAction`, and hands back the original
+request with everything else it knows.
+
+### One project directory could carry two identities
+
+`project_key` was whatever the calling agent chose to pass, and the run protocol
+only described it as "this workspace's stable project key". It was neither. Across
+a client restart the same folder was addressed two different ways, producing two
+project ids: history, goals and evidence recorded under one are invisible to the
+other, a goal linked under one can never be satisfied by a workflow recorded under
+the other, and nothing warned.
+
+The bridge already knows which directory it serves, so it now derives the key
+itself and ignores the caller's. A caller cannot drift from a value it does not
+choose. Projects certified before `1.0.7` keep whatever history was written under
+their previous key; the ledger retains it.
+
+### `/cycle:setup install` deadlocked the first governed run
+
+Install writes five role profiles into the project. In a git project that leaves
+the tree dirty, and the freeze guard refuses a candidate whose project changed
+underneath it. Committing them trades that refusal for another: the freeze also
+requires the project to sit at the workflow's start revision, which the commit
+just moved. Both exits the first error offered were closed by the second.
+
+Install and repair now add `.zcode/` to `.git/info/exclude` — git's per-clone
+ignore list, never committed and never shared. A project that is not a git
+repository still installs, and is told why a cycle would refuse to freeze.
+
+### Risk routing was blind to the code a change touches
+
+Only the request text could raise a critical category, and only by literal
+marker. "Harden parseToken in auth.js", with `auth.js` declared as an affected
+path, routed to `quick` — no independent reviews. The same change described as
+"harden the **authentication** token parser" routed to `full`.
+
+Paths now raise Authentication, Authorization, Cryptography, Secrets and
+TrustBoundary on their own, matched as whole path tokens so `auth.js` counts and
+`authors.ts` does not. Documentation takes precedence: prose cannot introduce an
+authentication flaw, so a `.md` file is never routed through two independent
+reviews on the strength of its name.
+
+### The uninstall documentation named the wrong directory
+
+The README said ZCode keeps its marketplace's *cached* copy after an uninstall.
+The cached copy is removed completely — that directory is emptied. What remains
+is ZCode's **mirror** of the marketplace source under
+`plugins/marketplaces/<marketplace>/`, and it is larger than the installation was
+because it carries every platform's daemon rather than only yours. Someone
+following the old wording would check the plugin cache, find it empty, and
+conclude the removal was complete.
+
+### The daemon version gate passed the daemons it exists to reject
+
+Assembling this release copied the **1.0.5** daemons into the plugin and wrote a
+manifest declaring them `1.0.7`. They had been sitting in the untracked `bin/`
+staging directory since the 1.0.5 release — nothing clears it — and the gate that
+compares a staged daemon against the plugin manifest reported no problem.
+
+That gate had already failed once on these same two files. It used to scan the
+executable for the expected version as a substring, and in a 39 MB binary the
+sequence turns up by accident, so the 1.0.5 Linux daemon was read as declaring
+`1.0.6`. It was rewritten to execute `workflowd --version` instead. But
+`--version` was *added* in `1.0.6`, so the one daemon that cannot answer is one
+older than the release that introduced the flag — precisely the case the gate is
+for — and the failure to answer was recorded as `verified: false`, the same value
+used for a daemon built for another platform, which is a legitimate skip. Both
+callers blocked only on a daemon that answered *and* answered wrong. The daemon
+that would not speak walked past both.
+
+What ships is not affected: the release workflow builds both daemons from source
+on their own platforms before assembling, so the published `1.0.6` archive
+carries genuine `1.0.6` binaries. The defect was in what a local assembly stages
+and in what the merge gate would have allowed into the repository — and since
+`native-manifest.json` takes `product_version` from the plugin manifest rather
+than from the binary, the result carries an honest digest beside a version
+nobody read.
+
+A result now records whether this machine could execute the file at all.
+Runnable-and-silent is a failure; not-runnable-here is a skip, left to the CI job
+that can run it. Assembly additionally refuses when a staged daemon is missing
+outright, because that copy used to throw *after* the previous plugin directory
+had been removed.
+
+## [1.0.6] - Published, superseded by 1.0.7
+
+Eleven of the thirteen live scenarios passed on Windows, and the Linux lane
+passed. The two failures and four further defects are closed in `1.0.7`.
 
 `1.0.5` was sealed and carried through the full thirteen-scenario live campaign
 a second time. Ten scenarios passed, one was partial and two failed. Two of the
