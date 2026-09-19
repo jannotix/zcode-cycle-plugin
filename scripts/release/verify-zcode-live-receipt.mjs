@@ -7,18 +7,21 @@ import { fileURLToPath } from "node:url"
 
 // The certification host. ZCode Desktop updates itself, so this pin goes stale
 // between releases without anyone touching it: 3.10.2.6414 was current when the
-// lane was written, 3.11.2.6792 was installed by the time it first ran, and
-// 3.12.3.7463 was installed before the 1.0.7 campaign. A receipt naming a host
-// nobody certified on is worth nothing, so the mismatch fails loudly here rather
-// than passing quietly. Update this and the fixture together, before a campaign
-// starts and never during one.
+// lane was written, 3.11.2.6792 by the time it first ran, 3.12.3.7463 when the
+// 1.0.7 campaign was about to start, and 3.14.0.7681 minutes after that - it had
+// already been downloaded and three scenarios require a restart. A receipt naming
+// a host nobody certified on is worth nothing, so the mismatch fails loudly here
+// rather than passing quietly. Update this and the fixture together, before a
+// campaign starts and never during one.
 //
-// The bundled CLI has not moved across any of those three Desktop builds. It is
-// read from `resources/glm/zcode.cjs`, where it is the constant the CLI stamps
-// on its own database migrations - not from the Desktop version, which counts
-// separately.
-const EXPECTED_DESKTOP = "3.12.3.7463"
-const EXPECTED_CLI = "0.16.5"
+// The bundled CLI is a separate number read from `resources/glm/zcode.cjs`, where
+// it is the constant the CLI stamps on its own database migrations. It held at
+// 0.16.5 across the first three Desktop builds and moved to 0.16.9 with the
+// fourth. Do not assume it follows the Desktop version, and do not assume it
+// stays put: it is named in the shipped threat model, so when it moves the
+// published archive describes a host that no longer exists.
+const EXPECTED_DESKTOP = "3.14.0.7681"
+const EXPECTED_CLI = "0.16.9"
 const MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
 const REQUIRED_SCENARIOS = new Set([
   "component-discovery",

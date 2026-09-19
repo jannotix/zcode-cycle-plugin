@@ -16,7 +16,7 @@ remains out of scope.
 
 1. **Plugin ↔ host application.** The plugin registers commands, skills,
    hooks and one MCP server through the host's extension surface. Because
-   ZCode CLI 0.16.5 does not execute plugin-provided agent components,
+   ZCode CLI 0.16.9 does not execute plugin-provided agent components,
    explicit `/cycle:setup install` writes five managed profiles under the
    project's `.zcode/agents`; it never patches the application installation.
 2. **Bridge ↔ control plane.** The MCP bridge and hooks speak framed IPC

@@ -27,7 +27,7 @@ assert.equal(manifest.name, "zcode-cycle")
 assert.equal(
   Object.hasOwn(manifest, "agents"),
   false,
-  "certified ZCode CLI 0.16.5 treats plugin agent components as diagnostic-only",
+  "certified ZCode CLI 0.16.9 treats plugin agent components as diagnostic-only",
 )
 assert.match(manifest.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u)
 assert.equal(manifest.hooks, "hooks/cycle-hooks.json")

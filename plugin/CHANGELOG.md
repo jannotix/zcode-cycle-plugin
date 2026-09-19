@@ -3,7 +3,33 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.7] - Unreleased
+## [1.0.8] - Unreleased
+
+No product change. `1.0.8` exists because the certification host moved while the
+`1.0.7` campaign was being set up, and one of the numbers it moved is one the
+plugin ships.
+
+ZCode Desktop went from `3.12.3.7463` to `3.14.0.7681` — the update had already
+been downloaded and was waiting for a restart, and three of the thirteen live
+scenarios require one, so the campaign could never have finished on the build it
+started on. With that update the bundled ZCode CLI moved from `0.16.5` to
+`0.16.9`, the first time it has moved across four Desktop builds.
+
+That second number is not bookkeeping. The shipped threat model states a trust
+boundary conditioned on it — that the host does not execute plugin-provided agent
+components, which is why `/cycle:setup install` writes five managed profiles
+explicitly rather than relying on the host to discover them. `1.0.7` was already
+published naming `0.16.5`, so its archive described a host configuration that no
+longer exists, and its receipt would have been rejected by the release lane's own
+verifier, which asserts the CLI version a campaign ran on.
+
+So `1.0.8` carries the same seven fixes as `1.0.7` and names the host that will
+actually certify them. The trust-boundary premise is re-established by
+observation on `0.16.9` in the first scenario, before any receipt asserts it.
+
+Everything below this line is the `1.0.7` change set, unchanged.
+
+## [1.0.7] - Published, superseded by 1.0.8 before certification
 
 Seven defects closed. Six of them were found by taking `1.0.6`'s **published**
 archive — downloaded with `gh release download`, checksum-verified and checked

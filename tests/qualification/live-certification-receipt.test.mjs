@@ -35,7 +35,7 @@ const PRODUCT_VERSION = JSON.parse(
     "utf8",
   ),
 ).version
-const HOST_DESKTOP = "3.12.3.7463"
+const HOST_DESKTOP = "3.14.0.7681"
 
 test("a live ZCode receipt is bound to sealed bytes and complete evidence", async () => {
   const root = await mkdtemp(join(tmpdir(), "zcode-cycle-live-receipt-"))
@@ -66,7 +66,7 @@ test("a live ZCode receipt is bound to sealed bytes and complete evidence", asyn
       plugin_archive: { path: archiveName, sha256: archiveDigest },
       host: {
         desktop_version: HOST_DESKTOP,
-        cli_version: "0.16.5",
+        cli_version: "0.16.9",
         platform: "windows-11-x64",
       },
       tested_at: "2026-08-29T12:00:00Z",
