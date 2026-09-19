@@ -217,6 +217,69 @@ The Cycle control plane lives outside the plugin tree precisely so that removing
 the plugin cannot destroy the ledger, memory, evidence and recovery state.
 Delete that directory yourself only when you no longer need the record.
 
+## Windows SmartScreen and the unsigned daemon
+
+Cycle ships a native control-plane daemon, `workflowd.exe`, and **it is not
+signed with an Authenticode certificate**. `authenticode.json` in every release
+records this as `NotSigned`, and the release pipeline verifies that it is
+genuinely unsigned rather than badly signed — a broken signature fails the
+build, an absent one is declared.
+
+So Windows may object, in one of two ways:
+
+- **SmartScreen** — "Windows protected your PC", naming an unrecognised
+  publisher. This is a *reputation* check, not a malware verdict: it fires
+  because no certificate identifies who published the file, and because files
+  that arrive from the internet carry a Mark of the Web.
+- **Microsoft Defender or Smart App Control** may block or quarantine the
+  daemon for the same reason.
+
+### Verify first, then unblock
+
+Do not click through a security warning on trust. Check that the bytes you have
+are the bytes that were published, then tell Windows you accept them.
+
+**1. Compare the checksum** with the `.sha256` file published beside the archive
+on the release page:
+
+```powershell
+Get-FileHash .\zcode-cycle-1.0.6.zip -Algorithm SHA256
+```
+
+**2. Verify the build provenance** — this proves the archive was built by this
+repository's release workflow, from the commit the release names, and not
+assembled by someone else:
+
+```powershell
+gh attestation verify .\zcode-cycle-1.0.6.zip --repo jannotix/zcode-cycle-plugin
+```
+
+**3. Only if both check out**, remove the Mark of the Web:
+
+```powershell
+Get-ChildItem -Recurse "$env:LOCALAPPDATA\ZCode Cycle" | Unblock-File
+```
+
+The same is available in the file's **Properties** dialog: tick **Unblock** at
+the bottom of the General tab, then Apply.
+
+If a SmartScreen dialog appears while you are launching something directly,
+**More info → Run anyway** is the equivalent choice. Reach for it only after
+steps 1 and 2.
+
+If Defender quarantined the daemon, restore it from **Windows Security →
+Protection history**, and add an exclusion for the Cycle data directory only if
+you are content to own that decision — an exclusion is permanent and applies to
+anything that later lands in that folder.
+
+### Why there is no certificate
+
+A code-signing certificate is a recurring purchase tied to a verified legal
+identity, and this project does not have one. Signing would remove the warning;
+it would not make the bytes more trustworthy than the checksum and the
+provenance attestation already make them, which is why those are published for
+every release and why this section asks you to use them.
+
 ## Development checks
 
 ```text

@@ -182,6 +182,12 @@ on Linux), never inside the ZCode installation or your repository. The five
 non-secret role configuration files live in `.zcode/agents`; remove them with
 `/cycle:setup remove` before uninstalling. Uninstalling preserves audit data.
 
+Cycle's native daemon is not signed with an Authenticode certificate, so Windows
+may warn about an unrecognised publisher or block it outright. The README's
+**Windows SmartScreen and the unsigned daemon** section explains how to verify
+the download against its published checksum and build provenance first, and how
+to unblock it afterwards.
+
 Two things about an uninstall are ZCode's behaviour rather than Cycle's, and
 neither can be changed from inside a plugin. ZCode's confirmation dialog warns
 that it removes the plugin's cached files and data directory and that this
