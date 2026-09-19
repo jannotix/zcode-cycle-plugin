@@ -7,11 +7,17 @@ import { fileURLToPath } from "node:url"
 
 // The certification host. ZCode Desktop updates itself, so this pin goes stale
 // between releases without anyone touching it: 3.10.2.6414 was current when the
-// lane was written and 3.11.2.6792 was installed by the time it first ran. A
-// receipt naming a host nobody certified on is worth nothing, so the mismatch
-// fails loudly here rather than passing quietly. Update this and the fixture
-// together, before a campaign starts and never during one.
-const EXPECTED_DESKTOP = "3.11.2.6792"
+// lane was written, 3.11.2.6792 was installed by the time it first ran, and
+// 3.12.3.7463 was installed before the 1.0.7 campaign. A receipt naming a host
+// nobody certified on is worth nothing, so the mismatch fails loudly here rather
+// than passing quietly. Update this and the fixture together, before a campaign
+// starts and never during one.
+//
+// The bundled CLI has not moved across any of those three Desktop builds. It is
+// read from `resources/glm/zcode.cjs`, where it is the constant the CLI stamps
+// on its own database migrations - not from the Desktop version, which counts
+// separately.
+const EXPECTED_DESKTOP = "3.12.3.7463"
 const EXPECTED_CLI = "0.16.5"
 const MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
 const REQUIRED_SCENARIOS = new Set([

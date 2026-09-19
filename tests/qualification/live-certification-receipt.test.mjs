@@ -35,7 +35,7 @@ const PRODUCT_VERSION = JSON.parse(
     "utf8",
   ),
 ).version
-const HOST_DESKTOP = "3.11.2.6792"
+const HOST_DESKTOP = "3.12.3.7463"
 
 test("a live ZCode receipt is bound to sealed bytes and complete evidence", async () => {
   const root = await mkdtemp(join(tmpdir(), "zcode-cycle-live-receipt-"))

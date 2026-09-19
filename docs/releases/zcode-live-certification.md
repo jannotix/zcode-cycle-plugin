@@ -10,16 +10,24 @@ older ZIP do not satisfy this gate.
    `verify-release-manifest.mjs`.
 2. Record the ZIP SHA-256 before extraction. It must be the same digest used
    in every scenario and in the final receipt.
-3. Use Windows 11 x64 with ZCode Desktop `3.11.2.6792` and bundled CLI `0.16.5`.
+3. Use Windows 11 x64 with ZCode Desktop `3.12.3.7463` and bundled CLI `0.16.5`.
    Any host update invalidates this receipt and requires a complete rerun.
 
 ## The host pin, and what to do when it moves
 
 ZCode Desktop updates itself. The pin above is therefore not a fact about the
 product but a fact about one machine at one moment, and it goes stale on its own:
-the lane was written against `3.10.2.6414` and `3.11.2.6792` was installed before
-it ever ran. The bundled CLI did not move with it, which is why only one of the
-two numbers changed.
+the lane was written against `3.10.2.6414`, `3.11.2.6792` was installed before it
+ever ran, and `3.12.3.7463` was installed before the 1.0.7 campaign. The bundled
+CLI has not moved across any of them, which is why only one of the two numbers
+has ever changed.
+
+Read the two numbers from different places. The Desktop build is the
+`ProductVersion` of `ZCode.exe`. The bundled CLI does **not** follow it and is not
+recorded beside it: it is the version constant inside
+`C:\Program Files\ZCode\resources\glm\zcode.cjs`, the same value that CLI stamps
+on its own database migrations as `appVersion`. Reading the Desktop number twice
+and calling the second one the CLI would pin a host that does not exist.
 
 **Before a campaign.** Read the installed build and confirm it matches the pin:
 
