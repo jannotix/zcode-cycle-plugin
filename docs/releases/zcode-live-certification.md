@@ -10,23 +10,34 @@ older ZIP do not satisfy this gate.
    `verify-release-manifest.mjs`.
 2. Record the ZIP SHA-256 before extraction. It must be the same digest used
    in every scenario and in the final receipt.
-3. Use Windows 11 x64 with ZCode Desktop `3.14.0.7681` and bundled CLI `0.16.9`.
+3. Use Windows 11 x64 with ZCode Desktop `3.14.1.7714` and bundled CLI `0.16.9`.
    Any host update invalidates this receipt and requires a complete rerun.
 
 ## The host pin, and what to do when it moves
 
 ZCode Desktop updates itself. The pin above is therefore not a fact about the
 product but a fact about one machine at one moment, and it goes stale on its own:
-the lane was written against `3.10.2.6414`, `3.11.2.6792` was installed before it
-ever ran, `3.12.3.7463` was found installed when the 1.0.7 campaign was about to
-start, and `3.14.0.7681` arrived minutes later — it had already been downloaded
-and was waiting for a restart, and three of the scenarios below require one.
+the lane was written against `3.10.2.6414`; `3.11.2.6792` was installed before it
+ever ran; `3.12.3.7463` was found installed when the 1.0.7 campaign was about to
+start; `3.14.0.7681` arrived minutes later, already downloaded and waiting for a
+restart; and `3.14.1.7714` staged itself two days after that. Five builds, none
+of them asked for.
 
 The bundled CLI held at `0.16.5` across the first three and moved to `0.16.9`
-with the fourth. That was the first time it moved, and it cost a release: the
-CLI version is named in the shipped threat model, so `1.0.7` — already published
-— described a host configuration that no longer existed, and `1.0.8` was cut to
-carry the true one.
+with the fourth, where it has stayed. That one move cost a release: the CLI
+version is named in the shipped threat model, so `1.0.7` — already published —
+described a host configuration that no longer existed, and `1.0.8` was cut to
+carry the true one. The fifth build moved only the Desktop number, so it cost
+three lines in this repository and nothing else.
+
+**Turning the updater off does not stay off.** The setting lives in the throwaway
+CLI profile, so wiping that profile — which this lane requires — silently returns
+it to its default, and the host stages the next build within seconds. Disable it
+*after* creating the profile, not before, and check it again before the first
+scenario. When an update is already staged and its bundled CLI has not moved, the
+cheaper move is to install it and re-pin rather than fight to stay behind: read
+the CLI version out of the staged installer first, with
+`7z x <installer>` then `7z e $PLUGINSDIR\app-64.7z resources\glm\zcode.cjs`.
 
 Read the two numbers from different places. The Desktop build is the
 `ProductVersion` of `ZCode.exe`. The bundled CLI does **not** follow it and is not
@@ -47,7 +58,7 @@ it — `scripts/release/verify-zcode-live-receipt.mjs`, its fixture in
 plan and this document — and record in the commit why it moved. Do not start a
 campaign on a host you have not pinned.
 
-**During a campaign.** Do not let the host update. Finish the twelve scenarios on
+**During a campaign.** Do not let the host update. Finish the thirteen scenarios on
 one build, because a receipt mixes evidence from every scenario and a mid-run
 update makes half of it describe a host the other half did not use. If an update
 lands anyway, discard the partial evidence and start over on the new build: a
