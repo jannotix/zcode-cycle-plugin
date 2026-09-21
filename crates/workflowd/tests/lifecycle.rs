@@ -4,7 +4,6 @@ use std::{
     time::Duration,
 };
 
-#[cfg(unix)]
 use std::io::ErrorKind;
 
 use tempfile::TempDir;
@@ -49,10 +48,33 @@ async fn wait_for_secret(data_directory: &Path) -> IpcSecret {
     panic!("workflowd did not create its IPC credential");
 }
 
+// The credential file is not a readiness signal. `run` writes `ipc.secret`
+// first, then opens the store, loads the checkpoint key and verifies the whole
+// hash chain, and only then binds its endpoint - so a client that waits for the
+// credential and connects immediately can arrive before anything is listening.
+// The window is as wide as `verify_store` takes, which is why this passed for
+// months and then failed three tests at once on a loaded CI runner.
+//
+// The shipped bridge already gets this right: it treats the credential as
+// permission to *try*, and retries until the daemon answers. This mirrors that,
+// and the unix arm below, which has always retried.
 #[cfg(windows)]
 async fn health(_data_directory: &Path, secret: &IpcSecret) -> workflow_ipc::HealthReport {
-    let stream = connect(&secret.endpoint_id()).await.unwrap();
-    query_health(stream, secret, 1).await.unwrap()
+    for _ in 0..250 {
+        match connect(&secret.endpoint_id()).await {
+            Ok(stream) => return query_health(stream, secret, 1).await.unwrap(),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    ErrorKind::NotFound | ErrorKind::ConnectionRefused
+                ) =>
+            {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            Err(error) => panic!("workflowd IPC connection failed: {error}"),
+        }
+    }
+    panic!("workflowd never accepted an IPC connection");
 }
 
 #[cfg(unix)]
