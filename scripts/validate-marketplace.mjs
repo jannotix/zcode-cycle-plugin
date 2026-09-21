@@ -24,10 +24,17 @@ const entry = marketplace.plugins?.[0]
 const legacyEntry = legacyMarketplace.plugins?.[0]
 
 assert.equal(manifest.name, "zcode-cycle")
+// The manifest declares no `agents` key, and that is a statement about this
+// manifest, not about the host. ZCode CLI 0.16.9 reads the shipped `agents/`
+// directory by convention and registers the five roles as dispatchable
+// subagents regardless - measured on Desktop 3.14.1.7714 during the 1.0.8
+// campaign, where they appear under Settings > Subagents with their tool lists
+// parsed and a model assignment of the host's own. Declaring the key would only
+// add a second, divergent source for the same definitions.
 assert.equal(
   Object.hasOwn(manifest, "agents"),
   false,
-  "certified ZCode CLI 0.16.9 treats plugin agent components as diagnostic-only",
+  "role definitions ship once, under agents/, and are installed per project by /cycle:setup",
 )
 assert.match(manifest.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u)
 assert.equal(manifest.hooks, "hooks/cycle-hooks.json")

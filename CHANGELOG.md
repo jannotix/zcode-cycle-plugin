@@ -3,7 +3,47 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.8] - Unreleased
+## [1.0.9] - Unreleased
+
+### The threat model said the host ignores plugin agent components. It does not.
+
+`1.0.8` shipped a trust boundary conditioned on ZCode CLI `0.16.9` not executing
+plugin-provided agent components, and promised to re-establish that premise by
+observation before any receipt asserted it. The observation was made, on Desktop
+`3.14.1.7714` / CLI `0.16.9`, and it **refuted** the premise.
+
+The host reads the `agents/` directory this archive ships — by convention, with
+the manifest declaring no `agents` key — and lists all five roles under
+Settings → Subagents as dispatchable, with their `tools:` lists parsed and a
+model and reasoning level of the host's own, persisted per agent. Assume the
+roles are reachable from any session, not only from a governed run.
+
+This is a documentation defect, not a hole. The definitions the host reads *are*
+the managed role profiles, carrying the same bounded tool lists, and the host's
+built-in `general-purpose` subagent already holds every tool — so exposing
+Cycle's roles adds nothing a session could not already do. What was wrong was the
+stated reason for writing project profiles. The real reason is narrower and was
+already recorded in the plugin's own hooks configuration: a dispatched role is
+bounded by the tool list in its profile, because the host does not run
+`PreToolUse` inside a dispatched agent. Hooks guard the main session; the profile
+guards the role.
+
+The marketplace contract asserted the same falsehood as the rationale for keeping
+`agents` out of the manifest. Keeping it out is still right — declaring it would
+add a second, divergent source for the same definitions — but the assertion now
+says so instead.
+
+### Noted, not yet acted on
+
+The host assigns a model and reasoning level per plugin agent natively, writing
+`providerId: account:zai-individual-coding-plan` into `agents-state.json`. That
+is the exact namespace `/cycle:models` rejected, which is why every pin accepted
+in `1.0.6` died at dispatch with `provider-not-found`. Whether the plugin's own
+per-role machinery can be replaced by the host's depends on which definition wins
+when both exist — the plugin agent or the project profile — and that is measured
+by a governed run, not by reading either.
+
+## [1.0.8] - Published, superseded by 1.0.9
 
 No product change. `1.0.8` exists because the certification host moved while the
 `1.0.7` campaign was being set up, and one of the numbers it moved is one the
@@ -24,8 +64,9 @@ longer exists, and its receipt would have been rejected by the release lane's ow
 verifier, which asserts the CLI version a campaign ran on.
 
 So `1.0.8` carries the same seven fixes as `1.0.7` and names the host that will
-actually certify them. The trust-boundary premise is re-established by
-observation on `0.16.9` in the first scenario, before any receipt asserts it.
+actually certify them. The trust-boundary premise was to be re-established by
+observation on `0.16.9` before any receipt asserted it. It was — and the
+observation refuted it; see `1.0.9`.
 
 Everything below this line is the `1.0.7` change set, unchanged.
 
