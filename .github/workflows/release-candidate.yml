@@ -108,7 +108,7 @@ jobs:
           bun run typecheck
           bun run build
           bun run test
-          bun audit --production
+          bash ../scripts/ci/audit-with-retry.sh
 
       - name: Marketplace and role boundaries
         shell: bash
