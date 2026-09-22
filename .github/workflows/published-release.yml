@@ -1,0 +1,43 @@
+name: published-release
+
+# The release-candidate workflow seals a directory and writes a manifest of it.
+# Publication is a separate, manual step, and until now nothing stood between
+# the two: 1.0.7, 1.0.8 and 1.0.9 each went out missing two artifacts their own
+# manifest declared, and each was reported verified, because what was checked
+# was the sealed directory rather than the release a user downloads.
+#
+# This runs the existing check against the published assets, the moment they
+# become published. It cannot un-publish a bad release - nothing can - but it
+# makes the gap loud instead of silent, which is the whole difference.
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to verify"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: published-release-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify published assets against the sealed manifest
+    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26.3.0"
+      - name: Verify the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: node scripts/release/verify-published-release.mjs "$TAG" "$GITHUB_REPOSITORY"
