@@ -3,7 +3,36 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.9] - Unreleased
+## [1.0.10] - Unreleased
+
+### Three published releases did not carry what their own manifest declared.
+
+`1.0.7`, `1.0.8` and `1.0.9` were each published with ten of the twelve
+artifacts their sealed manifest names. `THIRD-PARTY-NPM-LICENSES.html` and
+`THIRD-PARTY-RUST-LICENSES.html` were sealed by CI, listed in
+`release-manifest.json` with their digests, and never uploaded. The licence
+texts themselves also ship **inside** the plugin archive, so nobody installing
+the plugin was missing them — what was missing was the ability to verify a
+download, because `verify-release-manifest.mjs`, the first step this project
+tells you to run, exited `ENOENT` on all three.
+
+All three releases now carry the sealed bytes, digests matching their
+manifests, and verify end to end from a clean download.
+
+The check was never wrong. It compares both directions, and it would have
+caught this the first time — it was simply never aimed at a published release.
+CI seals; a human publishes; nothing joined the two. So the fix adds no new
+check: `verify-published-release.mjs` downloads a published release and runs
+the existing one against it, and a workflow runs that when a release is
+published or edited.
+
+This is the fourth defect of one shape in this release line — a signal mistaken
+for a guarantee about what precedes it. The daemon version gate treated
+"unverifiable" as "verified" (1.0.7); the threat model declared a premise it
+never asked about (1.0.9); a test treated the IPC credential as readiness; and
+a verified sealed directory was read as a verified release.
+
+## [1.0.9] - 2026-09-21
 
 ### The threat model said the host ignores plugin agent components. It does not.
 

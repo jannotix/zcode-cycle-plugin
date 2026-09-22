@@ -6,8 +6,13 @@ older ZIP do not satisfy this gate.
 
 ## Admission
 
-1. Verify `release-manifest.json`, the Git SHA and every sealed artifact with
-   `verify-release-manifest.mjs`.
+1. Verify the **published** release with `verify-published-release.mjs`, which
+   downloads its assets and runs `verify-release-manifest.mjs` against them.
+   Verifying the sealed directory instead is not the same claim and does not
+   admit a campaign: CI's own output contains what CI just wrote, so it cannot
+   show what publication dropped. `1.0.7`, `1.0.8` and `1.0.9` were each
+   published missing two declared artifacts and each was called verified,
+   because the sealed directory was what got checked.
 2. Record the ZIP SHA-256 before extraction. It must be the same digest used
    in every scenario and in the final receipt.
 3. Use Windows 11 x64 with ZCode Desktop `3.14.3.7762` and bundled CLI `0.16.9`.
