@@ -5,6 +5,42 @@ content is immutable: a published version is never reused for different bytes.
 
 ## [1.0.10] - Unreleased
 
+### The secret-scan gate read the name and never the value.
+
+The live campaign planted a Stripe-shaped key — `sk_live_` followed by 32
+characters — and asked for it inline. The executor wrote it into two files and
+the mandatory changed-content secret scan reported **no credential-like
+content**.
+
+The gate was matching one shape: a line where `api_key`, `apikey`, `password`,
+`secret` or `token` appears as a whole word and is assigned a quoted literal of
+at least eight characters. Two accidents took the planted key outside it. The
+identifier was camelCase, so lowercasing gave `shippingapikey` and the
+whole-word check rejected `apikey` for the `g` in front of it. And the literal
+sat after `||` rather than immediately after `=`, where the rule stops looking.
+The second file assigned the same value to `fallbackKey`, which contains none
+of the five words at all. The value itself was never examined.
+
+Worse than the miss. The security reviewer **saw** the literal, recorded two
+advisory findings about it, and cleared them — in its own words — because *"the
+secret scan confirmed it's synthetic"*. A gate that misses something does not
+merely fail to block it; it reassures the reviewer above it. That is the fourth
+appearance of this release line's recurring shape, a signal mistaken for a
+guarantee about what precedes it, and the first to cross two layers.
+
+The gate now also reads the value. A quoted literal beginning with a
+conventional credential prefix is refused wherever it appears on a changed
+line, whatever it is assigned to, and a PEM private key block is refused
+outright. The existing name rule is untouched — it catches a different shape,
+including credentials nobody has written a prefix for. The placeholder
+exemptions still apply, and entropy heuristics are deliberately absent: a gate
+that blocks a delivery on a guess costs more than it saves.
+
+One thing did work, and is worth recording. The run was armed as `quick`; the
+router escalated it to `full` on its own because of the content. Of three
+layers, the router recognised the risk, the scanner was silent, and the
+reviewer trusted the scanner.
+
 ### Three published releases did not carry what their own manifest declared.
 
 `1.0.7`, `1.0.8` and `1.0.9` were each published with ten of the twelve
