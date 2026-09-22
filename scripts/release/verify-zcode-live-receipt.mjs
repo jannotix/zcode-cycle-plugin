@@ -9,10 +9,10 @@ import { fileURLToPath } from "node:url"
 // between releases without anyone touching it: 3.10.2.6414 was current when the
 // lane was written, 3.11.2.6792 by the time it first ran, 3.12.3.7463 when the
 // 1.0.7 campaign was about to start, 3.14.0.7681 minutes after that, and
-// 3.14.1.7714 two days later. Five builds, none of them asked for. A receipt
-// naming a host nobody certified on is worth nothing, so the mismatch fails
-// loudly here rather than passing quietly. Update this and the fixture together,
-// before a campaign starts and never during one.
+// 3.14.1.7714 two days later, and 3.14.3.7762 the day after that. Six builds,
+// none of them asked for. A receipt naming a host nobody certified on is worth
+// nothing, so the mismatch fails loudly here rather than passing quietly. Update
+// this and the fixture together, before a campaign starts and never during one.
 //
 // The bundled CLI is a separate number read from `resources/glm/zcode.cjs`, where
 // it is the constant the CLI stamps on its own database migrations. It held at
@@ -20,9 +20,16 @@ import { fileURLToPath } from "node:url"
 // fourth, where it has stayed. Do not assume it follows the Desktop version, and
 // do not assume it stays put: it is named in the shipped threat model, so when it
 // moves the published archive describes a host that no longer exists. That is
-// what 1.0.8 was cut for; the fifth Desktop build left the CLI alone and cost
-// only these constants.
-const EXPECTED_DESKTOP = "3.14.1.7714"
+// what 1.0.8 was cut for; the fifth and sixth Desktop builds left the CLI alone
+// and cost only these constants.
+//
+// The sixth build is the one that made this lane runnable at all. Until
+// 3.14.3.7762, pointing the Desktop data directory anywhere but the default
+// killed startup outright, and that setting is the first of the three isolation
+// axes an admitted campaign requires. The fix shipped without a word on the
+// issue that reported it, so the host moving is not only a risk to a campaign in
+// flight - it is sometimes the only reason one can start.
+const EXPECTED_DESKTOP = "3.14.3.7762"
 const EXPECTED_CLI = "0.16.9"
 const MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
 const REQUIRED_SCENARIOS = new Set([

@@ -10,7 +10,7 @@ older ZIP do not satisfy this gate.
    `verify-release-manifest.mjs`.
 2. Record the ZIP SHA-256 before extraction. It must be the same digest used
    in every scenario and in the final receipt.
-3. Use Windows 11 x64 with ZCode Desktop `3.14.1.7714` and bundled CLI `0.16.9`.
+3. Use Windows 11 x64 with ZCode Desktop `3.14.3.7762` and bundled CLI `0.16.9`.
    Any host update invalidates this receipt and requires a complete rerun.
 
 ## The host pin, and what to do when it moves
@@ -20,15 +20,25 @@ product but a fact about one machine at one moment, and it goes stale on its own
 the lane was written against `3.10.2.6414`; `3.11.2.6792` was installed before it
 ever ran; `3.12.3.7463` was found installed when the 1.0.7 campaign was about to
 start; `3.14.0.7681` arrived minutes later, already downloaded and waiting for a
-restart; and `3.14.1.7714` staged itself two days after that. Five builds, none
-of them asked for.
+restart; `3.14.1.7714` staged itself two days after that; and `3.14.3.7762`
+arrived the day after. Six builds, none of them asked for.
 
 The bundled CLI held at `0.16.5` across the first three and moved to `0.16.9`
-with the fourth, where it has stayed. That one move cost a release: the CLI
+with the fourth, where it has stayed across the sixth. That one move cost a release: the CLI
 version is named in the shipped threat model, so `1.0.7` — already published —
 described a host configuration that no longer existed, and `1.0.8` was cut to
 carry the true one. The fifth build moved only the Desktop number, so it cost
 three lines in this repository and nothing else.
+
+**A host that moves is not only a hazard.** The sixth build is why this lane can
+run. Before `3.14.3.7762`, setting the Desktop `dataBaseDir` to any non-default
+path killed startup with `Storage preparation failed: transport_closed` - and
+that setting is the first of the three isolation axes below, so no admitted
+campaign was possible at all. The fix shipped silently, with the issue reporting
+it still open and unanswered. Test the axis before trusting it: launching
+`ZCode.exe` with `ZCODE_DATA_BASE_DIR` set walks the same resolution as the saved
+setting while persisting nothing, so a host can be cleared for the lane without
+being put into the state the bug made unrecoverable.
 
 **Turning the updater off does not stay off.** The setting lives in the throwaway
 CLI profile, so wiping that profile — which this lane requires — silently returns
@@ -84,10 +94,10 @@ not invalidated retroactively. What expires is its usefulness as evidence for th
 Run each scenario from the same admitted ZIP bytes and record at least one
 digest-bound evidence file:
 
-1. `component-discovery`: install and enable 1.0.4; commands, five skills,
+1. `component-discovery`: install and enable 1.0.9; commands, five skills,
    both Hooks and the MCP server load with no Cycle diagnostic.
 2. `setup-doctor`: `/cycle:setup install`, a real new session,
-   `/cycle:setup`, health 1.0.4/protocol 1/read-write schema and doctor PASS.
+   `/cycle:setup`, health 1.0.9/protocol 1/read-write schema and doctor PASS.
 3. `quick`: complete a bounded fixture change through promotion; verify the
    candidate digest and audit-chain receipt.
 4. `full`: complete architecture, execution, both independent reviews,
@@ -112,7 +122,7 @@ digest-bound evidence file:
     from. `v1.0.0` was withdrawn carrying no release asset, and no installable
     archive was ever published under any earlier identity, so an upgrade
     scenario would have to manufacture the artifact it claims to test. Prove the
-    mechanism instead: run 1.0.4 until the data directory holds ledger entries,
+    mechanism instead: run 1.0.9 until the data directory holds ledger entries,
     signed checkpoints, goal records and browser evidence, then open that
     directory with a build declaring a lower schema version and observe the
     documented safe read-only mode. The stored bytes must be unchanged
@@ -132,11 +142,11 @@ digest-bound evidence file:
     It is not a weaker test: an inert copy still has to be *proven* inert, by
     reading `installed_plugins.json` and by counting daemon processes, and the
     disclosure still has to exist.
-12. `history-survives-version-change`: after scenario 10, reinstall 1.0.4 over
+12. `history-survives-version-change`: after scenario 10, reinstall 1.0.9 over
     the same data directory and prove the record came through intact - every
     ledger entry present, the hash chain verifying end to end, every checkpoint
     signature still valid, every goal and milestone linked to the workflow it
-    was linked to before. The final state must be `1.0.4-installed-enabled`.
+    was linked to before. The final state must be `1.0.9-installed-enabled`.
     Rollback to a published predecessor is certified at the first version that
     has one; recording it now would be recording an unobserved row as passed.
 13. `per-role-model`: assign an explicit model to one role with
