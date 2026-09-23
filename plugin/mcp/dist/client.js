@@ -90,6 +90,57 @@ class ControlPlaneError extends Error {
   }
 }
 
+class NewerDaemonError extends ControlPlaneError {
+}
+function compareVersions(left, right) {
+  const parts = (value) => value.split("-")[0].split(".").map((part) => Number(part) || 0);
+  const [a, b] = [parts(left), parts(right)];
+  for (let index = 0;index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0)
+      return difference;
+  }
+  return 0;
+}
+function daemonsServing(dataDirectory, platform = process.platform) {
+  const wanted = platform === "win32" ? win32.resolve(dataDirectory).toLowerCase() : posix.resolve(dataDirectory);
+  const lines = platform === "win32" ? spawnSync("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    `Get-CimInstance Win32_Process -Filter "Name='workflowd.exe'" | ForEach-Object { "$($_.ProcessId)\`t$($_.CommandLine)" }`
+  ], { encoding: "utf8", shell: false, windowsHide: true }).stdout : spawnSync("ps", ["-axo", "pid=,args="], { encoding: "utf8", shell: false }).stdout;
+  const pids = [];
+  for (const line of (lines ?? "").split(/\r?\n/u)) {
+    const match = platform === "win32" ? /^(\d+)\t(.*)$/u.exec(line) : /^\s*(\d+)\s+(.*)$/u.exec(line);
+    if (!match)
+      continue;
+    const commandLine = match[2];
+    if (platform !== "win32" && !/(^|\/)workflowd\s/u.test(commandLine))
+      continue;
+    const marker = commandLine.lastIndexOf("--data-dir ");
+    if (marker < 0)
+      continue;
+    let served = commandLine.slice(marker + "--data-dir ".length).trim();
+    if (served.startsWith('"') && served.endsWith('"'))
+      served = served.slice(1, -1);
+    const normalized = platform === "win32" ? win32.resolve(served).toLowerCase() : posix.resolve(served);
+    const pid = Number(match[1]);
+    if (normalized === wanted && pid !== process.pid)
+      pids.push(pid);
+  }
+  return pids;
+}
+function stopDaemonsServing(dataDirectory, platform = process.platform) {
+  const pids = daemonsServing(dataDirectory, platform);
+  for (const pid of pids) {
+    try {
+      process.kill(pid);
+    } catch {}
+  }
+  return pids.length;
+}
+
 class LocalControlPlane {
   #architecture;
   #binaryPath;
@@ -128,6 +179,8 @@ class LocalControlPlane {
       } catch (error) {
         if (error instanceof ControlPlaneError && error.message.includes("protocol"))
           throw error;
+        if (error instanceof NewerDaemonError)
+          throw error;
         lastError = error;
         await this.#reclaimStaleDaemon();
       }
@@ -161,6 +214,8 @@ class LocalControlPlane {
         try {
           return await this.#query(secret);
         } catch (error) {
+          if (error instanceof ControlPlaneError && error.message.includes("incompatible"))
+            throw error;
           lastError = error;
         }
       }
@@ -176,23 +231,11 @@ class LocalControlPlane {
     if (child !== undefined && child.exitCode === null && child.signalCode === null) {
       child.kill();
     }
-    const pidPath = join(this.#dataDirectory, "runtime", "workflowd.pid");
-    const raw = await readFile(pidPath, "utf8").catch(() => "");
-    const pid = Number.parseInt(raw.trim(), 10);
-    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid && pid !== child?.pid) {
-      try {
-        process.kill(pid);
-      } catch {
-        if (this.#platform === "win32") {
-          spawnSync("taskkill", ["/F", "/PID", String(pid)], {
-            shell: false,
-            stdio: "ignore",
-            windowsHide: true
-          });
-        }
-      }
+    stopDaemonsServing(this.#dataDirectory, this.#platform);
+    const deadline = Date.now() + 5000;
+    while (daemonsServing(this.#dataDirectory, this.#platform).length > 0 && Date.now() < deadline) {
+      await new Promise((resolve2) => setTimeout(resolve2, 50));
     }
-    await new Promise((resolve2) => setTimeout(resolve2, 150));
   }
   async dispose() {
     if (this.#stopOwnedProcessOnDispose && this.#ownedProcess !== undefined) {
@@ -739,6 +782,9 @@ class LocalControlPlane {
         throw new ControlPlaneError(`workflowd protocol ${report.protocol_version} is incompatible with plugin protocol ${this.#expectedProtocolVersion}`);
       }
       if (report.product_version !== this.#expectedProductVersion) {
+        if (compareVersions(report.product_version, this.#expectedProductVersion) > 0) {
+          throw new NewerDaemonError(`workflowd ${report.product_version} is running for this data directory and is newer than this plugin (${this.#expectedProductVersion}); update the plugin rather than stopping it`);
+        }
         throw new ControlPlaneError(`workflowd ${report.product_version} is incompatible with plugin ${this.#expectedProductVersion}`);
       }
       return report;
@@ -1114,9 +1160,11 @@ function parseArbitrationReceipt(value) {
   return receipt;
 }
 export {
+  stopDaemonsServing,
   resolveDataDirectory,
   prepareNativeBinary,
   nativePackageName,
+  daemonsServing,
   LocalControlPlane,
   IPC_TIMEOUTS,
   ControlPlaneError

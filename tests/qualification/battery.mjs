@@ -534,7 +534,14 @@ async function main() {
       server.kill()
     }
   } finally {
-    await rm(dataDir, { force: true, recursive: true }).catch(() => {})
+    // The hook and the MCP server start detached daemons of their own; without
+    // this every iteration left one running against a deleted temp directory.
+    const { daemonsServing, stopDaemonsServing } = await import(CLIENT)
+    stopDaemonsServing(dataDir)
+    for (let attempt = 0; attempt < 100 && daemonsServing(dataDir).length > 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    await rm(dataDir, { force: true, maxRetries: 20, recursive: true, retryDelay: 100 }).catch(() => {})
     await rm(fixture, { force: true, recursive: true }).catch(() => {})
   }
   console.log(`\nITERATION ${iteration}: ${passed} PASS / ${failed} FAIL`)

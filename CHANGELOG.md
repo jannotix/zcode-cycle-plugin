@@ -3,7 +3,51 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.10] - Unreleased
+## [1.0.11] - Unreleased
+
+### An update could not replace the daemon it was updating.
+
+The 1.0.10 campaign's first step was a real upgrade: 1.0.9 installed, with a day
+of governed history, updated to 1.0.10 from the Plugin Marketplace. The update
+installed byte-identical files and the history survived untouched - and every
+Cycle call then failed with *"workflowd did not become healthy within 15
+seconds"*.
+
+The daemon outlives ZCode sessions, so the 1.0.9 daemon started that morning was
+still running and still held the data directory. The new bridge asked it for
+health, got *"workflowd 1.0.9 is incompatible with plugin 1.0.10"*, and tried to
+reclaim it by reading `runtime/workflowd.pid` - a file nothing in this product
+has ever written. The reclaim path was dead code from the day it was written:
+the old daemon lived on, every new one failed to start against its lock, and
+after fifteen seconds the precise answer was replaced by a timeout. With the old
+daemon stopped by hand, 1.0.10 came up healthy over the 1.0.9 data and verified
+all 162 ledger entries and both checkpoint signatures.
+
+It went unseen because a daemon of the same version is simply reused; only a
+version change exercises the path, and no campaign before this one upgraded.
+
+The bridge now finds the daemons serving its data directory by the one thing
+that identifies them - a `workflowd` process whose `--data-dir` is exactly that
+directory - and stops one that is older than itself. It never stops a newer
+one: that is a downgrade fighting an upgrade over the same data, and it says so
+instead. A daemon that answers with the wrong version is also reported at once
+rather than after the fifteen-second wait. Tests start a real daemon and cover
+both directions and the exact-directory match.
+
+The same function now ends each qualification battery iteration. The hook starts
+a detached daemon of its own, and a 20-iteration battery had been leaving twenty
+running against deleted temporary directories.
+
+The README also says what an update leaves behind: the previous version's folder
+stays complete beside the new one, inert, and 1.0.10 or earlier needs the old
+daemon stopped by hand.
+
+## [1.0.10] - 2026-09-23
+
+Published as a pre-release and superseded by 1.0.11 before certification: an
+update from 1.0.9 to 1.0.10 cannot start the new daemon while the 1.0.9 one is
+still running. Install 1.0.11 instead.
+
 
 ### The secret-scan gate read the name and never the value.
 

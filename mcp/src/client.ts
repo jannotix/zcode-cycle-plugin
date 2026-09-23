@@ -366,6 +366,70 @@ export class ControlPlaneError extends Error {
   }
 }
 
+class NewerDaemonError extends ControlPlaneError {}
+
+/** Compares dotted numeric versions; a pre-release suffix is ignored. */
+function compareVersions(left: string, right: string): number {
+  const parts = (value: string) => value.split("-")[0]!.split(".").map((part) => Number(part) || 0)
+  const [a, b] = [parts(left), parts(right)]
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0)
+    if (difference !== 0) return difference
+  }
+  return 0
+}
+
+/**
+ * Process ids of every workflowd serving `dataDirectory` - matched by image
+ * name and by the exact `--data-dir` argument the bridge always passes last.
+ * A workflowd serving this exact data directory is, by construction, this
+ * product's daemon for it; nothing else is matched.
+ */
+export function daemonsServing(dataDirectory: string, platform: NodeJS.Platform = process.platform): number[] {
+  const wanted = platform === "win32" ? win32.resolve(dataDirectory).toLowerCase() : posix.resolve(dataDirectory)
+  const lines =
+    platform === "win32"
+      ? spawnSync(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='workflowd.exe'\" | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }",
+          ],
+          { encoding: "utf8", shell: false, windowsHide: true },
+        ).stdout
+      : spawnSync("ps", ["-axo", "pid=,args="], { encoding: "utf8", shell: false }).stdout
+  const pids: number[] = []
+  for (const line of (lines ?? "").split(/\r?\n/u)) {
+    const match = platform === "win32" ? /^(\d+)\t(.*)$/u.exec(line) : /^\s*(\d+)\s+(.*)$/u.exec(line)
+    if (!match) continue
+    const commandLine = match[2]!
+    if (platform !== "win32" && !/(^|\/)workflowd\s/u.test(commandLine)) continue
+    const marker = commandLine.lastIndexOf("--data-dir ")
+    if (marker < 0) continue
+    let served = commandLine.slice(marker + "--data-dir ".length).trim()
+    if (served.startsWith('"') && served.endsWith('"')) served = served.slice(1, -1)
+    const normalized = platform === "win32" ? win32.resolve(served).toLowerCase() : posix.resolve(served)
+    const pid = Number(match[1])
+    if (normalized === wanted && pid !== process.pid) pids.push(pid)
+  }
+  return pids
+}
+
+/** Stops every workflowd serving `dataDirectory`; returns how many were signalled. */
+export function stopDaemonsServing(dataDirectory: string, platform: NodeJS.Platform = process.platform): number {
+  const pids = daemonsServing(dataDirectory, platform)
+  for (const pid of pids) {
+    try {
+      process.kill(pid)
+    } catch {
+      // Already gone, or not ours to signal; the caller waits and re-checks.
+    }
+  }
+  return pids.length
+}
+
 export class LocalControlPlane {
   readonly #architecture: string
   readonly #binaryPath: string | undefined
@@ -408,6 +472,7 @@ export class LocalControlPlane {
         return await this.#query(existing)
       } catch (error) {
         if (error instanceof ControlPlaneError && error.message.includes("protocol")) throw error
+        if (error instanceof NewerDaemonError) throw error
         lastError = error
         await this.#reclaimStaleDaemon()
       }
@@ -450,6 +515,9 @@ export class LocalControlPlane {
         try {
           return await this.#query(secret)
         } catch (error) {
+          // A daemon that answers with the wrong version has answered: waiting
+          // out the deadline would only turn a precise message into a timeout.
+          if (error instanceof ControlPlaneError && error.message.includes("incompatible")) throw error
           lastError = error
         }
       }
@@ -466,28 +534,15 @@ export class LocalControlPlane {
     if (child !== undefined && child.exitCode === null && child.signalCode === null) {
       child.kill()
     }
-    const pidPath = join(this.#dataDirectory, "runtime", "workflowd.pid")
-    const raw = await readFile(pidPath, "utf8").catch(() => "")
-    const pid = Number.parseInt(raw.trim(), 10)
-    if (
-      Number.isInteger(pid) &&
-      pid > 0 &&
-      pid !== process.pid &&
-      pid !== child?.pid
-    ) {
-      try {
-        process.kill(pid)
-      } catch {
-        if (this.#platform === "win32") {
-          spawnSync("taskkill", ["/F", "/PID", String(pid)], {
-            shell: false,
-            stdio: "ignore",
-            windowsHide: true,
-          })
-        }
-      }
+    // A daemon started by an earlier session is not this process's child, so
+    // it is found by what it serves. Until 1.0.10 this read runtime/workflowd.pid,
+    // which nothing has ever written: an older daemon was never stopped, and an
+    // upgrade ended in "did not become healthy" with the old one still running.
+    stopDaemonsServing(this.#dataDirectory, this.#platform)
+    const deadline = Date.now() + 5_000
+    while (daemonsServing(this.#dataDirectory, this.#platform).length > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
     }
-    await new Promise((resolve) => setTimeout(resolve, 150))
   }
 
   async dispose(): Promise<void> {
@@ -1247,6 +1302,13 @@ export class LocalControlPlane {
         )
       }
       if (report.product_version !== this.#expectedProductVersion) {
+        // Stopping a daemon is how an upgrade takes over; stopping a NEWER one
+        // would be a downgrade fighting an upgrade over the same data.
+        if (compareVersions(report.product_version, this.#expectedProductVersion) > 0) {
+          throw new NewerDaemonError(
+            `workflowd ${report.product_version} is running for this data directory and is newer than this plugin (${this.#expectedProductVersion}); update the plugin rather than stopping it`,
+          )
+        }
         throw new ControlPlaneError(
           `workflowd ${report.product_version} is incompatible with plugin ${this.#expectedProductVersion}`,
         )

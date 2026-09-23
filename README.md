@@ -247,6 +247,21 @@ inert - its files are gone, so any Cycle call from that session fails with
 `required native package ... is not installed` and no daemon starts. Restart
 ZCode after uninstalling and it is gone.
 
+**An update keeps the previous version's installed copy too.** Updating from the
+Plugin Marketplace installs the new version beside the old one under
+`plugins/cache/<marketplace>/zcode-cycle/<version>/` and leaves the old folder
+complete. It is inert in the same way: `installed_plugins.json` names only the
+new version and nothing runs from the old one. Delete the old version's folder
+if you want the space back.
+
+**Updating stops the previous version's daemon.** The daemon outlives ZCode
+sessions, so after an update the old one is usually still running. From
+`1.0.11` the new plugin finds it by the data directory it serves, stops it when
+it is older, and starts its own; it never stops a daemon newer than itself.
+`1.0.10` and earlier could not: an update from them ends in *"workflowd did not
+become healthy within 15 seconds"* until the old daemon is stopped by hand
+(Task Manager, or `Stop-Process -Name workflowd`) or Windows restarts.
+
 To reclaim the space, remove the marketplace itself in ZCode after uninstalling
 the plugin. Cycle deliberately does not delete it for you: the mirror and its
 registry belong to ZCode, and a plugin reaching into the host's registry to
