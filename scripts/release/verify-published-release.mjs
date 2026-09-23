@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
-import { mkdtemp, rm } from "node:fs/promises"
+import { existsSync, mkdirSync, readFileSync } from "node:fs"
+import { mkdtemp, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -33,13 +33,35 @@ if (!new RegExp(`^${NAME}/${NAME}$`, "u").test(repository)) {
   throw new Error(`refusing repository: ${repository}`)
 }
 
-const verifier = resolve(dirname(fileURLToPath(import.meta.url)), "verify-release-manifest.mjs")
+const here = dirname(fileURLToPath(import.meta.url))
+const verifier = resolve(here, "verify-release-manifest.mjs")
+const receiptVerifier = resolve(here, "verify-zcode-live-receipt.mjs")
+const signingKey = resolve(here, "..", "..", "docs", "releases", "release-signing-key.asc")
+const SIGNER = "29CB2E3FA61B8A2FFE97BF87CC4D1A39CE15684F"
 const directory = await mkdtemp(join(tmpdir(), "published-release-"))
+const certification = await mkdtemp(join(tmpdir(), "published-certification-"))
 try {
   const download = run(["release", "download", tag, "--repo", repository, "--dir", directory, "--clobber"])
   if (download.error) throw download.error
   if (download.status !== 0) {
     throw new Error(`could not download ${tag} from ${repository}: ${(download.stderr ?? "").trim()}`)
+  }
+
+  // The live-certification receipt travels as one asset beside the sealed
+  // ones, and is the only thing that may: a release marked stable must carry a
+  // receipt that verifies against this release's own sealed archive, signed by
+  // the release key. A pre-release may carry none - that is what makes it one.
+  const view = run(["release", "view", tag, "--repo", repository, "--json", "isPrerelease"])
+  if (view.error) throw view.error
+  if (view.status !== 0) throw new Error(`could not read ${tag}: ${(view.stderr ?? "").trim()}`)
+  const prerelease = JSON.parse(view.stdout).isPrerelease === true
+  const bundle = (await readdir(directory)).find((name) => /^zcode-live-certification-[0-9A-Za-z.-]+\.tgz$/u.test(name))
+  if (bundle) {
+    verifyCertification(join(directory, bundle))
+    await rm(join(directory, bundle))
+    process.stdout.write(`live certification verified: ${bundle}\n`)
+  } else if (!prerelease) {
+    throw new Error(`${tag} is marked stable but carries no live certification receipt`)
   }
 
   const verified = spawnSync(process.execPath, [verifier, directory], { encoding: "utf8" })
@@ -54,6 +76,46 @@ try {
   process.stdout.write(`published release verified: ${tag}\n`)
 } finally {
   await rm(directory, { force: true, recursive: true })
+  await rm(certification, { force: true, recursive: true })
+}
+
+// Unpacks the bundle and runs the existing receipt verifier against this
+// release's downloaded sealed artifacts, with the public release key imported
+// into a throwaway keyring so the caller's own is never touched.
+function verifyCertification(bundlePath) {
+  const unpacked = spawnSync("tar", ["-xzf", bundlePath, "-C", certification], { encoding: "utf8" })
+  if (unpacked.error) throw unpacked.error
+  if (unpacked.status !== 0) throw new Error(`live certification bundle is unreadable: ${unpacked.stderr.trim()}`)
+  const keyring = join(certification, ".gnupg")
+  mkdirSync(keyring, { mode: 0o700 })
+  // Git for Windows ships an MSYS gpg that cannot read a Windows path from the
+  // environment, so the keyring is named relative to the working directory -
+  // which every gpg understands - and the key is handed over on stdin.
+  const env = { ...process.env, GNUPGHOME: ".gnupg" }
+  const imported = spawnSync("gpg", ["--batch", "--import"], {
+    cwd: certification,
+    encoding: "utf8",
+    env,
+    input: readFileSync(signingKey),
+  })
+  if (imported.error) throw imported.error
+  if (imported.status !== 0) throw new Error(`could not import the release signing key: ${imported.stderr.trim()}`)
+  const checked = spawnSync(
+    process.execPath,
+    [
+      receiptVerifier,
+      "--receipt", join(certification, "zcode-live-certification.json"),
+      "--signature", join(certification, "zcode-live-certification.json.asc"),
+      "--signer-fingerprint", SIGNER,
+      "--sealed", directory,
+    ],
+    { cwd: certification, encoding: "utf8", env },
+  )
+  process.stderr.write(checked.stderr)
+  process.stdout.write(checked.stdout)
+  if (checked.status !== 0) {
+    throw new Error("the live certification receipt attached to this release does not verify")
+  }
 }
 
 // Run `gh` without a shell. Windows needs the extension spelled out, because
