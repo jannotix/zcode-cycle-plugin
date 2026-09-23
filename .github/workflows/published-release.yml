@@ -32,7 +32,13 @@ jobs:
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     steps:
+      # A release event runs on the tagged commit, whose gate is frozen at the
+      # age of the tag: it would judge a certification bundle attached later as
+      # an undeclared asset, and never learn to refuse a stable release without
+      # one. The gate is taken from the default branch, which is kept current.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
       - uses: actions/setup-node@v4
         with:
           node-version: "26.3.0"
