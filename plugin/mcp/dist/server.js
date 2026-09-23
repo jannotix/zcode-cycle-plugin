@@ -1742,7 +1742,7 @@ async function writeAtomic(target, content, replace) {
 function report(projectRoot, records, changed, pins, gitExcludeWarning) {
   const drift = records.flatMap((record2) => {
     const pinned = pins[record2.role];
-    if (!pinned)
+    if (!pinned || record2.state === "missing")
       return [];
     const resolved = record2.model ?? INHERIT_MODEL;
     if (resolved === pinned.model)

@@ -10,7 +10,11 @@ state, candidate bytes, verification evidence and delivery.
 - `1.0.11` is the current production version. It lets an update replace the
   daemon it is updating: `1.0.10`, the first to be installed as an update over a
   running `1.0.9`, could not stop the old daemon and never became healthy. It
-  also carries everything `1.0.10` closed. See the [changelog](CHANGELOG.md).
+  also carries everything `1.0.10` closed. It passed all thirteen scenarios of
+  the live ZCode campaign on Windows 11 x64, and is the first release marked
+  stable: its signed receipt and evidence are attached to the
+  [release](https://github.com/jannotix/zcode-cycle-plugin/releases/tag/v1.0.11).
+  See the [changelog](CHANGELOG.md).
 - `1.0.10` is published and superseded before certification. Install `1.0.11`
   instead. It closes the defects the first
   isolated live certification campaign found in `1.0.9`: a secret-scan gate
@@ -256,8 +260,9 @@ ZCode after uninstalling and it is gone.
 Plugin Marketplace installs the new version beside the old one under
 `plugins/cache/<marketplace>/zcode-cycle/<version>/` and leaves the old folder
 complete. It is inert in the same way: `installed_plugins.json` names only the
-new version and nothing runs from the old one. Delete the old version's folder
-if you want the space back.
+new version and nothing runs from the old one. Uninstalling empties only the
+active version's folder: the ones earlier updates left behind survive it,
+complete. Delete any of them if you want the space back.
 
 **Updating stops the previous version's daemon.** The daemon outlives ZCode
 sessions, so after an update the old one is usually still running. From

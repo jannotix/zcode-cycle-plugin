@@ -528,7 +528,10 @@ function report(
   // verdict has already been rendered.
   const drift = records.flatMap((record) => {
     const pinned = pins[record.role]
-    if (!pinned) return []
+    // A missing profile dispatches nothing, so it has not lost its pin - its
+    // state already says `missing`. Reading it as `inherit` made every
+    // `remove` warn about the very profiles it had just deleted.
+    if (!pinned || record.state === "missing") return []
     const resolved = record.model ?? INHERIT_MODEL
     if (resolved === pinned.model) return []
     return [{ on_disk: resolved, pinned: pinned.model, role: record.role }]

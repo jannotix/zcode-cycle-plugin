@@ -3,7 +3,30 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [1.0.11] - Unreleased
+## [Unreleased]
+
+### `setup remove` warned about the profiles it had just deleted.
+
+With a model pinned for a role, `/cycle:setup remove` reported *pin drift* for
+that role: the status that closes the removal compared the pin with a profile
+that no longer existed and read the absence as `inherit`. A missing profile
+dispatches nothing and already reports itself as `missing`, so it is no longer
+compared. The pin itself is kept, and a later install reports it as drift until
+it is repaired or withdrawn, as before.
+
+### A stable release must carry its live certification.
+
+The signed live receipt, its signature and its evidence are attached to a
+release as `zcode-live-certification-<version>.tgz`. The published-release gate
+verifies that bundle against the release's own sealed archive with the public
+release key, and refuses a release marked stable without it. The gate now runs
+from the default branch, because a release event checks out the tagged commit
+and would otherwise judge every release with a gate as old as its tag.
+
+The README now says that the folders earlier updates leave behind also survive
+an uninstall.
+
+## [1.0.11] - 2026-09-23
 
 ### An update could not replace the daemon it was updating.
 

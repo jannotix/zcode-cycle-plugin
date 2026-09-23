@@ -53,6 +53,17 @@ test("a per-role model pin outlives a silent rewrite of the profile, and is repo
     assert.equal(repaired.ready, true)
     assert.equal(repaired.pin_drift, undefined)
     assert.match(await readFile(target, "utf8"), /^model: custom:builtin:zai-coding-plan:GLM-5\.3-Flash$/mu)
+
+    // Removing the profiles is not losing the pin: the 1.0.11 campaign saw
+    // `remove` warn about the arbiter profile it had just deleted. The pin is
+    // kept, and reported again once a reinstall puts a template back.
+    const removed = await call("remove", { confirmation: "REMOVE_ZCODE_CYCLE_ROLE_PROFILES" })
+    assert.equal(removed.pin_drift, undefined)
+    assert.equal(removed.warning, undefined)
+    const reinstalled = await call("install", { confirmation: "INSTALL_ZCODE_CYCLE_ROLE_PROFILES" })
+    assert.deepEqual(reinstalled.pin_drift, [
+      { on_disk: "inherit", pinned: PINNED, role: "arbiter" },
+    ])
   } finally {
     await rm(projectRoot, { force: true, recursive: true })
   }
