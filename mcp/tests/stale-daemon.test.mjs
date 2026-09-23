@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -22,9 +23,15 @@ const BINARY =
 // failed to start, and after fifteen seconds the user got "did not become
 // healthy". Every upgrade would have ended there.
 
+// The daemon under test may lag the manifest - on a bump commit it does, by
+// design - so the bridge that starts it expects whatever the binary declares.
+const DAEMON_VERSION = existsSync(BINARY)
+  ? spawnSync(BINARY, ["--version"], { encoding: "utf8" }).stdout.trim()
+  : ""
+
 /** A detached daemon for `dataDirectory`, started by a bridge exactly as ZCode's would be. */
 async function runningDaemon(dataDirectory) {
-  const plane = new LocalControlPlane({ binaryPath: BINARY, dataDirectory })
+  const plane = new LocalControlPlane({ binaryPath: BINARY, dataDirectory, expectedProductVersion: DAEMON_VERSION })
   const health = await plane.health()
   const pids = daemonsServing(dataDirectory)
   assert.equal(pids.length, 1, `expected one daemon, found ${pids.join(", ")}`)
