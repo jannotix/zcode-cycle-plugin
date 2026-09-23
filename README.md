@@ -7,29 +7,34 @@ state, candidate bytes, verification evidence and delivery.
 
 ## Release status
 
-- `1.0.10` is the current production version. It closes the defects the first
+- `1.0.11` is the current production version. It lets an update replace the
+  daemon it is updating: `1.0.10`, the first to be installed as an update over a
+  running `1.0.9`, could not stop the old daemon and never became healthy. It
+  also carries everything `1.0.10` closed. See the [changelog](CHANGELOG.md).
+- `1.0.10` is published and superseded before certification. Install `1.0.11`
+  instead. It closes the defects the first
   isolated live certification campaign found in `1.0.9`: a secret-scan gate
   that read names and never values, a verification abandoned by any gate that
   could not start, a freeze refusal that told the run to revert the operator's
   project, per-role model assignment blocked by its own documentation, and a
   ledger that named the wrong provider. See the [changelog](CHANGELOG.md).
 - `1.0.9` is published and superseded. It passed all thirteen scenarios of that
-  campaign, and the campaign is what found the defects above. Install `1.0.10`
+  campaign, and the campaign is what found the defects above. Install `1.0.11`
   instead.
 - `1.0.8` is published and superseded. It exists because the certification host
   moved while `1.0.7` was being set up: the bundled ZCode CLI went from `0.16.5`
   to `0.16.9`, and that number is stated in the shipped threat model, so the
   published `1.0.7` archive described a host configuration that no longer exists.
-  Its own threat model carries the statement `1.0.9` corrected. Install `1.0.10`
+  Its own threat model carries the statement `1.0.9` corrected. Install `1.0.11`
   instead.
 - `1.0.7` is published and superseded before it was ever certified. Its seven
-  fixes are in `1.0.10` byte for byte. Install `1.0.10` instead.
+  fixes are in `1.0.11` byte for byte. Install `1.0.11` instead.
 - `1.0.6` is published and superseded. Eleven of thirteen scenarios passed; the
   two that failed — per-role model dispatch and recovery after an abrupt stop —
-  are closed in `1.0.10`, along with a project-identity split, a first-run
+  are closed in `1.0.11`, along with a project-identity split, a first-run
   deadlock, path-blind risk routing, one documentation error and a release gate
   that passed the daemons it exists to reject. Do not install it in preference
-  to `1.0.10`.
+  to `1.0.11`.
 - `1.0.5` was never published. It was sealed and carried through the full
   campaign a second time: ten scenarios passed, one was partial and two failed.
 - `1.0.4` is a superseded, never-published candidate. It was sealed and carried
@@ -61,7 +66,7 @@ state, candidate bytes, verification evidence and delivery.
 - `1.0.0` is withdrawn and must not be installed. Its historical tag is kept
   for auditability and is not reused.
 
-## Supported scope for 1.0.10
+## Supported scope for 1.0.11
 
 | Platform | Status |
 |---|---|
@@ -85,7 +90,7 @@ name another.
 ## Installation
 
 Production users should install the plugin only from the official ZCode public
-marketplace after version `1.0.10` is accepted and published. Official
+marketplace after version `1.0.11` is accepted and published. Official
 installation matters because the role profiles, the hook and the native daemon
 all run with your privileges, and a trusted source is what makes their bytes
 accountable.
