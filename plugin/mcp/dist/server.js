@@ -1592,19 +1592,29 @@ async function excludeManagedProfilesFromGit(projectRoot) {
   } catch {
     return "the project is not a git repository";
   }
+  const entries = [
+    { line: marker2, aliases: [marker2, ".zcode"], why: "role profiles are not project content." },
+    {
+      line: "/.zcodeignore",
+      aliases: ["/.zcodeignore", ".zcodeignore"],
+      why: "ZCode's own search-index file is not project content."
+    }
+  ];
   try {
     const excludePath = join2(gitDirectory, "info", "exclude");
     const existing = await readFile2(excludePath, "utf8").catch(() => "");
-    const alreadyListed = existing.split(/\r?\n/u).some((line) => line.trim() === marker2 || line.trim() === ".zcode");
-    if (alreadyListed)
+    const listed = new Set(existing.split(/\r?\n/u).map((line) => line.trim()));
+    const missing = entries.filter((entry) => !entry.aliases.some((alias) => listed.has(alias)));
+    if (missing.length === 0)
       return null;
     await mkdir2(dirname(excludePath), { recursive: true });
     const separator = existing === "" || existing.endsWith(`
 `) ? "" : `
 `;
-    await writeFile(excludePath, `${existing}${separator}# Managed by ZCode Cycle: role profiles are not project content.
-${marker2}
-`, "utf8");
+    const added = missing.map((entry) => `# Managed by ZCode Cycle: ${entry.why}
+${entry.line}
+`).join("");
+    await writeFile(excludePath, `${existing}${separator}${added}`, "utf8");
     return null;
   } catch (error) {
     return `could not update .git/info/exclude: ${error.message}`;

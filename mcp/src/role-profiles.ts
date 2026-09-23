@@ -380,20 +380,28 @@ async function excludeManagedProfilesFromGit(projectRoot: string): Promise<strin
     return "the project is not a git repository"
   }
 
+  // `.zcodeignore` is ZCode's, not Cycle's: the host writes it the first time its
+  // search palette opens, and untracked it refuses the next freeze exactly as
+  // the profiles did. Excluding only affects untracked files, so an operator who
+  // chooses to commit it is unaffected.
+  const entries = [
+    { line: marker, aliases: [marker, ".zcode"], why: "role profiles are not project content." },
+    {
+      line: "/.zcodeignore",
+      aliases: ["/.zcodeignore", ".zcodeignore"],
+      why: "ZCode's own search-index file is not project content.",
+    },
+  ]
   try {
     const excludePath = join(gitDirectory, "info", "exclude")
     const existing = await readFile(excludePath, "utf8").catch(() => "")
-    const alreadyListed = existing
-      .split(/\r?\n/u)
-      .some((line) => line.trim() === marker || line.trim() === ".zcode")
-    if (alreadyListed) return null
+    const listed = new Set(existing.split(/\r?\n/u).map((line) => line.trim()))
+    const missing = entries.filter((entry) => !entry.aliases.some((alias) => listed.has(alias)))
+    if (missing.length === 0) return null
     await mkdir(dirname(excludePath), { recursive: true })
     const separator = existing === "" || existing.endsWith("\n") ? "" : "\n"
-    await writeFile(
-      excludePath,
-      `${existing}${separator}# Managed by ZCode Cycle: role profiles are not project content.\n${marker}\n`,
-      "utf8",
-    )
+    const added = missing.map((entry) => `# Managed by ZCode Cycle: ${entry.why}\n${entry.line}\n`).join("")
+    await writeFile(excludePath, `${existing}${separator}${added}`, "utf8")
     return null
   } catch (error) {
     return `could not update .git/info/exclude: ${(error as Error).message}`

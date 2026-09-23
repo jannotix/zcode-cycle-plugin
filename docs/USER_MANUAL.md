@@ -59,29 +59,31 @@ fast-forward onto the revision it started from.
 
 ## Which model runs a role
 
-Each role can be pinned to its own model with `/cycle:setup model`, so the
+Each role can be pinned to its own model with `/cycle:models`, so the
 arbiter can judge on a stronger model than the one that drafted the work. The
 choice is written into the managed profile, and the ledger records the model
 that was pinned for every event a role produces — a receipt says which model
 approved a candidate, not merely that one did.
 
-Cycle accepts only the models ZCode ships for the Z.ai coding plan:
+A model reference is `inherit` or `custom:<provider-id>:<model>`, with the
+provider id URI-encoded the way ZCode encodes it - a colon inside it is written
+`%3A`, because ZCode splits the reference at the first colon:
 
-| Model | Thought levels |
+| Provider as ZCode shows it | Reference |
 |---|---|
-| `custom:builtin:zai-coding-plan:GLM-5.3` | `low`, `high`, `max` |
-| `custom:builtin:zai-coding-plan:GLM-5.3-Flash` | `low`, `high`, `max` |
-| `custom:builtin:zai-coding-plan:GLM-5-Turbo` | `enabled`, `off` |
-| `inherit` | follows the session |
+| `account:zai-individual-coding-plan`, model `GLM-5.3` | `custom:account%3Azai-individual-coding-plan:GLM-5.3` |
+| `builtin:zai-coding-plan`, model `GLM-5.3` | `custom:builtin:zai-coding-plan:GLM-5.3` |
+| any | `inherit` - follows the session |
 
-ZCode itself lets you add third-party models, and Cycle does not accept them
-for a governed role. This is a deliberate narrowing, not an oversight: the
-control plane verifies each managed profile against a known baseline, and a
-model whose thought-level vocabulary and capabilities it cannot check is a
-model it cannot make claims about in a receipt. A profile edited by hand to
-name a third-party model is reported as `managed-drift` by
-`/cycle:setup status` rather than being accepted silently. Your own main
-session is unaffected — the restriction applies to the five governed roles.
+Which providers exist is the host's answer. On the 1.0.9 certification host the
+Z.ai plan resolves only under `account:zai-individual-coding-plan`, and every
+`builtin:` reference fails at dispatch. Third-party models you add to ZCode are
+assigned the same way. Cycle checks only the reference's shape and reports every
+pin as `dispatch_unverified`; the run then probes each pinned role before a
+workflow starts, so an unreachable provider is found in seconds. Use
+`/cycle:models` rather than editing a profile by hand: only an assignment made
+through it is recorded, and only a recorded pin is reported if a later rewrite
+of the profile loses it. Your own main session is unaffected.
 
 ## Modes and routing
 

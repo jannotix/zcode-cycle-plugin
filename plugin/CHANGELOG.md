@@ -41,6 +41,54 @@ router escalated it to `full` on its own because of the content. Of three
 layers, the router recognised the risk, the scanner was silent, and the
 reviewer trusted the scanner.
 
+### Per-role models worked since 1.0.7, and the documentation said they could not.
+
+1.0.7 changed `/cycle:models` to validate a reference's shape and leave provider
+resolution to ZCode. The command text, the models guide and the manual were
+never updated: all three still listed three `custom:builtin:zai-coding-plan:*`
+references as the only ones accepted and said third-party models were refused.
+The live campaign found what that costs. Asked to pin the arbiter to
+`custom:account:zai-individual-coding-plan:GLM-5.3`, the orchestrating model
+refused **before calling the tool**, citing the command text, and offered the
+`builtin` reference instead - which the pre-start probe then rejected with
+`provider-not-found`. The fix had shipped; the documented path could not reach it.
+
+The account reference itself also failed, for a reason nothing documented.
+ZCode splits a `custom:` reference at the **first** colon and URI-decodes each
+half, so `custom:account:zai-individual-coding-plan:GLM-5.3` names provider
+`account`. ZCode's own encoder writes the colon inside a provider id as `%3A`.
+With `custom:account%3Azai-individual-coding-plan:GLM-5.3` the probe passed, a
+quick workflow ran to completion, the ledger recorded the pin on the arbiter's
+event, and the host's own model I/O logs show the arbiter answering on
+`GLM-5.3` while the session and every other role ran on `GLM-5.3-Flash`. That is
+the first certified run in this release line in which one role judged on a
+different model from the rest.
+
+The command, the guide, the manual and the getting-started guide now describe
+the reference format, the encoding and the probe, and no longer claim a
+restriction the code does not apply. They also correct a claim this rewrite
+nearly repeated: editing only a profile's `model:` line by hand reads as
+`current`, not `managed-drift` - it simply records no pin, so a later rewrite
+loses it without warning.
+
+Two things are recorded, not changed: the ledger stores the provider still
+URI-encoded (`account%3Azai-individual-coding-plan`), and it attests the model a
+role was assigned, which the models guide already says.
+
+### ZCode's own search-index file blocked the freeze, and a repair deleted it.
+
+ZCode writes `.zcodeignore` into the project the first time its search palette
+opens. Untracked, it made the next freeze refuse: *"the project holds changes no
+gate has seen: .zcodeignore"*. The run then dispatched an executor "environmental
+repair" that restored the tree by deleting the file. Harmless this once - ZCode
+regenerates it - but its lower half is reserved for the operator's own rules.
+
+`/cycle:setup install` already keeps `.zcode/` out of the project's change set
+through `.git/info/exclude`; it now does the same for `/.zcodeignore`. An
+exclude entry affects only untracked files, so an operator who commits the file
+is unaffected. A repair that deletes untracked files outside the candidate's
+scope is a separate question, still open.
+
 ### A gate that could not start abandoned the whole verification.
 
 The live campaign's architect planned `start //b node serve.mjs` as a

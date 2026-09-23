@@ -1,11 +1,10 @@
 # Per-Role Model Configuration
 
 ZCode Cycle remains model-agnostic while roles inherit the active session
-model. Explicit per-role overrides are deliberately fail-closed: this release
-accepts only the verified Z.ai Coding Plan model and thought-level pairs below,
-so it does not write a profile that ZCode may silently ignore or reject.
-Assignments are constrained edits to the managed project profiles and never
-leave the project.
+model. An explicit per-role override names a model the host must resolve;
+Cycle checks the reference's shape, writes it into the managed project
+profile, and probes the role before any workflow starts. Assignments are
+constrained edits to the managed project profiles and never leave the project.
 
 ## Read assignments
 
@@ -19,33 +18,48 @@ of `architect`, `executor`, `functional-reviewer`, `security-reviewer`,
 `arbiter`. Use `inherit` to follow the primary Agent; omit its thought level,
 because ZCode applies `thoughtLevel` only when a specific model is set.
 
-For an explicit assignment, use exactly one of these current built-in model
-references and pairs. Do not infer a shorter alias or substitute a similarly
-named model from another provider.
+For an explicit assignment the reference is `custom:<provider-id>:<model>`,
+with the provider id URI-encoded exactly as ZCode encodes it. ZCode splits the
+reference at the first colon after `custom:`, so a provider id that itself
+contains a colon must write it as `%3A`; left bare, it silently names a
+different provider.
 
-| Exact ZCode model reference | Allowed thought levels | Default |
-| --- | --- | --- |
-| `custom:builtin:zai-coding-plan:GLM-5.3` | `low`, `high`, `max` | `high` |
-| `custom:builtin:zai-coding-plan:GLM-5.3-Flash` | `low`, `high`, `max` | `high` |
-| `custom:builtin:zai-coding-plan:GLM-5-Turbo` | `enabled`, `off` | `off` |
+| Provider as ZCode shows it | Reference |
+| --- | --- |
+| `account:zai-individual-coding-plan`, model `GLM-5.3` | `custom:account%3Azai-individual-coding-plan:GLM-5.3` |
+| `builtin:zai-coding-plan`, model `GLM-5.3` | `custom:builtin:zai-coding-plan:GLM-5.3` |
 
-`nothink` and `medium` are intentionally not accepted by this release. Cycle
-rejects any unknown model or pair before changing a managed profile. The tool
-preserves the security-critical prompt and tool list; an override applies in a
-new session.
+Which one works depends on the host, not on Cycle. The 1.0.9 certification host
+resolves the Z.ai coding plan under `account:zai-individual-coding-plan`; there
+every `builtin:` reference fails at dispatch with `provider-not-found`, and the
+encoded `account` reference runs. A plugin cannot enumerate a host's providers,
+so it does not try: every explicit pin is reported `dispatch_unverified`, and
+the run protocol dispatches a throwaway probe of each pinned role before
+`cycle_start`, so a wrong provider costs seconds rather than a workflow.
+
+Thought levels: the tool enforces exact pairs for the three
+`custom:builtin:zai-coding-plan:*` references - `GLM-5.3` and `GLM-5.3-Flash`
+take `low`, `high` or `max`; `GLM-5-Turbo` takes `enabled` or `off`. Any other
+reference accepts `low`, `high`, `max`, `enabled` or `off` and the host
+decides, so use the same pairs for the same models under another provider id.
+`nothink` and `medium` are never accepted. The tool preserves the
+security-critical prompt and tool list; an override applies in a new session.
 
 ## Third-party models
 
-ZCode lets you add models from other providers, and Cycle does not accept them
-for a governed role. The control plane verifies each managed profile against a
-known baseline, and it cannot check the capabilities or the thought-level
-vocabulary of a model it does not know — accepting one would mean recording an
-unverified claim about who judged your candidate. A profile edited by hand to
-name a third-party model is therefore reported as `managed-drift` by
-`/cycle:setup status` rather than being accepted silently.
+A model you have added to ZCode from another provider is assigned the same
+way: name it as `custom:<encoded provider id>:<model>`. Cycle does not keep a
+list of acceptable providers, and it cannot verify the capabilities of a model
+it does not know - so read the ledger's model field as a record of the
+assignment, which is what it is (see below), and let the pre-start probe tell
+you whether the host can reach it.
 
-This applies only to the five governed roles. Your own main session may use any
-model ZCode offers.
+Use `/cycle:models` rather than editing a profile by hand. A hand edit to
+anything other than the `model:` and `thoughtLevel:` lines is reported as
+`managed-drift` by `/cycle:setup status`. A hand edit to the `model:` line
+alone, with a well-formed reference, reads as `current` - but no assignment is
+recorded for it, so if something later rewrites the profile the pin vanishes
+without the warning described below.
 
 ## What the ledger records
 

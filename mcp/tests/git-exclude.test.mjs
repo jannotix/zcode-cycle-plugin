@@ -81,6 +81,26 @@ test("repeating the install does not repeat the exclude entry", async () => {
   }
 })
 
+/**
+ * The 1.0.9 live certification found the next file of the same kind. ZCode
+ * writes `.zcodeignore` into the project the first time its search palette is
+ * opened; untracked, it refused the next freeze, and the run "repaired" that by
+ * deleting a file whose lower half is reserved for the operator's own rules.
+ */
+test("install also keeps the host's own search-index file out of the change set", async () => {
+  const projectRoot = await gitProject()
+  try {
+    await install(projectRoot)
+    await install(projectRoot)
+
+    const lines = (await readFile(exclude(projectRoot), "utf8")).split(/\r?\n/u)
+    assert.equal(lines.filter((line) => line.trim() === "/.zcodeignore").length, 1)
+    assert.equal(lines.filter((line) => line.trim() === ".zcode/").length, 1)
+  } finally {
+    await rm(projectRoot, { force: true, recursive: true })
+  }
+})
+
 /** A project that is not a git repository must still install, and be told why. */
 test("a project outside git installs and is told the profiles are visible to it", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "zcode-cycle-no-git-"))
