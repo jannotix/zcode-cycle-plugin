@@ -432,7 +432,13 @@ fn snapshot(store: &Store, project_id: ProjectId, goal_id: GoalId) -> Result<Val
                 .load_workflow(workflow_id)
                 .map_err(|error| error.to_string())?
                 .ok_or_else(|| "linked workflow state does not exist".to_owned())?;
+            // The digests `approve_completion` accepts as `completion_evidence`.
+            // The 1.0.11 campaign had to read them out of the ledger by hand.
+            let receipts = store
+                .workflow_arbitration_receipt_digests(workflow_id)
+                .map_err(|error| error.to_string())?;
             Ok(json!({
+                "arbitrationReceiptDigests": receipts,
                 "milestone": milestone,
                 "state": format!("{:?}", state.state()).to_ascii_lowercase(),
                 "workflowId": workflow_id,

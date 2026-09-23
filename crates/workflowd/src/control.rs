@@ -18,10 +18,10 @@ pub fn execute(
     if project_key.is_empty() || project_key.len() > 32_768 || project_key.contains('\0') {
         return Err("project key is invalid".to_owned());
     }
-    if operation == ControlOperation::Doctor {
-        return doctor(store, checkpoint_key);
-    }
     let project_id = ProjectId::from_stable_key(project_key);
+    if operation == ControlOperation::Doctor {
+        return doctor(store, checkpoint_key, project_id);
+    }
     let workflow_id = if let Some(workflow_id) = requested_workflow_id {
         let owner = store
             .load_request(workflow_id)
@@ -134,6 +134,64 @@ pub fn execute(
         }
         ControlOperation::Doctor => unreachable!("doctor is handled before workflow lookup"),
     }
+}
+
+/// One workflow as the doctor reports it: what it is, and which operations the
+/// plane would accept on it right now. The operator-facing answer to "can this
+/// be resumed" is `nextOperations`, never a reading of the state name.
+///
+/// The list is not a second copy of the state machine's rules - a copy would
+/// drift. Each mutating operation is tried on a clone through the same
+/// `command` mapping and `apply` that `execute` uses, including the blocked
+/// retry fallback and the refusal while a delivery is reserved.
+fn workflow_summary(
+    store: &Store,
+    workflow_id: workflow_core::WorkflowId,
+    state: &workflow_core::Workflow,
+) -> Result<Value, String> {
+    let delivering = store
+        .workflow_delivery_reserved(workflow_id)
+        .map_err(|error| error.to_string())?;
+    let accepts = |command: WorkflowCommand| state.clone().apply(command).is_ok();
+    let mut next_operations = Vec::new();
+    if matches!(
+        state.state(),
+        WorkflowState::Architecture
+            | WorkflowState::Execution
+            | WorkflowState::QuickExecution
+            | WorkflowState::Verification
+            | WorkflowState::IndependentReviews
+            | WorkflowState::Arbitration
+            | WorkflowState::Delivery
+    ) {
+        next_operations.push("recovery");
+    }
+    if !delivering {
+        for (name, operation) in [
+            ("pause", ControlOperation::Pause),
+            ("resume", ControlOperation::Resume),
+            ("retry", ControlOperation::Retry),
+            ("cancel", ControlOperation::Cancel),
+        ] {
+            let accepted = accepts(command(operation, state.state()))
+                || (operation == ControlOperation::Retry
+                    && state.state() == WorkflowState::Blocked
+                    && accepts(WorkflowCommand::ResumeBlocked {
+                        additional_cycles: 5,
+                    }));
+            if accepted {
+                next_operations.push(name);
+            }
+        }
+    }
+    Ok(json!({
+        "currentCandidate": state.current_candidate(),
+        "mode": state.mode(),
+        "nextOperations": next_operations,
+        "state": state.state(),
+        "terminal": state.state().is_terminal(),
+        "workflowId": workflow_id,
+    }))
 }
 
 fn command(operation: ControlOperation, state: WorkflowState) -> WorkflowCommand {
@@ -388,10 +446,30 @@ fn early_recovery(
     Ok(Value::Object(result))
 }
 
-fn doctor(store: &Store, checkpoint_key: &CheckpointKey) -> Result<Value, String> {
+fn doctor(
+    store: &Store,
+    checkpoint_key: &CheckpointKey,
+    project_id: ProjectId,
+) -> Result<Value, String> {
     crate::history::verify_store(store, checkpoint_key).map_err(|error| error.to_string())?;
     let sample = crate::resources::sample(store.path().parent().unwrap_or_else(|| Path::new(".")));
+    // The 1.0.11 campaign's doctor report called a cancelled workflow resumable
+    // and said it had no frozen candidate when it had one. Nothing here said
+    // either way: the command asked for "active or recoverable workflows" and
+    // this result carried none, so the report was inferred. It is stated now,
+    // from the same rules the operations enforce.
+    let workflows = store
+        .recent_workflows_for_project(project_id, 10)
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .filter_map(|workflow_id| match store.load_workflow(workflow_id) {
+            Ok(Some(state)) => Some(workflow_summary(store, workflow_id, &state)),
+            Ok(None) => None,
+            Err(error) => Some(Err(error.to_string())),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(json!({
+        "workflows": workflows,
         "ledger": "valid",
         "resources": {
             "availableDiskBytes": sample.available_disk_bytes,

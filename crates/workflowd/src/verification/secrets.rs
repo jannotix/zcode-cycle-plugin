@@ -167,6 +167,41 @@ fn known_credential(line: &str) -> Option<&'static str> {
     })
 }
 
+/// Whether free text - a request, not code - talks about credential material.
+///
+/// The router used to keep its own word list, and it drifted from this one: the
+/// 1.0.11 campaign sent a request that asked for an `sk_live_` literal and it
+/// was routed to `quick`, because the request never used the word "secret".
+/// The gate caught the literal later, but the independent security review that
+/// `full` guarantees had already been skipped. Routing now asks this table.
+///
+/// Prose is not code, so the rule is wider than the gate's: a token that begins
+/// with a separator-bearing prefix (`sk_live_`, `ghp_`, `sk-ant-`) counts even
+/// on its own, because naming the prefix is already talking about the
+/// credential. The bare-letter prefixes (`AKIA`, `ASIA`, `AIza`) count only at
+/// full length, so "ASIA" in capitals is not a credential. Placeholders are
+/// ignored as the gate ignores them. Over-routing costs a review; under-routing
+/// costs the review that would have caught it.
+pub(crate) fn mentions_credential_material(text: &str) -> bool {
+    if text.contains("PRIVATE KEY") {
+        return true;
+    }
+    text.split(|character: char| {
+        !character.is_ascii_alphanumeric() && character != '_' && character != '-'
+    })
+    .filter(|token| {
+        !PLACEHOLDERS
+            .iter()
+            .any(|placeholder| token.to_ascii_lowercase().contains(placeholder))
+    })
+    .any(|token| {
+        CREDENTIAL_PREFIXES.iter().any(|prefix| {
+            let bare = prefix.contains(['_', '-']);
+            token.starts_with(prefix) && (bare || token.len() >= prefix.len() + 16)
+        })
+    })
+}
+
 /// The contents of every quoted run on the line, for `"`, `'` and a backtick.
 ///
 /// Deliberately naive: it does not understand escapes or nesting, and it does

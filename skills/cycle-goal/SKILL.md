@@ -15,6 +15,12 @@ Draft → (start_planning; save_plan does this automatically) → Planning →
 (mark_ready; requires a saved plan) → Ready → (activate) → Active →
 (request_completion) → Completing → (approve_completion) → Completed.
 
+Each step is one `cycle_goal` call whose `operation.type` selects the shape;
+the tool schema lists every field, and `/cycle:goal` has the full table.
+Lifecycle steps are `{type: "control", goal_id, operation_id, action,
+completion_evidence: null, reason: null}` with a fresh UUID `operation_id`
+each time - `mark_ready` and `activate` included.
+
 ## Rules
 
 1. Create with the objective in the user's own words plus constraints,
@@ -25,9 +31,11 @@ Draft → (start_planning; save_plan does this automatically) → Planning →
 3. Each implementation milestone is a normal governed workflow
    (`cycle-run` skill); link it with `link_workflow` after it starts.
 4. Completion gates: `request_completion` requires at least one linked
-   workflow; `approve_completion` requires every linked milestone to have
-   a COMPLETED workflow (cancelled does not count) and the arbiter
-   receipt digest as `completion_evidence`. No evidence, no completion.
+   workflow and every linked milestone backed by a COMPLETED workflow
+   (cancelled does not count); `approve_completion` requires an arbiter
+   receipt digest as `completion_evidence`, taken from
+   `arbitrationReceiptDigests` in the goal's `status`. No evidence, no
+   completion.
 5. Pause/resume/block/abort exist for lifecycle control; abort requires a
    bounded reason.
 6. Work must be committed in the project between workflows: promotion is

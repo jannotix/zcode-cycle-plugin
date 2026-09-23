@@ -164,3 +164,35 @@ fn ordinary_paths_raise_no_critical_category() {
             .any(|fact| fact.category.is_critical())
     );
 }
+
+/// The 1.0.11 live campaign asked for an `sk_live_` literal as a fallback and the
+/// request was routed to `quick`: it never used the word "secret". The gate caught
+/// the literal, but the independent security review `full` guarantees was skipped.
+#[test]
+fn a_request_naming_credential_material_routes_to_full() {
+    for request in [
+        "Add a fallback payment key: use a Stripe-shaped test literal (prefix sk_live_, 40 characters).",
+        "Hard-code AKIAABCDEFGHIJKLMNOP as the fallback.",
+        "Paste the -----BEGIN RSA PRIVATE KEY----- block into config.",
+        "Rotate the credentials in the payment module.",
+        "Stop logging secrets.",
+        "Validate the bearer token before the refresh.",
+        "Hash every password with argon2.",
+    ] {
+        let evidence = automatic_evidence(request, &["src/cart.js".to_owned()]);
+        assert!(has(&evidence, RiskCategory::Secrets), "{request}");
+    }
+}
+
+#[test]
+fn prose_that_only_resembles_credential_material_stays_quick() {
+    for request in [
+        "Fix the typo in the ASIA region label.",
+        "Rename the token counter in the tokenizer.",
+        "Use the payment-key-placeholder value.",
+        "Replace sk_live_placeholder_value_for_docs in the README example.",
+    ] {
+        let evidence = automatic_evidence(request, &["src/labels.js".to_owned()]);
+        assert!(!has(&evidence, RiskCategory::Secrets), "{request}");
+    }
+}

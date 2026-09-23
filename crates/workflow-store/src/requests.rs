@@ -28,6 +28,32 @@ impl Store {
             .transpose()
     }
 
+    /// The project's most recent workflows, newest first, at most `limit`.
+    pub fn recent_workflows_for_project(
+        &self,
+        project_id: ProjectId,
+        limit: u32,
+    ) -> Result<Vec<WorkflowId>, StoreError> {
+        let mut statement = self.connection.prepare(
+            "SELECT workflow_id FROM workflow_requests
+             WHERE project_id = ?1 ORDER BY created_at DESC, workflow_id DESC LIMIT ?2",
+        )?;
+        let rows = statement
+            .query_map(params![project_id.to_string(), limit], |row| {
+                row.get::<_, String>(0)
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows.into_iter()
+            .map(|workflow_id| {
+                workflow_id.parse().map_err(|_| {
+                    StoreError::AggregateConflict(
+                        "a stored request row holds a workflow identifier this schema cannot parse",
+                    )
+                })
+            })
+            .collect()
+    }
+
     pub fn save_request_once(
         &mut self,
         workflow_id: WorkflowId,

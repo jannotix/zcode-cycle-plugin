@@ -1,6 +1,6 @@
 mod plan;
 mod runner;
-mod secrets;
+pub(crate) mod secrets;
 
 pub use plan::{
     VerificationExecutor, VerificationGate, VerificationPlan, VerificationPlanError,

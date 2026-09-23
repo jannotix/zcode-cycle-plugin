@@ -124,6 +124,108 @@ fn doctor_requires_no_existing_workflow_and_verifies_the_store() {
     );
 }
 
+/// The 1.0.11 campaign's doctor report called a cancelled workflow resumable.
+/// The doctor now says, per workflow, which operations the plane accepts - and
+/// the list must agree with what the plane then actually does.
+#[test]
+fn doctor_reports_what_each_workflow_accepts() {
+    let temporary = tempfile::tempdir().unwrap();
+    let mut store = Store::open(
+        temporary.path().join("workflow.db"),
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .unwrap();
+    let key = CheckpointKey::generate().unwrap();
+    let project_key = "doctor-project";
+    let timestamp = WorkflowTimestamp::now();
+    let mut start = |project: &str, commands: &[WorkflowCommand]| {
+        let workflow_id = WorkflowId::new();
+        store
+            .save_request_once(
+                workflow_id,
+                ProjectId::from_stable_key(project),
+                &RequestRecord::new("Doctor request".to_owned(), vec![]),
+                timestamp,
+            )
+            .unwrap();
+        for (index, command) in commands.iter().enumerate() {
+            store
+                .apply_workflow_command(
+                    workflow_id,
+                    &format!("{workflow_id}-step-{index}"),
+                    *command,
+                    timestamp,
+                )
+                .unwrap();
+        }
+        workflow_id
+    };
+    let cancelled = start(
+        project_key,
+        &[WorkflowCommand::CompleteIntake, WorkflowCommand::Cancel],
+    );
+    let paused = start(
+        project_key,
+        &[WorkflowCommand::CompleteIntake, WorkflowCommand::Pause],
+    );
+    let foreign = start("another-project", &[WorkflowCommand::CompleteIntake]);
+
+    let doctor = workflowd::control::execute(
+        &mut store,
+        &key,
+        temporary.path(),
+        project_key,
+        None,
+        ControlOperation::Doctor,
+        ReceiptId::new(),
+    )
+    .unwrap();
+    let workflows = doctor["workflows"].as_array().unwrap();
+    let find = |id: WorkflowId| {
+        workflows
+            .iter()
+            .find(|workflow| workflow["workflowId"] == id.to_string())
+            .cloned()
+    };
+    assert!(find(foreign).is_none(), "another project's workflow leaked");
+
+    let cancelled_report = find(cancelled).unwrap();
+    assert_eq!(cancelled_report["state"], "cancelled");
+    assert_eq!(cancelled_report["terminal"], true);
+    assert_eq!(cancelled_report["nextOperations"], serde_json::json!([]));
+    let resume_cancelled = workflowd::control::execute(
+        &mut store,
+        &key,
+        temporary.path(),
+        project_key,
+        Some(cancelled),
+        ControlOperation::Resume,
+        ReceiptId::new(),
+    );
+    assert!(
+        resume_cancelled.is_err(),
+        "the plane must refuse what the doctor did not offer"
+    );
+
+    let paused_report = find(paused).unwrap();
+    assert_eq!(paused_report["terminal"], false);
+    assert_eq!(
+        paused_report["nextOperations"],
+        serde_json::json!(["resume", "cancel"])
+    );
+    let resumed = workflowd::control::execute(
+        &mut store,
+        &key,
+        temporary.path(),
+        project_key,
+        Some(paused),
+        ControlOperation::Resume,
+        ReceiptId::new(),
+    )
+    .unwrap();
+    assert_eq!(resumed["state"], "routing");
+}
+
 #[test]
 fn recovery_returns_candidate_bound_finalization_context() {
     let temporary = tempfile::tempdir().unwrap();

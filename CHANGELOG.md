@@ -5,6 +5,40 @@ content is immutable: a published version is never reused for different bytes.
 
 ## [Unreleased]
 
+### A request that named credential material was routed to `quick`.
+
+The 1.0.11 campaign asked for an `sk_live_` literal and the router chose
+`quick`, so the independent security review that `full` guarantees never ran;
+only the secret-scan gate caught the literal later. The router matched a short
+word list - `secret`, `credential`, `api key` as exact words - and nothing else:
+not the plural, not "password" or "private key", and not the material itself.
+It now consults the secret-scan gate's own credential table, so a request that
+carries or names a credential prefix (`sk_live_`, `ghp_`, `AKIA…`) or a PEM
+private key routes to `full`; plurals match; and the word list covers
+passwords, private and signing keys and access, bearer and refresh tokens.
+Placeholders and look-alikes ("ASIA", "tokenizer") still route to `quick`.
+
+### `/cycle:doctor` described workflows it had no information about.
+
+The command asked for "active or recoverable workflows" and the doctor result
+carried none, so the report was inferred: the campaign's doctor called a
+cancelled workflow resumable and denied it a frozen candidate it had. The
+doctor now lists the project's recent workflows with state, mode, current
+candidate, `terminal`, and `nextOperations` - the operations the plane would
+accept right now, found by trying each on a copy of the state machine rather
+than by a second copy of its rules. The command reports those fields verbatim.
+
+### `/cycle:goal` did not say how to drive a goal.
+
+`cycle_goal` published its `operation` as a bare object, and the command listed
+action names without the calls that carry them, so both campaigns learned
+`mark_ready` and `activate` from refusals, and read the receipt digest that
+`approve_completion` requires out of the ledger by hand. The tool now publishes
+every operation's fields, bound to the Rust type by a test; the command gives
+the exact operation for each subcommand and the lifecycle order; and goal
+`status` lists each linked workflow's `arbitrationReceiptDigests`, the values
+`approve_completion` accepts.
+
 ### `setup remove` warned about the profiles it had just deleted.
 
 With a model pinned for a role, `/cycle:setup remove` reported *pin drift* for

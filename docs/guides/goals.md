@@ -8,6 +8,12 @@ Draft → Planning → Ready → Active → Completing → Completed, with pause
 block and abort side paths. Plans are versioned: every save records a
 revision with its digest. The objective is immutable; amendments append.
 
+Each transition is an explicit `/cycle:goal control <action> <id>`:
+`save_plan` (or `start_planning`) moves Draft to Planning, `mark_ready`
+needs a saved plan, `activate` starts the work, `request_completion` and
+`approve_completion` close it. The `/cycle:goal` command documents the exact
+`cycle_goal` operation for every subcommand.
+
 ## Milestones and completion gates
 
 Each implementation milestone is a normal governed workflow, linked with
@@ -17,7 +23,9 @@ Each implementation milestone is a normal governed workflow, linked with
 - every linked milestone must have a COMPLETED workflow — cancelled
   does not count;
 - `approve_completion` must cite the arbiter's receipt digest as
-  `completion_evidence`, and that digest is resolved against the
+  `completion_evidence` — `/cycle:goal status` lists the accepted ones as
+  `arbitrationReceiptDigests` under each linked workflow — and that digest is
+  resolved against the
   arbitration receipts recorded for this goal's own linked workflows. A
   well-formed digest that names no such receipt is refused, and so is a
   real receipt belonging to work linked elsewhere. No evidence, no

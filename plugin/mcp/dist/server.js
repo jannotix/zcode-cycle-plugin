@@ -1808,6 +1808,58 @@ import { mkdir as mkdir3, readFile as readFile3, rename as rename3, rm as rm3, w
 import { dirname as dirname2, join as join3 } from "node:path";
 import { createInterface } from "node:readline";
 var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+var GOAL_OPERATIONS = {
+  create: ["goal_id", "objective", "success_criteria", "constraints", "non_goals", "max_continuations", "session_id"],
+  amend: ["goal_id", "operation_id", "text"],
+  control: ["goal_id", "operation_id", "action", "completion_evidence?", "reason?"],
+  focus: ["goal_id", "session_id"],
+  link_workflow: ["goal_id", "milestone", "workflow_id"],
+  unlink_workflow: ["goal_id", "workflow_id"],
+  list: [],
+  save_plan: ["goal_id", "content", "source_session_id"],
+  status: ["goal_id?", "session_id"]
+};
+var GOAL_TEXT_LIST = { type: "array", items: { type: "string" }, maxItems: 256 };
+var GOAL_OPERATION = {
+  type: "object",
+  description: "Fields by type (? = optional, may be null): " + Object.entries(GOAL_OPERATIONS).map(([type, fields]) => `${type}(${fields.join(", ")})`).join("; ") + ".",
+  properties: {
+    type: { enum: Object.keys(GOAL_OPERATIONS) },
+    action: {
+      enum: [
+        "start_planning",
+        "mark_ready",
+        "activate",
+        "pause",
+        "resume",
+        "block",
+        "resume_blocked",
+        "continue",
+        "request_completion",
+        "approve_completion",
+        "reject_completion",
+        "abort"
+      ]
+    },
+    completion_evidence: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
+    constraints: GOAL_TEXT_LIST,
+    content: { type: "string" },
+    goal_id: { type: ["string", "null"], pattern: UUID3.source },
+    max_continuations: { type: "integer", minimum: 1, maximum: 255 },
+    milestone: { type: "string" },
+    non_goals: GOAL_TEXT_LIST,
+    objective: { type: "string" },
+    operation_id: { type: "string", pattern: UUID3.source },
+    reason: { type: ["string", "null"] },
+    session_id: { type: "string" },
+    source_session_id: { type: "string" },
+    success_criteria: GOAL_TEXT_LIST,
+    text: { type: "string" },
+    workflow_id: { type: "string", pattern: UUID3.source }
+  },
+  required: ["type"],
+  additionalProperties: false
+};
 var READ_ONLY_ROLES = new Set([
   "architect",
   "functional_reviewer",
@@ -2311,10 +2363,10 @@ var TOOLS = {
     }
   },
   cycle_goal: {
-    description: "Manage persistent goals: create, amend, focus, link and unlink workflows, save versioned plans, control lifecycle.",
+    description: "Manage persistent goals: create, amend, focus, link and unlink workflows, save versioned plans, control lifecycle. `operation.type` selects the shape. Every id is a UUID the caller generates (goal_id on create, a fresh operation_id for each amend or control call); session_id is any stable identifier for the current conversation. Lifecycle: save_plan (starts planning) -> control mark_ready -> control activate -> control request_completion -> control approve_completion with completion_evidence = one of status.workflows[].arbitrationReceiptDigests.",
     inputSchema: {
       type: "object",
-      properties: { project_key: { type: "string" }, operation: { type: "object" } },
+      properties: { project_key: { type: "string" }, operation: GOAL_OPERATION },
       required: ["project_key", "operation"],
       additionalProperties: false
     }

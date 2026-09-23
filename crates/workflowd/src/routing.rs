@@ -45,6 +45,14 @@ pub fn automatic_evidence(original_request: &str, affected_paths: &[String]) -> 
                 .insert("original_request".to_owned());
         }
     }
+    // The words above miss a request that carries or names the material itself,
+    // so the secret-scan gate's own credential table is consulted too.
+    if crate::verification::secrets::mentions_credential_material(original_request) {
+        rationales
+            .entry(RiskCategory::Secrets)
+            .or_default()
+            .insert("original_request_credential_material".to_owned());
+    }
     for path in affected_paths {
         classify_path(path, &mut rationales);
     }
@@ -268,8 +276,10 @@ fn contains_marker(text: &str, marker: &str) -> bool {
     if marker.contains(' ') || marker.contains('-') {
         return text.contains(marker);
     }
+    // A plural is the same risk: "credentials" and "secrets" used to route to
+    // quick where "credential" and "secret" routed to full.
     text.split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
-        .any(|token| token == marker)
+        .any(|token| token == marker || token.strip_suffix('s') == Some(marker))
 }
 
 fn category_list(categories: &[RiskCategory]) -> String {
@@ -297,7 +307,26 @@ const REQUEST_MARKERS: &[(RiskCategory, &[&str])] = &[
         RiskCategory::Cryptography,
         &["cryptography", "encryption", "cipher"],
     ),
-    (RiskCategory::Secrets, &["secret", "credential", "api key"]),
+    (
+        RiskCategory::Secrets,
+        &[
+            "secret",
+            "credential",
+            "password",
+            "passphrase",
+            "apikey",
+            "api_key",
+            "api key",
+            "access key",
+            "private key",
+            "signing key",
+            "access token",
+            "api token",
+            "auth token",
+            "bearer token",
+            "refresh token",
+        ],
+    ),
     (
         RiskCategory::TrustBoundary,
         &["trust boundary", "sandbox", "isolation"],
