@@ -41,6 +41,36 @@ router escalated it to `full` on its own because of the content. Of three
 layers, the router recognised the risk, the scanner was silent, and the
 reviewer trusted the scanner.
 
+### A gate that could not start abandoned the whole verification.
+
+The live campaign's architect planned `start //b node serve.mjs` as a
+verification command. `start` is a `cmd.exe` builtin, not an executable, so the
+daemon could not spawn it. That case was fixed once, as DEFECT-16: the runner
+records a gate that cannot start as a **failed gate**, output `gate could not
+start: …`, so promotion stops and says why.
+
+The record never survived. A failure with no exit code — which is exactly what
+"no process ran" looks like — was refused by the evidence validator as an
+inconsistent exit status, and the runner reported every record refusal as
+*"candidate evidence identifiers do not match the plan"*. So the verification
+was abandoned, the gate produced no result, and the message pointed at
+something that was not wrong: plan and manifest held the same nine
+identifiers. The executor spent its turn chasing that, trying to re-freeze a
+candidate that had never been the problem.
+
+The half of DEFECT-16 that validates a plan had tests. The half that runs one
+had none, so the two rules were never exercised together.
+
+A failed record may now carry no exit code; a failure with exit code `0` is
+still refused, since that is the only real contradiction. A record the
+validator does refuse is reported as what it is — the gate's name and the rule
+it broke — rather than as an identifier mismatch. The new test plans a program
+that does not exist and requires a failed gate, not an abandoned run.
+
+On 1.0.9 a workflow whose plan contains such a gate cannot be verified at all:
+the plan is fixed when the candidate is frozen, and there is no sanctioned way
+to replace one gate. Cancel it and start again.
+
 ### Three published releases did not carry what their own manifest declared.
 
 `1.0.7`, `1.0.8` and `1.0.9` were each published with ten of the twelve

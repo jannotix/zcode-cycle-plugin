@@ -81,7 +81,9 @@ impl EvidenceRecord {
             {
                 Err(EvidenceValidationError::InvalidExitCode)
             }
-            EvidenceStatus::Failed if self.exit_code.is_none_or(|code| code == 0) => {
+            // No exit code on a failure means no process ran - a gate that
+            // could not start. Only a zero exit contradicts a failure.
+            EvidenceStatus::Failed if self.exit_code == Some(0) => {
                 Err(EvidenceValidationError::InvalidExitCode)
             }
             EvidenceStatus::Skipped

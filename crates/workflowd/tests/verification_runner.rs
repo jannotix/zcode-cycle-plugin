@@ -111,6 +111,51 @@ async fn commands_capture_normalized_evidence_and_candidate_integrity() {
     );
 }
 
+// DEFECT-16's runtime half, found by the 1.0.9 live certification: the
+// architect planned `start //b node serve.mjs`. `start` is a cmd.exe builtin,
+// not an executable, so the gate could not spawn. The runner recorded that as
+// a failed gate with no exit code, the record validator refused the pairing,
+// and the refusal surfaced as "candidate evidence identifiers do not match the
+// plan" - the whole verification abandoned under a message about something
+// else, which is the silence DEFECT-16 was fixed to end.
+#[tokio::test]
+async fn a_gate_that_cannot_start_fails_the_gate_not_the_run() {
+    let repository = Repository::new("safe change\n");
+    let mut architecture = architecture(vec!["candidate.txt".to_owned()]);
+    architecture.tasks[0].verification_commands =
+        vec!["zc-no-such-program-anywhere --version".to_owned()];
+    let plan = discover(&repository.path, &architecture).unwrap();
+    let frozen = freeze(
+        &repository.path,
+        &repository.base,
+        CandidateId::new(),
+        plan.evidence_ids(),
+    )
+    .unwrap();
+    let result = run(
+        &repository.path,
+        &plan,
+        &frozen.manifest,
+        &frozen.exact_diff,
+        &frozen.exact_files,
+    )
+    .await
+    .expect("a gate that cannot start is the gate's answer, not the run's");
+
+    assert!(!result.mandatory_passed);
+    let record = result
+        .records
+        .iter()
+        .find(|record| record.tool == "zc-no-such-program-anywhere")
+        .unwrap();
+    assert_eq!(record.status, EvidenceStatus::Failed);
+    assert_eq!(
+        record.exit_code, None,
+        "no process ran, so no exit code exists"
+    );
+    assert!(result.outputs[&record.id].starts_with("gate could not start"));
+}
+
 #[tokio::test]
 async fn unavailable_mandatory_gates_and_seeded_secrets_fail_honestly() {
     // Inert fixture data for the secret-detection gate; assembled from parts

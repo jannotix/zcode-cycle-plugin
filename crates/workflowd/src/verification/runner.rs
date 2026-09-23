@@ -35,6 +35,10 @@ pub struct VerificationRun {
 pub enum VerificationRunError {
     CandidateChanged,
     EvidenceMismatch,
+    InvalidRecord {
+        gate: String,
+        error: workflow_core::EvidenceValidationError,
+    },
     Io(std::io::Error),
     Join(tokio::task::JoinError),
 }
@@ -47,6 +51,12 @@ impl std::fmt::Display for VerificationRunError {
             }
             Self::EvidenceMismatch => {
                 formatter.write_str("candidate evidence identifiers do not match the plan")
+            }
+            Self::InvalidRecord { gate, error } => {
+                write!(
+                    formatter,
+                    "gate {gate} produced an invalid evidence record: {error}"
+                )
             }
             Self::Io(error) => error.fmt(formatter),
             Self::Join(error) => error.fmt(formatter),
@@ -456,7 +466,10 @@ async fn run_gate(
     };
     record
         .validate()
-        .map_err(|_| VerificationRunError::EvidenceMismatch)?;
+        .map_err(|error| VerificationRunError::InvalidRecord {
+            gate: gate.name.clone(),
+            error,
+        })?;
     Ok(GateResult {
         output: Redactor::default().value(output),
         record,
