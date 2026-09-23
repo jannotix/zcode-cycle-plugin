@@ -23,7 +23,7 @@ const SCRIPT = join(ROOT, "scripts", "release", "verify-published-release.mjs")
 const sha256 = (value) => createHash("sha256").update(value).digest("hex")
 
 /** A stub `gh` on PATH that publishes exactly `assets` for any tag. */
-function stubbedRelease(assets) {
+function stubbedRelease(assets, prerelease) {
   const home = mkdtempSync(join(tmpdir(), "published-release-gate-"))
   const store = join(home, "assets")
   mkdirSync(store)
@@ -31,16 +31,16 @@ function stubbedRelease(assets) {
 
   const script =
     process.platform === "win32"
-      ? `@echo off\r\nsetlocal enabledelayedexpansion\r\nset "DIR="\r\n:parse\r\nif "%~1"=="" goto copy\r\nif "%~1"=="--dir" (set "DIR=%~2" & shift)\r\nshift\r\ngoto parse\r\n:copy\r\ncopy /y "${store}\\*" "%DIR%" >nul\r\nexit /b 0\r\n`
-      : `#!/bin/sh\nwhile [ $# -gt 0 ]; do\n  if [ "$1" = "--dir" ]; then DIR="$2"; fi\n  shift\ndone\ncp "${store}"/* "$DIR"\nexit 0\n`
+      ? `@echo off\r\nif "%~2"=="view" (echo {"isPrerelease":${prerelease}}& exit /b 0)\r\nsetlocal enabledelayedexpansion\r\nset "DIR="\r\n:parse\r\nif "%~1"=="" goto copy\r\nif "%~1"=="--dir" (set "DIR=%~2" & shift)\r\nshift\r\ngoto parse\r\n:copy\r\ncopy /y "${store}\\*" "%DIR%" >nul\r\nexit /b 0\r\n`
+      : `#!/bin/sh\nif [ "$2" = "view" ]; then echo '{"isPrerelease":${prerelease}}'; exit 0; fi\nwhile [ $# -gt 0 ]; do\n  if [ "$1" = "--dir" ]; then DIR="$2"; fi\n  shift\ndone\ncp "${store}"/* "$DIR"\nexit 0\n`
   const binary = join(home, process.platform === "win32" ? "gh.cmd" : "gh")
   writeFileSync(binary, script, { mode: 0o755 })
   if (process.platform !== "win32") chmodSync(binary, 0o755)
   return home
 }
 
-function runAgainst(assets) {
-  const home = stubbedRelease(assets)
+function runAgainst(assets, { prerelease = true } = {}) {
+  const home = stubbedRelease(assets, prerelease)
   try {
     return spawnSync(process.execPath, [SCRIPT, "v9.9.9", "example/example"], {
       encoding: "utf8",
@@ -85,4 +85,10 @@ test("a declared artifact that was never uploaded fails the gate", () => {
 test("an undeclared artifact that was uploaded fails the gate", () => {
   const result = runAgainst({ ...release(), "stray.txt": "not in the manifest" })
   assert.notEqual(result.status, 0, "a release carrying an undeclared artifact must not verify")
+})
+
+test("a release marked stable without a live certification receipt fails the gate", () => {
+  const result = runAgainst(release(), { prerelease: false })
+  assert.notEqual(result.status, 0, "a stable release must carry its live certification")
+  assert.match(result.stderr, /marked stable but carries no live certification receipt/u)
 })
