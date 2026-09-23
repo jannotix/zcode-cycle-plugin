@@ -120,3 +120,53 @@ fn project_index_is_parallel_persistent_and_incremental() {
             .is_none()
     );
 }
+
+// DEFECT-14, found by scenario 4 of the live certification: the project key is a
+// caller-supplied tool argument and nothing derived it from the workspace, so
+// two sessions working on one directory chose different keys and the ledger
+// split across two identities. A project-scoped question then answered about
+// whichever half the caller's key selected - a status call reported "project has
+// no workflow" while a workflow was running under the other id.
+#[test]
+fn one_directory_cannot_hold_two_audit_identities() {
+    let temporary = TempDir::new().unwrap();
+    let database = temporary.path().join("graph.db");
+    drop(Store::open(&database, NonZeroUsize::new(1).unwrap()).unwrap());
+    let graph = GraphStore::open(&database).unwrap();
+    let repository = temporary.path().join("project");
+    let repository = repository.to_str().unwrap();
+    let fingerprint = "a".repeat(64);
+    let timestamp = workflow_core::WorkflowTimestamp::now();
+
+    let first = ProjectId::from_stable_key("the-key-one-session-chose");
+    graph
+        .save_index_state(first, repository, &fingerprint, timestamp)
+        .expect("the first identity binds the directory");
+
+    // The same workspace, a different caller-supplied key. This is what split
+    // the campaign's ledger in two.
+    let second = ProjectId::from_stable_key("the-key-the-other-session-chose");
+    let refused = graph
+        .save_index_state(second, repository, &fingerprint, timestamp)
+        .expect_err("a second identity for one directory must be refused");
+    assert!(
+        refused.to_string().contains("already indexed"),
+        "the refusal must name the conflict: {refused}"
+    );
+
+    // The identity that owns the directory can still re-index it.
+    graph
+        .save_index_state(first, repository, &"b".repeat(64), timestamp)
+        .expect("re-indexing under the owning identity still works");
+
+    // And a different directory is free to take its own identity.
+    let elsewhere = temporary.path().join("other");
+    graph
+        .save_index_state(second, elsewhere.to_str().unwrap(), &fingerprint, timestamp)
+        .expect("a different workspace has its own identity");
+
+    assert_eq!(
+        graph.load_index_state(first).unwrap().map(|state| state.0),
+        Some(repository.to_owned())
+    );
+}

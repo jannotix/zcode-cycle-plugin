@@ -64,7 +64,12 @@ pub async fn run(data_directory: impl AsRef<Path>) -> Result<(), DaemonError> {
         let report = report.clone();
         let shared = Arc::clone(&shared);
         tokio::spawn(async move {
-            let _ = serve_connection(stream, authenticator, report, shared).await;
+            if let Err(error) = serve_connection(stream, authenticator, report, shared).await {
+                // Never swallow this. A connection that ends in an error is the
+                // only trace the caller gets, and without a line here the
+                // failure is invisible on both sides.
+                eprintln!("workflowd connection ended with an error: {error}");
+            }
         });
     }
 }
@@ -105,7 +110,29 @@ where
         .verify(&challenge, &response, now_unix_millis()?)?;
 
     loop {
-        match channel.receive::<ClientMessage>().await? {
+        // Read the frame as a value first. A payload that does not match the
+        // protocol is answered, not dropped: closing the connection here is
+        // indistinguishable from a crash and leaves the caller with nothing to
+        // correct. The request id is recovered from the raw value so the caller
+        // can still correlate the rejection with its own call.
+        let raw: serde_json::Value = channel.receive().await?;
+        let request_id = raw.get("request_id").and_then(serde_json::Value::as_u64);
+        let message = match serde_json::from_value::<ClientMessage>(raw) {
+            Ok(message) => message,
+            Err(error) => {
+                channel
+                    .send(&ServerMessage::Error {
+                        request_id,
+                        code: "malformed_request".to_owned(),
+                        message: format!(
+                            "the request does not match the control-plane protocol: {error}"
+                        ),
+                    })
+                    .await?;
+                continue;
+            }
+        };
+        match message {
             ClientMessage::Admission {
                 operation,
                 project_key,
@@ -397,6 +424,7 @@ where
                     Arc::clone(&store),
                     Arc::clone(&checkpoint_key),
                     Arc::clone(&worktrees),
+                    Arc::clone(&database),
                     CandidateFreezeRequest {
                         base_revision,
                         candidate_id,
@@ -538,7 +566,19 @@ where
                             .map_err(|error| error.to_string())?
                             .load_index_state(project_id)
                             .map_err(|error| error.to_string())?
-                            .ok_or_else(|| "project repository identity is unavailable".to_owned())?
+                            .ok_or_else(|| {
+                                // Naming the remedy matters more than naming the
+                                // condition. This fires at delivery, long after the
+                                // step that would have prevented it, and against a
+                                // candidate every gate has already passed — so the
+                                // reader is looking for a fault in promotion, not
+                                // for a missing step in phase one.
+                                "this project has never been indexed, so promotion \
+                                 cannot confirm it is delivering into the right \
+                                 repository: run cycle_code_index for this project, \
+                                 then promote again"
+                                    .to_owned()
+                            })?
                             .0;
                     if repository.to_string_lossy() != indexed_repository {
                         return Err(
@@ -694,6 +734,47 @@ where
                             .state
                             .state()
                     };
+                    // Promotion is the one step that changes the user's project,
+                    // and it was the one step the ledger did not record. The
+                    // orchestrating session used to volunteer an observation for
+                    // it, so whether a delivery appeared in the audit chain
+                    // depended on a narrator remembering — across the live
+                    // certification the event was present in some runs and absent
+                    // in others, for identical bytes. The component that performs
+                    // the delivery records it, with the digests it just bound.
+                    crate::audit::record(
+                        &mut store,
+                        &checkpoint_key,
+                        workflow_ipc::audit::AuditObservation {
+                            actor_id: "workflowd".to_owned(),
+                            candidate_id: Some(candidate_id),
+                            data: workflow_ipc::audit::AuditData::Workflow {
+                                action: "approved_candidate_delivered".to_owned(),
+                            },
+                            evidence_ids: current.manifest.evidence_ids().iter().copied().collect(),
+                            files: changed_paths.iter().cloned().collect(),
+                            metadata: std::collections::BTreeMap::from([
+                                ("candidate_digest".to_owned(), candidate_digest.to_string()),
+                                (
+                                    "delivery_journal_digest".to_owned(),
+                                    journal_digest.to_string(),
+                                ),
+                                (
+                                    "workflow_state".to_owned(),
+                                    format!("{delivered_state:?}").to_lowercase(),
+                                ),
+                            ]),
+                            model: None,
+                            project_key: project_key.clone(),
+                            role: None,
+                            session_id: None,
+                            task_id: None,
+                            timestamp_unix_millis: now_unix_millis()
+                                .map_err(|error| error.to_string())?,
+                            workflow_id: Some(workflow_id),
+                        },
+                    )
+                    .map_err(|error| error.to_string())?;
                     Ok((changed_paths, workflow_state(delivered_state)?))
                 }
                 .await;
@@ -1077,11 +1158,24 @@ fn submit_arbitration(
     let mandatory_gates_passed = !evidence.iter().any(|(record, _, mandatory)| {
         *mandatory && record.status != workflow_core::EvidenceStatus::Passed
     });
+    // DEFECT-15: the constraint the arbiter is meant to judge against lives in
+    // the frozen request, and the candidate's file list is right here. Where the
+    // request forbids touching a path in terms plain enough to decide by
+    // comparison, deciding it here makes it a gate rather than an opinion.
+    let changed_paths = candidate
+        .manifest
+        .files()
+        .iter()
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>();
+    let request_violations =
+        crate::request_constraints::violations(request.original_text(), &changed_paths);
     let refusal = crate::arbitration::refusal(
         verdict.decision,
         reviews_approved,
         mandatory_gates_passed,
         &reviews,
+        !request_violations.is_empty(),
     );
     let timestamp = workflow_core::WorkflowTimestamp::now();
     let receipt = workflow_core::ArbitrationReceipt {
@@ -1177,6 +1271,10 @@ fn submit_arbitration(
                 }
                 metadata
             },
+            // Left unset deliberately: audit::record resolves the arbiter's
+            // pinned model from the code index, which is the only source a role
+            // cannot aim somewhere harmless. Naming it here as well would be a
+            // second, weaker answer competing with the authoritative one.
             model: None,
             project_key: project_key.to_owned(),
             role: Some(workflow_core::WorkflowRole::Arbiter),
@@ -1432,7 +1530,7 @@ async fn verify_candidate(
                 workflow_core::WorkflowTimestamp::now(),
             )
             .map_err(|error| error.to_string())?;
-        crate::audit::record(
+        crate::audit::record_verified(
             &mut store,
             &checkpoint_key,
             workflow_ipc::audit::AuditObservation {
@@ -1526,6 +1624,7 @@ async fn freeze_candidate(
     store: Arc<tokio::sync::Mutex<Store>>,
     checkpoint_key: Arc<CheckpointKey>,
     worktrees: Arc<PathBuf>,
+    database: Arc<PathBuf>,
     request: CandidateFreezeRequest,
 ) -> Result<workflow_core::CandidateManifest, String> {
     let project_id = workflow_core::ProjectId::from_stable_key(&request.project_key);
@@ -1588,10 +1687,30 @@ async fn freeze_candidate(
     let path = worktrees
         .join(project_id.to_string())
         .join(request.workflow_id.to_string());
+    // Where the project lives comes from the index, never from the caller: a
+    // role that could name this path could name a harmless one instead.
+    // Promotion already requires the project to be indexed, so asking for it
+    // here only moves the demand earlier, to where it is cheaper to satisfy.
+    let indexed_project = workflow_code_intel::graph::GraphStore::open(&*database)
+        .map_err(|error| error.to_string())?
+        .load_index_state(project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| {
+            "this project has never been indexed, so freezing cannot confirm the project \
+             stood still while this workflow ran: run cycle_code_index for this project, \
+             then freeze again"
+                .to_owned()
+        })?
+        .0;
     let base_revision = request.base_revision.clone();
     let evidence_ids = request.evidence_ids.clone();
     let candidate_id = request.candidate_id;
     let frozen = tokio::task::spawn_blocking(move || {
+        crate::candidate::require_project_untouched(
+            std::path::Path::new(&indexed_project),
+            &base_revision,
+        )
+        .map_err(|error| error.to_string())?;
         crate::candidate::freeze(&path, &base_revision, candidate_id, evidence_ids)
             .map_err(|error| error.to_string())
     })

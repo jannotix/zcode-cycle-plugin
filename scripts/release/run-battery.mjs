@@ -22,12 +22,12 @@ const binary =
   join(ROOT, "target", "release", process.platform === "win32" ? "workflowd.exe" : "workflowd")
 const environment = {
   ...process.env,
-  F6_BINARY: binary,
-  F6_CLIENT: join(ROOT, "mcp", "dist", "client.js"),
-  F6_HOOK: join(ROOT, "hooks", "pre-tool-use.js"),
-  F6_PLUGIN_ROOT: ROOT,
-  F6_ROOT: ROOT,
-  F6_SERVER: join(ROOT, "mcp", "dist", "server.js"),
+  CYCLE_BATTERY_BINARY: binary,
+  CYCLE_BATTERY_CLIENT: join(ROOT, "mcp", "dist", "client.js"),
+  CYCLE_BATTERY_HOOK: join(ROOT, "hooks", "pre-tool-use.js"),
+  CYCLE_BATTERY_PLUGIN_ROOT: ROOT,
+  CYCLE_BATTERY_ROOT: ROOT,
+  CYCLE_BATTERY_SERVER: join(ROOT, "mcp", "dist", "server.js"),
 }
 
 for (let iteration = 1; iteration <= iterations; iteration += 1) {

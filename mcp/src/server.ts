@@ -10,30 +10,22 @@ import {
   type MemoryOperation,
 } from "./client.js"
 import { architecturePlanSchema, validateArchitecturePlan } from "./architecture-plan.js"
+import { canonicalProjectKey } from "./project-key.js"
 import { manageRoleProfiles } from "./role-profiles.js"
 import { productVersion } from "./version.js"
 
 // Role session registry: the bridge writes it, the PreToolUse hook reads it.
 // Managed project profile tool whitelists are the primary role boundary; this is the
-// audited second layer.
-interface RoleRegistration {
-  readonly kind?: "role"
-  readonly project_directory: string
-  readonly project_key: string
-  readonly registered_at_unix_millis: number
-  readonly role: string
-  readonly workflow_id: string | null
-}
-
-interface WorkflowLock {
-  readonly kind: "workflow_lock"
-  readonly project_directory: string
-  readonly project_key: string
-  readonly registered_at_unix_millis: number
-  readonly workflow_id: string
-}
-
-type RegistryRecord = RoleRegistration | WorkflowLock
+// audited second layer. The record shapes and the sweep's decision live in their
+// own module: this one attaches to stdin on import, so anything a test needs to
+// reach cannot live here.
+import {
+  isRoleRegistration,
+  isWorkflowLock,
+  orphanedRegistrationKeys,
+  type RegistryRecord,
+  type RoleRegistration,
+} from "./role-registry.js"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const READ_ONLY_ROLES = new Set([
@@ -102,13 +94,7 @@ async function writeRegistry(registry: Record<string, RegistryRecord>): Promise<
   await rename(temporary, registryPath)
 }
 
-function isRoleRegistration(value: RegistryRecord | undefined): value is RoleRegistration {
-  return value !== undefined && value.kind !== "workflow_lock" && typeof value.role === "string"
-}
 
-function isWorkflowLock(value: RegistryRecord | undefined): value is WorkflowLock {
-  return value?.kind === "workflow_lock"
-}
 
 function workflowLockKey(workflowId: string): string {
   return `workflow:${workflowId}`
@@ -126,6 +112,14 @@ async function lockWorkflow(projectKey: string, workflowId: string): Promise<voi
   await writeRegistry(registry)
 }
 
+async function recordWorktree(workflowId: string, worktreePath: string): Promise<void> {
+  const registry = await readRegistry()
+  const lock = registry[workflowLockKey(workflowId)]
+  if (!isWorkflowLock(lock)) return
+  registry[workflowLockKey(workflowId)] = { ...lock, worktree_path: worktreePath }
+  await writeRegistry(registry)
+}
+
 async function unlockWorkflow(workflowId: string): Promise<void> {
   const registry = await readRegistry()
   delete registry[workflowLockKey(workflowId)]
@@ -133,6 +127,26 @@ async function unlockWorkflow(workflowId: string): Promise<void> {
     if (isRoleRegistration(value) && value.workflow_id === workflowId) delete registry[key]
   }
   await writeRegistry(registry)
+}
+
+/**
+ * Drop orphaned role registrations while keeping the workflow locks.
+ *
+ * Used by recovery, which by definition declares the previous session gone. The
+ * registrations it left cannot be revoked by their owner any more, and while
+ * they stand every role dispatch is ambiguous.
+ *
+ * Without a workflow id this sweeps every registration whose workflow no longer
+ * holds a lock. A recovery asked about the project rather than one workflow was
+ * previously skipped entirely, which left the caller with nothing to do but
+ * revoke by hand.
+ */
+async function revokeOrphanedRoleRegistrations(workflowId?: string): Promise<string[]> {
+  const registry = await readRegistry()
+  const keys = orphanedRegistrationKeys(registry, workflowId)
+  for (const key of keys) delete registry[key]
+  if (keys.length > 0) await writeRegistry(registry)
+  return keys
 }
 
 function terminalWorkflowState(value: unknown): boolean {
@@ -178,7 +192,9 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
     string,
     unknown
   >
-  const projectKey = typeof args.project_key === "string" ? args.project_key : ""
+  // One directory, one project identity. The caller's `project_key` is accepted
+  // for compatibility and deliberately ignored - see canonicalProjectKey.
+  const projectKey = canonicalProjectKey()
   switch (name) {
     case "cycle_health":
       return { ...(await plane.health()), data_directory: dataDirectory }
@@ -212,13 +228,27 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
     }
     case "cycle_control": {
       const workflowId = typeof args.workflow_id === "string" ? args.workflow_id : undefined
-      const result = await plane.control(
-        projectKey,
-        (args.operation as ControlOperation) ?? "status",
-        workflowId,
-      )
-      if (workflowId !== undefined && terminalWorkflowState(result)) await unlockWorkflow(workflowId)
-      return result
+      // The sweep runs whatever the daemon answers, which is why it sits in a
+      // finally. Shipped in 1.0.3 it sat after this await, and a live hard kill
+      // showed why that is useless: the case it exists for is a session killed
+      // mid-run, which is exactly the case where the worktree state is
+      // inconsistent and the daemon refuses recovery. The await rejected, the
+      // sweep was never reached, and the orphan survived until it was revoked by
+      // hand. An orphaned registration is a fact about this registry; it does not
+      // depend on the daemon reconciling anything.
+      try {
+        const result = await plane.control(
+          projectKey,
+          (args.operation as ControlOperation) ?? "status",
+          workflowId,
+        )
+        if (workflowId !== undefined && terminalWorkflowState(result)) {
+          await unlockWorkflow(workflowId)
+        }
+        return result
+      } finally {
+        if (args.operation === "recovery") await revokeOrphanedRoleRegistrations(workflowId)
+      }
     }
     case "cycle_audit": {
       const observation = args.observation
@@ -255,6 +285,7 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
       if (!pluginRoot) throw new Error("cycle_role_profiles requires ZCODE_PLUGIN_ROOT")
       return manageRoleProfiles({
         operation,
+        pinStorePath: join(dataDirectory, "runtime", "role-model-pins.json"),
         pluginRoot,
         projectRoot: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
         ...(typeof args.confirmation === "string" ? { confirmation: args.confirmation } : {}),
@@ -326,7 +357,9 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
       if (!workflowId || !projectDirectory) {
         throw new Error("cycle_prepare_worktree requires workflow_id and project_directory")
       }
-      return plane.prepareWorktree(projectKey, projectDirectory, workflowId)
+      const worktree = await plane.prepareWorktree(projectKey, projectDirectory, workflowId)
+      await recordWorktree(workflowId, worktree.path)
+      return worktree
     }
     case "cycle_plan_verification": {
       const workflowId = text(args.workflow_id)
@@ -445,6 +478,126 @@ async function callTool(name: string, rawArgs: unknown): Promise<unknown> {
   }
 }
 
+// The control plane deserialises these payloads into Rust types that deny
+// unknown fields and accept no defaults. Declaring them as a bare object here
+// leaves a role with nothing to conform to, and the shapes it invents are
+// rejected at the protocol boundary. Every field below mirrors
+// workflow_core::{ArbiterVerdict, ReviewVerdict} and
+// workflow_ipc::audit::AuditObservation exactly.
+const EVIDENCE_IDS = {
+  type: "array",
+  items: { type: "string", description: "evidence id, a UUID" },
+} as const
+
+const FINDING = {
+  type: "object",
+  properties: {
+    severity: { enum: ["critical", "high", "medium", "low", "info"] },
+    summary: { type: "string" },
+    evidence_ids: EVIDENCE_IDS,
+  },
+  required: ["severity", "summary", "evidence_ids"],
+  additionalProperties: false,
+} as const
+
+const REQUIREMENT_DECISION = {
+  type: "object",
+  properties: {
+    requirement_id: { type: "string" },
+    status: { enum: ["satisfied", "unsatisfied"] },
+    evidence_ids: EVIDENCE_IDS,
+  },
+  required: ["requirement_id", "status", "evidence_ids"],
+  additionalProperties: false,
+} as const
+
+const REPAIR_TARGET = {
+  description: "null when the decision is an approval",
+  enum: ["execution", "architecture", null],
+} as const
+
+const ARBITER_VERDICT = {
+  type: "object",
+  properties: {
+    decision: { enum: ["approved", "rejected"] },
+    candidate_digest: { type: "string", description: "sha256 of the frozen candidate" },
+    requirements: { type: "array", items: REQUIREMENT_DECISION },
+    findings: { type: "array", items: FINDING },
+    repair_target: REPAIR_TARGET,
+  },
+  required: ["decision", "candidate_digest", "requirements", "findings", "repair_target"],
+  additionalProperties: false,
+} as const
+
+const REVIEW_VERDICT = {
+  type: "object",
+  properties: {
+    decision: { enum: ["approved", "rejected"] },
+    candidate_digest: { type: "string", description: "sha256 of the frozen candidate" },
+    requirements: { type: "array", items: REQUIREMENT_DECISION },
+    findings: { type: "array", items: FINDING },
+    repair_target: REPAIR_TARGET,
+    role: { enum: ["functional_reviewer", "security_architecture_reviewer"] },
+  },
+  required: [
+    "decision",
+    "candidate_digest",
+    "requirements",
+    "findings",
+    "repair_target",
+    "role",
+  ],
+  additionalProperties: false,
+} as const
+
+const AUDIT_OBSERVATION = {
+  type: "object",
+  properties: {
+    actor_id: { type: "string" },
+    candidate_id: { type: ["string", "null"] },
+    data: {
+      description:
+        "one tagged variant: workflow{action} | tool{tool,invocation_digest} | permission{permission,decision} | git{revision,externally_attributed} | verification{gate,status}",
+      type: "object",
+    },
+    evidence_ids: EVIDENCE_IDS,
+    files: { type: "array", items: { type: "string" } },
+    metadata: { type: "object", additionalProperties: { type: "string" } },
+    model: { type: ["object", "null"] },
+    project_key: { type: "string" },
+    role: {
+      enum: [
+        "architect",
+        "executor",
+        "functional_reviewer",
+        "security_architecture_reviewer",
+        "arbiter",
+        null,
+      ],
+    },
+    session_id: { type: ["string", "null"] },
+    task_id: { type: ["string", "null"] },
+    timestamp_unix_millis: { type: "integer" },
+    workflow_id: { type: ["string", "null"] },
+  },
+  required: [
+    "actor_id",
+    "candidate_id",
+    "data",
+    "evidence_ids",
+    "files",
+    "metadata",
+    "model",
+    "project_key",
+    "role",
+    "session_id",
+    "task_id",
+    "timestamp_unix_millis",
+    "workflow_id",
+  ],
+  additionalProperties: false,
+} as const
+
 const TOOLS: Record<string, ToolDefinition> = {
   cycle_health: {
     description:
@@ -499,7 +652,7 @@ const TOOLS: Record<string, ToolDefinition> = {
     inputSchema: {
       type: "object",
       properties: {
-        observation: { type: "object" },
+        observation: AUDIT_OBSERVATION,
       },
       required: ["observation"],
       additionalProperties: false,
@@ -528,7 +681,7 @@ const TOOLS: Record<string, ToolDefinition> = {
   },
   cycle_goal: {
     description:
-      "Manage persistent goals: create, amend, focus, link workflows, save versioned plans, control lifecycle.",
+      "Manage persistent goals: create, amend, focus, link and unlink workflows, save versioned plans, control lifecycle.",
     inputSchema: {
       type: "object",
       properties: { project_key: { type: "string" }, operation: { type: "object" } },
@@ -592,7 +745,7 @@ const TOOLS: Record<string, ToolDefinition> = {
           ],
         },
         model: { type: "string" },
-        thought_level: { enum: ["low", "high", "max", "enabled", "off"] },
+        thought_level: { enum: ["low", "high", "max", "enabled", "disabled", "off"] },
       },
       required: ["operation"],
       additionalProperties: false,
@@ -753,7 +906,7 @@ const TOOLS: Record<string, ToolDefinition> = {
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
         role_session_id: { type: "string" },
-        verdict: { type: "object" },
+        verdict: REVIEW_VERDICT,
       },
       required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false,
@@ -769,7 +922,7 @@ const TOOLS: Record<string, ToolDefinition> = {
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
         role_session_id: { type: "string" },
-        verdict: { type: "object" },
+        verdict: ARBITER_VERDICT,
       },
       required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false,

@@ -52415,6 +52415,7 @@ class PuppeteerBrowserSession {
         const snapshot = await this.#page.accessibility.snapshot({ includeIframes: true });
         result = {
           ...await this.#pageState(),
+          accessibility: accessibilitySummary(snapshot),
           snapshot: this.#redact(truncate(JSON.stringify(snapshot, null, 2)))
         };
         break;
@@ -52460,6 +52461,7 @@ class PuppeteerBrowserSession {
         throw new Error("Browser close must be handled by the manager");
     }
     this.#actions.push({
+      ...isAccessibilitySummary(result) ? { accessibility: result.accessibility } : {},
       digest: createHash3("sha256").update(JSON.stringify(result)).digest("hex"),
       operation: command2.operation,
       timestamp: new Date().toISOString(),
@@ -52742,6 +52744,56 @@ function required2(value, message) {
     throw new Error(message);
   return value;
 }
+var INTERACTIVE_ROLES = new Set([
+  "button",
+  "checkbox",
+  "combobox",
+  "link",
+  "listbox",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "option",
+  "radio",
+  "searchbox",
+  "slider",
+  "spinbutton",
+  "switch",
+  "tab",
+  "textbox"
+]);
+function accessibilitySummary(node2) {
+  let interactive = 0;
+  let unnamed = 0;
+  const unnamedRoles = new Set;
+  const walk = (value) => {
+    if (typeof value !== "object" || value === null)
+      return;
+    const record = value;
+    const role = typeof record.role === "string" ? record.role : "";
+    if (INTERACTIVE_ROLES.has(role)) {
+      interactive += 1;
+      const name = typeof record.name === "string" ? record.name.trim() : "";
+      if (name.length === 0) {
+        unnamed += 1;
+        unnamedRoles.add(role);
+      }
+    }
+    if (Array.isArray(record.children))
+      for (const child of record.children)
+        walk(child);
+  };
+  walk(node2);
+  return { interactive, unnamed, unnamedRoles: [...unnamedRoles].sort() };
+}
+function isAccessibilitySummary(result) {
+  if (typeof result !== "object" || result === null)
+    return false;
+  const summary = result.accessibility;
+  if (typeof summary !== "object" || summary === null)
+    return false;
+  return typeof summary.interactive === "number";
+}
 
 // src/browser-runtime.ts
 function createBrowserRuntime(options) {
@@ -52763,5 +52815,7 @@ function createBrowserRuntime(options) {
   };
 }
 export {
-  createBrowserRuntime
+  createBrowserRuntime,
+  browserCandidates,
+  accessibilitySummary
 };

@@ -23,7 +23,7 @@ impl Store {
                 |row| row.get(0),
             )
             .optional()?
-            .ok_or(StoreError::AggregateConflict)?;
+            .ok_or(StoreError::AggregateConflict("no intake request is recorded for this workflow, so an architecture plan has nothing to bind to"))?;
         let request: RequestRecord = serde_json::from_str(&request_json)?;
         if request.digest() != plan.request_digest {
             return Err(StoreError::RequestDigestMismatch);
@@ -47,7 +47,9 @@ impl Store {
             )?;
             let state: Workflow = serde_json::from_str(&state_json)?;
             if state.state() != WorkflowState::Architecture || state.repair_cycles() == 0 {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "an architecture plan is already recorded and the workflow is not in a repair cycle that may replace it",
+                ));
             }
             let revision: u32 = transaction.query_row(
                 "SELECT COALESCE(MAX(revision), 0) + 1

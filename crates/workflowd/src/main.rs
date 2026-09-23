@@ -8,6 +8,16 @@ enum Command {
     Serve {
         data_directory: PathBuf,
     },
+    /// Prints the version this daemon was built from, and nothing else.
+    ///
+    /// The release check that compares a tracked daemon against the plugin
+    /// manifest used to scan the binary for the expected version as a
+    /// substring. In a 39 MB executable that string turns up by coincidence: a
+    /// 1.0.5 daemon was reported as declaring 1.0.6 and passed the gate whose
+    /// whole purpose is to stop an installation that cannot start. Asking the
+    /// binary needs no data directory and no IPC handshake, and it cannot be
+    /// satisfied by an accident of layout.
+    Version,
 }
 
 #[tokio::main]
@@ -31,6 +41,7 @@ async fn main() {
                 std::process::exit(1);
             }
         }
+        Ok(Command::Version) => println!("{}", env!("CARGO_PKG_VERSION")),
         Err(error) => {
             eprintln!("workflowd failed: {error}");
             std::process::exit(2);
@@ -40,6 +51,7 @@ async fn main() {
 
 fn parse_command(arguments: Vec<OsString>) -> Result<Command, &'static str> {
     match arguments.as_slice() {
+        [flag] if flag == "--version" => Ok(Command::Version),
         [flag, path] if flag == "--data-dir" => Ok(Command::Serve {
             data_directory: absolute(path)?,
         }),
@@ -52,7 +64,7 @@ fn parse_command(arguments: Vec<OsString>) -> Result<Command, &'static str> {
             })
         }
         _ => Err(
-            "expected --data-dir <absolute-path> or --backup-data-dir <absolute-path> --backup-to <absolute-path>",
+            "expected --version, --data-dir <absolute-path> or --backup-data-dir <absolute-path> --backup-to <absolute-path>",
         ),
     }
 }
@@ -88,5 +100,16 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn version_is_reported_without_a_data_directory() {
+        assert!(matches!(
+            parse_command(vec![OsString::from("--version")]).unwrap(),
+            Command::Version
+        ));
+        // It answers on its own or not at all: a stray argument must not be
+        // mistaken for a version query by a release check that trusts the answer.
+        assert!(parse_command(vec![OsString::from("--version"), OsString::from("extra")]).is_err());
     }
 }

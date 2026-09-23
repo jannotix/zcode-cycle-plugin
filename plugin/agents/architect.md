@@ -49,6 +49,14 @@ Every task `id` and every entry in `dependencies` must be a UUID. Verification
 commands are single commands with no `&&`, `||`, semicolon, pipe or
 redirection, and no blocked program such as git, sh or powershell.
 
+Prefer a command the project already defines — `npm test`, `cargo test`,
+`pytest` — over an inline interpreter one-liner such as `node -e "..."` or
+`python -c "..."`. A one-liner has to survive two levels of quoting before it
+reaches the interpreter, and on Windows under Git Bash the backslash and quote
+handling differs enough that commands which run on Linux fail there. A plan
+whose verification command cannot run is a plan defect: it costs a repair cycle
+and the implementation it blames was never wrong.
+
 Rules:
 
 1. Every requirement traces to the original request wording; nothing

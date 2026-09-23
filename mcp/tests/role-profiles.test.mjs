@@ -61,16 +61,36 @@ test("managed project role profiles install, configure, repair and remove fail c
       )
     }
 
-    await assert.rejects(
-      manageRoleProfiles(
-        options(projectRoot, "configure", {
-          confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
-          model: "anthropic/claude-sonnet",
-          role: "executor",
-        }),
-      ),
-      /not supported by this Cycle release/u,
+    // 1.0.7: a well-formed reference this plugin does not recognise is ACCEPTED
+    // and flagged. Only the host resolves providers, and the fixed list this
+    // release used to enforce named three that no host in the 1.0.6 campaign
+    // could dispatch. What the operator is owed is the warning, not a refusal.
+    const foreign = await manageRoleProfiles(
+      options(projectRoot, "configure", {
+        confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+        model: "anthropic/claude-sonnet",
+        role: "executor",
+      }),
     )
+    const executorProfile = foreign.profiles.find((profile) => profile.role === "executor")
+    assert.equal(executorProfile.model, "anthropic/claude-sonnet")
+    assert.equal(executorProfile.dispatch_unverified, true)
+    assert.match(foreign.dispatch_unverified_warning, /only the host can resolve the provider/u)
+
+    // The 1.0.9 live campaign: ZCode gives MiniMax models the levels
+    // `enabled`/`disabled`. `disabled` was refused, so a MiniMax role could
+    // never run with thinking off.
+    const thinkingOff = await manageRoleProfiles(
+      options(projectRoot, "configure", {
+        confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+        model: "custom:minimax:MiniMax-M3",
+        role: "executor",
+        thoughtLevel: "disabled",
+      }),
+    )
+    const minimax = thinkingOff.profiles.find((profile) => profile.role === "executor")
+    assert.equal(minimax.thought_level, "disabled")
+    assert.equal(minimax.state, "current")
 
     const turbo = await manageRoleProfiles(
       options(projectRoot, "configure", {
@@ -175,19 +195,20 @@ test("repair never overwrites an unowned role-profile conflict", async () => {
   }
 })
 
-test(
-  "a linked role-profile directory is rejected",
-  { skip: process.platform === "win32" },
-  async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), "zcode-cycle-role-link-"))
-    const outside = await mkdtemp(join(tmpdir(), "zcode-cycle-role-outside-"))
-    try {
-      await mkdir(join(projectRoot, ".zcode"))
-      await symlink(outside, join(projectRoot, ".zcode", "agents"), "dir")
-      await assert.rejects(manageRoleProfiles(options(projectRoot, "status")), /unsafe/u)
-    } finally {
-      await rm(projectRoot, { force: true, recursive: true })
-      await rm(outside, { force: true, recursive: true })
-    }
-  },
-)
+// Runs on both certified platforms. A POSIX symlink needs privileges to create
+// on Windows, which is why this used to be skipped there — but a directory
+// junction does not, `lstat` reports one as a symbolic link, and it redirects a
+// path exactly the same way. Node's "junction" type makes one on Windows and is
+// ignored elsewhere, so one test covers the attack on both.
+test("a linked role-profile directory is rejected", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "zcode-cycle-role-link-"))
+  const outside = await mkdtemp(join(tmpdir(), "zcode-cycle-role-outside-"))
+  try {
+    await mkdir(join(projectRoot, ".zcode"))
+    await symlink(outside, join(projectRoot, ".zcode", "agents"), "junction")
+    await assert.rejects(manageRoleProfiles(options(projectRoot, "status")), /unsafe/u)
+  } finally {
+    await rm(projectRoot, { force: true, recursive: true })
+    await rm(outside, { force: true, recursive: true })
+  }
+})

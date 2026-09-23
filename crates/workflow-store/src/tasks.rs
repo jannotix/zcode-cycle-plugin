@@ -31,7 +31,11 @@ impl Store {
         rows.map(|row| {
             let (task_id, state) = row?;
             Ok((
-                task_id.parse().map_err(|_| StoreError::AggregateConflict)?,
+                task_id.parse().map_err(|_| {
+                    StoreError::AggregateConflict(
+                        "a stored task row holds a task identifier this schema cannot parse",
+                    )
+                })?,
                 serde_json::from_str(&state)?,
             ))
         })
@@ -82,7 +86,9 @@ impl Store {
             .as_ref()
             .is_some_and(|(owner, _)| owner != &workflow_id.to_string())
         {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "a task with this identifier is already owned by a different workflow",
+            ));
         }
         let mut state =
             current.map_or_else(|| Ok(Task::new()), |(_, json)| serde_json::from_str(&json))?;

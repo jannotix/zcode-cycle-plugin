@@ -71,7 +71,13 @@ import { createRequire as createRequire2 } from "node:module";
 var AUTH_DOMAIN = Buffer.from("zcode-cycle-ipc-auth-v1");
 var MAX_FRAME_BYTES = 8 * 1024 * 1024;
 var CANDIDATE_OPERATION_TIMEOUT_MILLIS = 30 * 60000;
-var VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 24 * 60 * 60000;
+var VERIFICATION_RESPONSE_TIMEOUT_MILLIS = 30 * 60000;
+var IPC_TIMEOUTS = Object.freeze({
+  candidateOperation: CANDIDATE_OPERATION_TIMEOUT_MILLIS,
+  verificationResponse: VERIFICATION_RESPONSE_TIMEOUT_MILLIS,
+  healthWait: 15000,
+  default: 1e4
+});
 var HEALTH_WAIT_MS = 15000;
 var MAX_NATIVE_BINARY_BYTES = 256 * 1024 * 1024;
 var MAX_NATIVE_MANIFEST_BYTES = 64 * 1024;
@@ -82,6 +88,57 @@ class ControlPlaneError extends Error {
     super(message, options);
     this.name = "ControlPlaneError";
   }
+}
+
+class NewerDaemonError extends ControlPlaneError {
+}
+function compareVersions(left, right) {
+  const parts = (value) => value.split("-")[0].split(".").map((part) => Number(part) || 0);
+  const [a, b] = [parts(left), parts(right)];
+  for (let index = 0;index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0)
+      return difference;
+  }
+  return 0;
+}
+function daemonsServing(dataDirectory, platform = process.platform) {
+  const wanted = platform === "win32" ? win32.resolve(dataDirectory).toLowerCase() : posix.resolve(dataDirectory);
+  const lines = platform === "win32" ? spawnSync("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    `Get-CimInstance Win32_Process -Filter "Name='workflowd.exe'" | ForEach-Object { "$($_.ProcessId)\`t$($_.CommandLine)" }`
+  ], { encoding: "utf8", shell: false, windowsHide: true }).stdout : spawnSync("ps", ["-axo", "pid=,args="], { encoding: "utf8", shell: false }).stdout;
+  const pids = [];
+  for (const line of (lines ?? "").split(/\r?\n/u)) {
+    const match = platform === "win32" ? /^(\d+)\t(.*)$/u.exec(line) : /^\s*(\d+)\s+(.*)$/u.exec(line);
+    if (!match)
+      continue;
+    const commandLine = match[2];
+    if (platform !== "win32" && !/(^|\/)workflowd\s/u.test(commandLine))
+      continue;
+    const marker = commandLine.lastIndexOf("--data-dir ");
+    if (marker < 0)
+      continue;
+    let served = commandLine.slice(marker + "--data-dir ".length).trim();
+    if (served.startsWith('"') && served.endsWith('"'))
+      served = served.slice(1, -1);
+    const normalized = platform === "win32" ? win32.resolve(served).toLowerCase() : posix.resolve(served);
+    const pid = Number(match[1]);
+    if (normalized === wanted && pid !== process.pid)
+      pids.push(pid);
+  }
+  return pids;
+}
+function stopDaemonsServing(dataDirectory, platform = process.platform) {
+  const pids = daemonsServing(dataDirectory, platform);
+  for (const pid of pids) {
+    try {
+      process.kill(pid);
+    } catch {}
+  }
+  return pids.length;
 }
 
 class LocalControlPlane {
@@ -122,6 +179,8 @@ class LocalControlPlane {
       } catch (error) {
         if (error instanceof ControlPlaneError && error.message.includes("protocol"))
           throw error;
+        if (error instanceof NewerDaemonError)
+          throw error;
         lastError = error;
         await this.#reclaimStaleDaemon();
       }
@@ -155,6 +214,8 @@ class LocalControlPlane {
         try {
           return await this.#query(secret);
         } catch (error) {
+          if (error instanceof ControlPlaneError && error.message.includes("incompatible"))
+            throw error;
           lastError = error;
         }
       }
@@ -170,23 +231,11 @@ class LocalControlPlane {
     if (child !== undefined && child.exitCode === null && child.signalCode === null) {
       child.kill();
     }
-    const pidPath = join(this.#dataDirectory, "runtime", "workflowd.pid");
-    const raw = await readFile(pidPath, "utf8").catch(() => "");
-    const pid = Number.parseInt(raw.trim(), 10);
-    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid && pid !== child?.pid) {
-      try {
-        process.kill(pid);
-      } catch {
-        if (this.#platform === "win32") {
-          spawnSync("taskkill", ["/F", "/PID", String(pid)], {
-            shell: false,
-            stdio: "ignore",
-            windowsHide: true
-          });
-        }
-      }
+    stopDaemonsServing(this.#dataDirectory, this.#platform);
+    const deadline = Date.now() + 5000;
+    while (daemonsServing(this.#dataDirectory, this.#platform).length > 0 && Date.now() < deadline) {
+      await new Promise((resolve2) => setTimeout(resolve2, 50));
     }
-    await new Promise((resolve2) => setTimeout(resolve2, 150));
   }
   async dispose() {
     if (this.#stopOwnedProcessOnDispose && this.#ownedProcess !== undefined) {
@@ -733,6 +782,9 @@ class LocalControlPlane {
         throw new ControlPlaneError(`workflowd protocol ${report.protocol_version} is incompatible with plugin protocol ${this.#expectedProtocolVersion}`);
       }
       if (report.product_version !== this.#expectedProductVersion) {
+        if (compareVersions(report.product_version, this.#expectedProductVersion) > 0) {
+          throw new NewerDaemonError(`workflowd ${report.product_version} is running for this data directory and is newer than this plugin (${this.#expectedProductVersion}); update the plugin rather than stopping it`);
+        }
         throw new ControlPlaneError(`workflowd ${report.product_version} is incompatible with plugin ${this.#expectedProductVersion}`);
       }
       return report;
@@ -819,9 +871,7 @@ async function prepareNativeBinary(options) {
   }
   const sourceDigest = await fileDigest(source);
   await verifyNativeManifest(options, source, sourceDigest, sourceInfo.size);
-  if (options.platform === "win32")
-    return source;
-  const executable = "workflowd";
+  const executable = options.platform === "win32" ? "workflowd.exe" : "workflowd";
   const targetDirectory = join(options.dataDirectory, "runtime", "native", `${options.platform}-${options.architecture}`, sourceDigest);
   const target = join(targetDirectory, executable);
   await mkdir(targetDirectory, { mode: 448, recursive: true });
@@ -1333,10 +1383,17 @@ function assertAcyclic(tasks) {
     visit(task.id);
 }
 
+// src/project-key.ts
+import { resolve as resolve2 } from "node:path";
+function canonicalProjectKey(directory) {
+  const absolute = resolve2(directory ?? process.env.ZCODE_PROJECT_DIR ?? process.cwd());
+  return process.platform === "win32" ? absolute.replace(/^([a-z]):/u, (_match, letter) => `${letter.toUpperCase()}:`) : absolute;
+}
+
 // src/role-profiles.ts
 import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
 import { lstat as lstat2, mkdir as mkdir2, readFile as readFile2, rename as rename2, rm as rm2, writeFile } from "node:fs/promises";
-import { dirname, join as join2, resolve as resolve2 } from "node:path";
+import { dirname, join as join2, resolve as resolve3 } from "node:path";
 var MAX_PROFILE_BYTES = 256 * 1024;
 var MODEL_REF = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._:/-]+$/u;
 var CUSTOM_MODEL_REF = /^custom:(?:[A-Za-z0-9._+\/-]|%[0-9A-Fa-f]{2})+:(?:[A-Za-z0-9._:+\/-]|%[0-9A-Fa-f]{2})+$/u;
@@ -1354,9 +1411,33 @@ var ROLE_PROFILES = [
   { file: "security-reviewer.md", role: "security-reviewer" },
   { file: "arbiter.md", role: "arbiter" }
 ];
+async function readPins(path) {
+  if (!path)
+    return {};
+  try {
+    const parsed = JSON.parse(await readBoundedRegularFile(path, "role-model pin record"));
+    return parsed !== null && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    if (isMissing(error))
+      return {};
+    throw error;
+  }
+}
+async function writePins(path, pins) {
+  if (!path)
+    return;
+  await mkdir2(dirname(path), { recursive: true });
+  const temporary = `${path}.${randomUUID2()}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(pins, null, 2)}
+`, {
+    encoding: "utf8",
+    mode: 384
+  });
+  await rename2(temporary, path);
+}
 async function manageRoleProfiles(options) {
-  const projectRoot = resolve2(options.projectRoot);
-  const pluginRoot = resolve2(options.pluginRoot);
+  const projectRoot = resolve3(options.projectRoot);
+  const pluginRoot = resolve3(options.pluginRoot);
   await requireSafeDirectory(projectRoot, "project root");
   await requireSafeDirectory(pluginRoot, "plugin root");
   await requireSafeDirectory(join2(pluginRoot, "agents"), "plugin role-profile directory");
@@ -1373,7 +1454,7 @@ async function manageRoleProfiles(options) {
   const records = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(targetDirectory, profile.role, profile.file, templates.get(profile.role))));
   switch (options.operation) {
     case "status":
-      return report(projectRoot, records, false);
+      return report(projectRoot, records, false, (await readPins(options.pinStorePath))[projectRoot] ?? {});
     case "install":
       requireConfirmation(options.confirmation, "INSTALL_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["managed-drift", "conflict"]), "install");
@@ -1384,19 +1465,23 @@ async function manageRoleProfiles(options) {
         }
       }
       break;
-    case "repair":
+    case "repair": {
       requireConfirmation(options.confirmation, "REPAIR_ZCODE_CYCLE_ROLE_PROFILES");
       rejectStates(records, new Set(["conflict"]), "repair");
+      const pins2 = (await readPins(options.pinStorePath))[projectRoot] ?? {};
       for (const record2 of records) {
-        if (record2.state !== "current") {
+        const pinned = pins2[record2.role];
+        const lostPin = pinned !== undefined && (record2.model ?? INHERIT_MODEL) !== pinned.model;
+        if (record2.state !== "current" || lostPin) {
           const template = templates.get(record2.role);
-          const settings = record2.state === "managed-drift" && record2.content ? extractManagedSettings(record2.content, record2.role) : null;
+          const settings = pinned ?? (record2.state === "managed-drift" && record2.content ? extractManagedSettings(record2.content, record2.role) : null);
           const repaired = settings ? template.replace(/^model:.*$/mu, `model: ${settings.model}`).replace(/^thoughtLevel:.*$/mu, `thoughtLevel: ${settings.thought_level}`) : template;
           await writeAtomic(record2.target, repaired, record2.state !== "missing");
           changed = true;
         }
       }
       break;
+    }
     case "configure": {
       requireConfirmation(options.confirmation, "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE");
       rejectStates(records, new Set(["missing", "managed-drift", "conflict"]), "configure");
@@ -1418,6 +1503,20 @@ async function manageRoleProfiles(options) {
         await writeAtomic(record2.target, configured, true);
         changed = true;
       }
+      {
+        const pins2 = await readPins(options.pinStorePath);
+        const forProject = { ...pins2[projectRoot] ?? {} };
+        if (model === INHERIT_MODEL) {
+          delete forProject[role];
+        } else {
+          forProject[role] = {
+            model,
+            recorded_at: new Date().toISOString(),
+            thought_level: thoughtLevel
+          };
+        }
+        await writePins(options.pinStorePath, { ...pins2, [projectRoot]: forProject });
+      }
       break;
     }
     case "remove":
@@ -1435,7 +1534,9 @@ async function manageRoleProfiles(options) {
   }
   const afterDirectory = await roleProfileDirectory(projectRoot, false);
   const after = await Promise.all(ROLE_PROFILES.map((profile) => inspectProfile(afterDirectory, profile.role, profile.file, templates.get(profile.role))));
-  return report(projectRoot, after, changed);
+  const pins = (await readPins(options.pinStorePath))[projectRoot] ?? {};
+  const gitExcludeWarning = options.operation === "install" || options.operation === "repair" ? await excludeManagedProfilesFromGit(projectRoot) : null;
+  return report(projectRoot, after, changed, pins, gitExcludeWarning);
 }
 function canonicalRole(value) {
   const role = ROLE_PROFILES.find((item) => item.role === value)?.role;
@@ -1517,24 +1618,77 @@ function extractManagedSettings(content, role) {
   }
   return { model, thought_level: thoughtLevel };
 }
+async function excludeManagedProfilesFromGit(projectRoot) {
+  const marker2 = ".zcode/";
+  let gitDirectory;
+  try {
+    const dotGit = join2(projectRoot, ".git");
+    const stats = await lstat2(dotGit);
+    if (stats.isDirectory()) {
+      gitDirectory = dotGit;
+    } else {
+      const pointer = (await readFile2(dotGit, "utf8")).trim();
+      const target = pointer.startsWith("gitdir:") ? pointer.slice("gitdir:".length).trim() : "";
+      if (target === "")
+        return "the project's .git is neither a directory nor a gitdir pointer";
+      const resolved = resolve3(projectRoot, target);
+      const common = await readFile2(join2(resolved, "commondir"), "utf8").catch(() => null);
+      gitDirectory = common === null ? resolved : resolve3(resolved, common.trim());
+    }
+  } catch {
+    return "the project is not a git repository";
+  }
+  const entries = [
+    { line: marker2, aliases: [marker2, ".zcode"], why: "role profiles are not project content." },
+    {
+      line: "/.zcodeignore",
+      aliases: ["/.zcodeignore", ".zcodeignore"],
+      why: "ZCode's own search-index file is not project content."
+    }
+  ];
+  try {
+    const excludePath = join2(gitDirectory, "info", "exclude");
+    const existing = await readFile2(excludePath, "utf8").catch(() => "");
+    const listed = new Set(existing.split(/\r?\n/u).map((line) => line.trim()));
+    const missing = entries.filter((entry) => !entry.aliases.some((alias) => listed.has(alias)));
+    if (missing.length === 0)
+      return null;
+    await mkdir2(dirname(excludePath), { recursive: true });
+    const separator = existing === "" || existing.endsWith(`
+`) ? "" : `
+`;
+    const added = missing.map((entry) => `# Managed by ZCode Cycle: ${entry.why}
+${entry.line}
+`).join("");
+    await writeFile(excludePath, `${existing}${separator}${added}`, "utf8");
+    return null;
+  } catch (error) {
+    return `could not update .git/info/exclude: ${error.message}`;
+  }
+}
 function validModel(value) {
   return value === INHERIT_MODEL || MODEL_REF.test(value) || CUSTOM_MODEL_REF.test(value);
 }
 function supportedModel(value) {
-  return value === INHERIT_MODEL || BUILTIN_ZAI_MODEL_CAPABILITIES.has(value);
+  return validModel(value);
 }
+var KNOWN_THOUGHT_LEVELS = ["low", "high", "max", "enabled", "disabled", "off"];
 function defaultThoughtLevel(model) {
-  return model === "custom:builtin:zai-coding-plan:GLM-5-Turbo" ? "off" : INHERIT_THOUGHT_LEVEL;
+  return BUILTIN_ZAI_MODEL_CAPABILITIES.get(model)?.has("off") === true ? "off" : INHERIT_THOUGHT_LEVEL;
 }
 function supportsThoughtLevel(model, thoughtLevel) {
   if (model === INHERIT_MODEL)
     return thoughtLevel === INHERIT_THOUGHT_LEVEL;
-  return BUILTIN_ZAI_MODEL_CAPABILITIES.get(model)?.has(thoughtLevel) ?? false;
+  const known = BUILTIN_ZAI_MODEL_CAPABILITIES.get(model);
+  return known ? known.has(thoughtLevel) : KNOWN_THOUGHT_LEVELS.includes(thoughtLevel);
 }
 function supportedThoughtLevels(model) {
   if (model === INHERIT_MODEL)
     return [INHERIT_THOUGHT_LEVEL];
-  return [...BUILTIN_ZAI_MODEL_CAPABILITIES.get(model) ?? []];
+  return [...BUILTIN_ZAI_MODEL_CAPABILITIES.get(model) ?? KNOWN_THOUGHT_LEVELS];
+}
+function dispatchUnverified(model) {
+  return model !== undefined && model !== INHERIT_MODEL;
 }
 function rejectStates(records, denied, action) {
   const blocked = records.filter((record2) => denied.has(record2.state));
@@ -1585,20 +1739,41 @@ async function writeAtomic(target, content, replace) {
     await rm2(backup, { force: true });
   }
 }
-function report(projectRoot, records, changed) {
+function report(projectRoot, records, changed, pins, gitExcludeWarning) {
+  const drift = records.flatMap((record2) => {
+    const pinned = pins[record2.role];
+    if (!pinned || record2.state === "missing")
+      return [];
+    const resolved = record2.model ?? INHERIT_MODEL;
+    if (resolved === pinned.model)
+      return [];
+    return [{ on_disk: resolved, pinned: pinned.model, role: record2.role }];
+  });
   return {
     changed,
     profile_directory: join2(projectRoot, ".zcode", "agents"),
     profiles: records.map(({ digest, file, model, role, state, thought_level }) => ({
       ...digest ? { digest } : {},
+      ...dispatchUnverified(model) ? { dispatch_unverified: true } : {},
       file: `zcode-cycle-${file}`,
       ...model ? { model } : {},
+      ...pins[role] ? { model_requested: pins[role].model } : {},
       role,
       state,
       ...thought_level ? { thought_level } : {}
     })),
-    ready: records.every((record2) => record2.state === "current"),
-    requires_session_restart: changed
+    ready: records.every((record2) => record2.state === "current") && drift.length === 0,
+    requires_session_restart: changed,
+    ...records.some((record2) => dispatchUnverified(record2.model)) ? {
+      dispatch_unverified_warning: `${records.filter((record2) => dispatchUnverified(record2.model)).map((record2) => `${record2.role} on ${record2.model}`).join(", ")}. This plugin validates the shape of a model reference; only the host can ` + `resolve the provider, and it reports that at dispatch. Probe each pinned role before ` + `starting a governed cycle, so a provider-not-found costs seconds rather than a full ` + `architecture, execution and verification pass.`
+    } : {},
+    ...gitExcludeWarning ? {
+      git_exclude_warning: `${gitExcludeWarning}. The managed role profiles under .zcode/ will therefore appear as ` + `uncommitted project changes, and a governed cycle cannot freeze a candidate while they do. ` + `Add .zcode/ to .git/info/exclude, or commit the profiles before starting a cycle.`
+    } : {},
+    ...drift.length > 0 ? {
+      pin_drift: drift,
+      warning: `${drift.length === 1 ? "a role profile no longer carries" : "role profiles no longer carry"} ` + `the model it was pinned to, so ${drift.length === 1 ? "that role" : "those roles"} will be ` + `dispatched on ${drift.map((item) => `${item.role} on ${item.on_disk} instead of ${item.pinned}`).join(", ")}. ` + `Run cycle_role_profiles repair to restore the pinned model before dispatching, or configure the ` + `role to inherit if the pin is no longer wanted.`
+    } : {}
   };
 }
 function sha256(value) {
@@ -1606,6 +1781,26 @@ function sha256(value) {
 }
 function isMissing(error) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+}
+
+// src/role-registry.ts
+function isRoleRegistration(value) {
+  return value !== undefined && value.kind !== "workflow_lock" && typeof value.role === "string";
+}
+function isWorkflowLock(value) {
+  return value?.kind === "workflow_lock";
+}
+function orphanedRegistrationKeys(registry, workflowId) {
+  const locked = new Set(Object.values(registry).filter(isWorkflowLock).map((lock) => lock.workflow_id));
+  const keys = [];
+  for (const [key, value] of Object.entries(registry)) {
+    if (!isRoleRegistration(value))
+      continue;
+    const orphaned = workflowId === undefined ? value.workflow_id !== null && !locked.has(value.workflow_id) : value.workflow_id === workflowId;
+    if (orphaned)
+      keys.push(key);
+  }
+  return keys;
 }
 
 // src/server.ts
@@ -1649,12 +1844,6 @@ async function writeRegistry(registry) {
   await rm3(registryPath, { force: true });
   await rename3(temporary, registryPath);
 }
-function isRoleRegistration(value) {
-  return value !== undefined && value.kind !== "workflow_lock" && typeof value.role === "string";
-}
-function isWorkflowLock(value) {
-  return value?.kind === "workflow_lock";
-}
 function workflowLockKey(workflowId) {
   return `workflow:${workflowId}`;
 }
@@ -1669,6 +1858,14 @@ async function lockWorkflow(projectKey, workflowId) {
   };
   await writeRegistry(registry);
 }
+async function recordWorktree(workflowId, worktreePath) {
+  const registry = await readRegistry();
+  const lock = registry[workflowLockKey(workflowId)];
+  if (!isWorkflowLock(lock))
+    return;
+  registry[workflowLockKey(workflowId)] = { ...lock, worktree_path: worktreePath };
+  await writeRegistry(registry);
+}
 async function unlockWorkflow(workflowId) {
   const registry = await readRegistry();
   delete registry[workflowLockKey(workflowId)];
@@ -1677,6 +1874,15 @@ async function unlockWorkflow(workflowId) {
       delete registry[key];
   }
   await writeRegistry(registry);
+}
+async function revokeOrphanedRoleRegistrations(workflowId) {
+  const registry = await readRegistry();
+  const keys = orphanedRegistrationKeys(registry, workflowId);
+  for (const key of keys)
+    delete registry[key];
+  if (keys.length > 0)
+    await writeRegistry(registry);
+  return keys;
 }
 function terminalWorkflowState(value) {
   if (typeof value !== "object" || value === null)
@@ -1698,7 +1904,7 @@ function text2(value) {
 }
 async function callTool(name, rawArgs) {
   const args = typeof rawArgs === "object" && rawArgs !== null ? rawArgs : {};
-  const projectKey = typeof args.project_key === "string" ? args.project_key : "";
+  const projectKey = canonicalProjectKey();
   switch (name) {
     case "cycle_health":
       return { ...await plane.health(), data_directory: dataDirectory };
@@ -1727,10 +1933,16 @@ async function callTool(name, rawArgs) {
     }
     case "cycle_control": {
       const workflowId = typeof args.workflow_id === "string" ? args.workflow_id : undefined;
-      const result = await plane.control(projectKey, args.operation ?? "status", workflowId);
-      if (workflowId !== undefined && terminalWorkflowState(result))
-        await unlockWorkflow(workflowId);
-      return result;
+      try {
+        const result = await plane.control(projectKey, args.operation ?? "status", workflowId);
+        if (workflowId !== undefined && terminalWorkflowState(result)) {
+          await unlockWorkflow(workflowId);
+        }
+        return result;
+      } finally {
+        if (args.operation === "recovery")
+          await revokeOrphanedRoleRegistrations(workflowId);
+      }
     }
     case "cycle_audit": {
       const observation = args.observation;
@@ -1754,6 +1966,7 @@ async function callTool(name, rawArgs) {
         throw new Error("cycle_role_profiles requires ZCODE_PLUGIN_ROOT");
       return manageRoleProfiles({
         operation,
+        pinStorePath: join3(dataDirectory, "runtime", "role-model-pins.json"),
         pluginRoot,
         projectRoot: process.env.ZCODE_PROJECT_DIR ?? process.cwd(),
         ...typeof args.confirmation === "string" ? { confirmation: args.confirmation } : {},
@@ -1824,7 +2037,9 @@ async function callTool(name, rawArgs) {
       if (!workflowId || !projectDirectory) {
         throw new Error("cycle_prepare_worktree requires workflow_id and project_directory");
       }
-      return plane.prepareWorktree(projectKey, projectDirectory, workflowId);
+      const worktree = await plane.prepareWorktree(projectKey, projectDirectory, workflowId);
+      await recordWorktree(workflowId, worktree.path);
+      return worktree;
     }
     case "cycle_plan_verification": {
       const workflowId = text2(args.workflow_id);
@@ -1912,6 +2127,112 @@ async function callTool(name, rawArgs) {
       throw new Error(`unknown tool: ${name}`);
   }
 }
+var EVIDENCE_IDS = {
+  type: "array",
+  items: { type: "string", description: "evidence id, a UUID" }
+};
+var FINDING = {
+  type: "object",
+  properties: {
+    severity: { enum: ["critical", "high", "medium", "low", "info"] },
+    summary: { type: "string" },
+    evidence_ids: EVIDENCE_IDS
+  },
+  required: ["severity", "summary", "evidence_ids"],
+  additionalProperties: false
+};
+var REQUIREMENT_DECISION = {
+  type: "object",
+  properties: {
+    requirement_id: { type: "string" },
+    status: { enum: ["satisfied", "unsatisfied"] },
+    evidence_ids: EVIDENCE_IDS
+  },
+  required: ["requirement_id", "status", "evidence_ids"],
+  additionalProperties: false
+};
+var REPAIR_TARGET = {
+  description: "null when the decision is an approval",
+  enum: ["execution", "architecture", null]
+};
+var ARBITER_VERDICT = {
+  type: "object",
+  properties: {
+    decision: { enum: ["approved", "rejected"] },
+    candidate_digest: { type: "string", description: "sha256 of the frozen candidate" },
+    requirements: { type: "array", items: REQUIREMENT_DECISION },
+    findings: { type: "array", items: FINDING },
+    repair_target: REPAIR_TARGET
+  },
+  required: ["decision", "candidate_digest", "requirements", "findings", "repair_target"],
+  additionalProperties: false
+};
+var REVIEW_VERDICT = {
+  type: "object",
+  properties: {
+    decision: { enum: ["approved", "rejected"] },
+    candidate_digest: { type: "string", description: "sha256 of the frozen candidate" },
+    requirements: { type: "array", items: REQUIREMENT_DECISION },
+    findings: { type: "array", items: FINDING },
+    repair_target: REPAIR_TARGET,
+    role: { enum: ["functional_reviewer", "security_architecture_reviewer"] }
+  },
+  required: [
+    "decision",
+    "candidate_digest",
+    "requirements",
+    "findings",
+    "repair_target",
+    "role"
+  ],
+  additionalProperties: false
+};
+var AUDIT_OBSERVATION = {
+  type: "object",
+  properties: {
+    actor_id: { type: "string" },
+    candidate_id: { type: ["string", "null"] },
+    data: {
+      description: "one tagged variant: workflow{action} | tool{tool,invocation_digest} | permission{permission,decision} | git{revision,externally_attributed} | verification{gate,status}",
+      type: "object"
+    },
+    evidence_ids: EVIDENCE_IDS,
+    files: { type: "array", items: { type: "string" } },
+    metadata: { type: "object", additionalProperties: { type: "string" } },
+    model: { type: ["object", "null"] },
+    project_key: { type: "string" },
+    role: {
+      enum: [
+        "architect",
+        "executor",
+        "functional_reviewer",
+        "security_architecture_reviewer",
+        "arbiter",
+        null
+      ]
+    },
+    session_id: { type: ["string", "null"] },
+    task_id: { type: ["string", "null"] },
+    timestamp_unix_millis: { type: "integer" },
+    workflow_id: { type: ["string", "null"] }
+  },
+  required: [
+    "actor_id",
+    "candidate_id",
+    "data",
+    "evidence_ids",
+    "files",
+    "metadata",
+    "model",
+    "project_key",
+    "role",
+    "session_id",
+    "task_id",
+    "timestamp_unix_millis",
+    "workflow_id"
+  ],
+  additionalProperties: false
+};
 var TOOLS = {
   cycle_health: {
     description: "Check the Cycle control plane: spawns or attaches the local workflowd daemon and returns product/protocol/schema versions plus the authoritative data directory.",
@@ -1962,7 +2283,7 @@ var TOOLS = {
     inputSchema: {
       type: "object",
       properties: {
-        observation: { type: "object" }
+        observation: AUDIT_OBSERVATION
       },
       required: ["observation"],
       additionalProperties: false
@@ -1990,7 +2311,7 @@ var TOOLS = {
     }
   },
   cycle_goal: {
-    description: "Manage persistent goals: create, amend, focus, link workflows, save versioned plans, control lifecycle.",
+    description: "Manage persistent goals: create, amend, focus, link and unlink workflows, save versioned plans, control lifecycle.",
     inputSchema: {
       type: "object",
       properties: { project_key: { type: "string" }, operation: { type: "object" } },
@@ -2051,7 +2372,7 @@ var TOOLS = {
           ]
         },
         model: { type: "string" },
-        thought_level: { enum: ["low", "high", "max", "enabled", "off"] }
+        thought_level: { enum: ["low", "high", "max", "enabled", "disabled", "off"] }
       },
       required: ["operation"],
       additionalProperties: false
@@ -2204,7 +2525,7 @@ var TOOLS = {
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
         role_session_id: { type: "string" },
-        verdict: { type: "object" }
+        verdict: REVIEW_VERDICT
       },
       required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false
@@ -2219,7 +2540,7 @@ var TOOLS = {
         workflow_id: { type: "string" },
         candidate_id: { type: "string" },
         role_session_id: { type: "string" },
-        verdict: { type: "object" }
+        verdict: ARBITER_VERDICT
       },
       required: ["project_key", "workflow_id", "candidate_id", "role_session_id", "verdict"],
       additionalProperties: false

@@ -125,7 +125,7 @@ fn evidence_attempts_are_versioned_and_bound_to_plan_workflow_and_candidate() {
             true,
             WorkflowTimestamp::now()
         ),
-        Err(StoreError::AggregateConflict)
+        Err(StoreError::AggregateConflict(_))
     ));
 }
 
@@ -250,4 +250,91 @@ fn skipped_evidence_keeps_versioned_attempts_and_exposes_the_latest_result() {
         store.load_candidate_evidence(candidate_id).unwrap(),
         vec![(rerun, "rerun".to_owned(), true)]
     );
+}
+
+#[test]
+fn a_repaired_candidate_reverifies_against_the_same_plan() {
+    // DEFECT-22, as the live 1.0.5 certification found it: evidence ids come from
+    // the verification plan, a repair reuses that plan, and evidence was keyed on
+    // the evidence id alone. The refrozen candidate therefore arrived carrying the
+    // failed candidate's ids and every gate was refused with "already recorded
+    // with a different identity", so a repaired candidate could never re-verify.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = Store::open(
+        directory.path().join("workflow.db"),
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .unwrap();
+    let workflow_id = WorkflowId::new();
+    store
+        .apply_workflow_command(
+            workflow_id,
+            "repair-reverify",
+            WorkflowCommand::CompleteIntake,
+            WorkflowTimestamp::now(),
+        )
+        .unwrap();
+
+    let plan_id = VerificationPlanId::new();
+    let plan = serde_json::json!({"id": plan_id, "gates": []});
+    store
+        .save_verification_plan_once(plan_id, workflow_id, &plan, WorkflowTimestamp::now())
+        .unwrap();
+
+    // One gate, so one evidence id, reused across both candidates exactly as the
+    // plan hands it out.
+    let gate = EvidenceId::new();
+    let mut saved = Vec::new();
+    for (label, status) in [
+        ("failed", EvidenceStatus::Failed),
+        ("passed", EvidenceStatus::Passed),
+    ] {
+        let candidate_id = CandidateId::new();
+        let manifest = candidate(candidate_id);
+        store
+            .save_candidate_once(
+                workflow_id,
+                &manifest,
+                b"diff",
+                &[],
+                WorkflowTimestamp::now(),
+            )
+            .unwrap();
+        let timestamp = WorkflowTimestamp::now();
+        let record = EvidenceRecord {
+            candidate_digest: manifest.digest(),
+            exit_code: Some(i32::from(status != EvidenceStatus::Passed)),
+            finished_at: timestamp,
+            id: gate,
+            invocation: "project-test".to_owned(),
+            kind: EvidenceKind::Test,
+            output_digest: ContentDigest::of(label.as_bytes()),
+            skip_reason: None,
+            started_at: timestamp,
+            status,
+            tool: "project-test".to_owned(),
+            tool_version: "1".to_owned(),
+        };
+        store
+            .save_evidence_once(
+                plan_id,
+                workflow_id,
+                candidate_id,
+                &record,
+                label,
+                true,
+                timestamp,
+            )
+            .expect("a repaired candidate must be able to record the same gate again");
+        saved.push((candidate_id, record, label));
+    }
+
+    // Both candidates keep their own result: the failed run stays in the record
+    // rather than being overwritten by the run that fixed it.
+    for (candidate_id, record, label) in saved {
+        assert_eq!(
+            store.load_candidate_evidence(candidate_id).unwrap(),
+            vec![(record, label.to_owned(), true)]
+        );
+    }
 }

@@ -9,7 +9,10 @@ The daemon owns every transition and refuses out-of-order submissions. Your
 job is to feed it exact inputs, dispatch roles, and relay outcomes. Never
 fabricate a state the daemon did not return.
 
-Throughout: `project_key` is this workspace's stable project key. Before every
+Throughout: pass the project's absolute directory as `project_key`. The bridge
+derives the project identity from the directory it was started for and uses that
+regardless, so the value you pass cannot split one project into two. Do not
+invent a slug, and do not carry a key over from an earlier session. Before every
 role dispatch, generate a fresh UUID role token, call `cycle_role_register`
 with that token as `session_id`, the exact role, project key and workflow id,
 and include the token in the dispatched prompt. Revoke that exact token after
@@ -22,6 +25,23 @@ cannot start for any reason (including an unsupported model or thought level),
 cancel or block the workflow and report the configuration error. Never retry
 with `general-purpose`, another profile, another model, or an unregistered
 session. A substitute agent is not evidence for the configured role.
+
+## 0a. Probe every pinned role before any work
+
+Call `cycle_role_profiles` with the `status` operation. Every role reported with
+`dispatch_unverified: true` carries a model this plugin cannot vouch for: only
+the host resolves providers, and it answers at dispatch. Before `cycle_start`,
+dispatch each such role once with a throwaway prompt that asks for a single word
+and nothing else.
+
+If a probe cannot start, stop here and report the configuration error with the
+host's exact message. Do not begin a workflow. A pinned model that cannot be
+dispatched otherwise surfaces only at the review phase, after an architecture, an
+execution and five verification gates have already been paid for — which is what
+the 1.0.6 certification measured, three times.
+
+Roles on `inherit` need no probe: that is the model the session is already
+running on.
 
 ## 0. Capture and start
 
@@ -103,6 +123,13 @@ returned path; it never implements a "quick" change in place.
    `origin-approval-required`.
 3. `cycle_freeze_candidate` with the base revision, plan id and evidence
    ids. Record `candidateId`, `candidateDigest` and the manifest.
+   If the freeze is refused because **the project changed while this
+   workflow was holding it**, the project directory is the operator's, not
+   the workflow's. Never dispatch a role - or act yourself - to modify,
+   commit, revert, stash or delete anything in it, including untracked files
+   you did not create: a file you cannot explain may be the operator's own
+   work, or a file the host writes. Report the named paths verbatim, say the
+   operator must resolve them, and stop; after they do, freeze again.
 4. `cycle_verify_candidate`. Record every gate's status.
 5. Mandatory gates failed or skipped for lack of valid attestations: the
    evidence becomes repair feedback; the daemon drives the state back to
@@ -137,6 +164,12 @@ returned path; it never implements a "quick" change in place.
    - Approved: `cycle_promote_candidate` with the project directory, then
      report the delivered paths and the final state. Audit an
      `approved_candidate_delivered` observation. Done.
+     Promotion confirms it is delivering into the right repository by
+     comparing the project directory against the one `cycle_code_index`
+     recorded in phase 1. If you skipped or lost that step while recovering
+     from something else, promotion refuses here and the remedy is to run
+     `cycle_code_index` for the project and promote again — the candidate and
+     its approval are untouched.
    - Rejected with `repair_target` `execution`: the verdict is repair
      feedback; continue from phase 3, one repair cycle.
    - Rejected with `repair_target` `architecture`: continue from phase 1,

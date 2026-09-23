@@ -8,8 +8,40 @@ use workflow_core::{
     WorkflowCommand, WorkflowId, WorkflowMode, WorkflowRole, WorkflowState, WorkflowTimestamp,
 };
 use workflow_store::Store;
-use workflowd::arbitration::{MANDATORY_GATE_FAILED, REVIEWER_REJECTED, refusal};
+use workflowd::arbitration::{
+    MANDATORY_GATE_FAILED, REQUEST_CONSTRAINT_VIOLATED, REVIEWER_REJECTED, refusal,
+};
 use workflowd::repair::{RepairCause, route};
+
+/// DEFECT-15, found by scenario 5 of the live certification: the stored request
+/// said "do not modify any test file", the approved candidate's file list named
+/// one, and the approval stood. Judging the candidate against the immutable
+/// original request is the arbiter's whole purpose.
+#[test]
+fn an_approval_that_contradicts_the_immutable_request_is_refused_to_the_executor() {
+    let reviews = [
+        approved(WorkflowRole::FunctionalReviewer),
+        approved(WorkflowRole::SecurityArchitectureReviewer),
+    ];
+    let refused = refusal(ArbiterDecision::Approved, true, true, &reviews, true)
+        .expect("an approval over an explicit request constraint must be refused");
+    assert_eq!(refused.reason, REQUEST_CONSTRAINT_VIOLATED);
+    // The plan may have been right; the files written were not.
+    assert_eq!(refused.repair_target, RepairTarget::Execution);
+}
+
+/// Approving reviewers do not make the frozen request say something else.
+#[test]
+fn a_request_constraint_outranks_every_approval_around_it() {
+    let reviews = [
+        approved(WorkflowRole::FunctionalReviewer),
+        approved(WorkflowRole::SecurityArchitectureReviewer),
+    ];
+    let refused = refusal(ArbiterDecision::Approved, true, true, &reviews, true).unwrap();
+    assert_eq!(refused.reason, REQUEST_CONSTRAINT_VIOLATED);
+    // A rejection is still the arbiter's to make and is never refused here.
+    assert!(refusal(ArbiterDecision::Rejected, true, true, &reviews, true).is_none());
+}
 
 fn review(
     role: WorkflowRole,
@@ -41,7 +73,7 @@ fn an_approval_that_contradicts_a_rejection_is_refused_toward_the_reviewers_targ
             approved(WorkflowRole::FunctionalReviewer),
             rejected(WorkflowRole::SecurityArchitectureReviewer, target),
         ];
-        let refused = refusal(ArbiterDecision::Approved, false, true, &reviews)
+        let refused = refusal(ArbiterDecision::Approved, false, true, &reviews, false)
             .expect("an approval over a live rejection must be refused");
         assert_eq!(refused.reason, REVIEWER_REJECTED);
         assert_eq!(
@@ -62,7 +94,7 @@ fn a_plan_defect_outranks_an_implementation_finding() {
             RepairTarget::Architecture,
         ),
     ];
-    let refused = refusal(ArbiterDecision::Approved, false, true, &reviews).unwrap();
+    let refused = refusal(ArbiterDecision::Approved, false, true, &reviews, false).unwrap();
     assert_eq!(refused.repair_target, RepairTarget::Architecture);
 }
 
@@ -72,7 +104,7 @@ fn an_approval_over_a_failed_mandatory_gate_is_refused_toward_execution() {
         approved(WorkflowRole::FunctionalReviewer),
         approved(WorkflowRole::SecurityArchitectureReviewer),
     ];
-    let refused = refusal(ArbiterDecision::Approved, true, false, &reviews)
+    let refused = refusal(ArbiterDecision::Approved, true, false, &reviews, false)
         .expect("an approval over a failed mandatory gate must be refused");
     assert_eq!(refused.reason, MANDATORY_GATE_FAILED);
     assert_eq!(refused.repair_target, RepairTarget::Execution);
@@ -85,7 +117,7 @@ fn an_approval_with_both_reviews_and_every_gate_behind_it_stands() {
         approved(WorkflowRole::SecurityArchitectureReviewer),
     ];
     assert_eq!(
-        refusal(ArbiterDecision::Approved, true, true, &reviews),
+        refusal(ArbiterDecision::Approved, true, true, &reviews, false),
         None
     );
 }
@@ -99,11 +131,11 @@ fn a_rejection_is_never_refused_whatever_the_reviewers_said() {
         approved(WorkflowRole::SecurityArchitectureReviewer),
     ];
     assert_eq!(
-        refusal(ArbiterDecision::Rejected, true, true, &reviews),
+        refusal(ArbiterDecision::Rejected, true, true, &reviews, false),
         None
     );
     assert_eq!(
-        refusal(ArbiterDecision::Rejected, false, false, &reviews),
+        refusal(ArbiterDecision::Rejected, false, false, &reviews, false),
         None
     );
 }
@@ -147,7 +179,7 @@ fn a_refused_approval_converges_in_one_dispatch_instead_of_repeating() {
             RepairTarget::Execution,
         ),
     ];
-    let refused = refusal(ArbiterDecision::Approved, false, true, &reviews).unwrap();
+    let refused = refusal(ArbiterDecision::Approved, false, true, &reviews, false).unwrap();
     let outcome = route(
         &mut store,
         workflow_id,

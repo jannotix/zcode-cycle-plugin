@@ -6,14 +6,90 @@ older ZIP do not satisfy this gate.
 
 ## Admission
 
-1. Verify `release-manifest.json`, the Git SHA and every sealed artifact with
-   `verify-release-manifest.mjs`.
+1. Verify the **published** release with `verify-published-release.mjs`, which
+   downloads its assets and runs `verify-release-manifest.mjs` against them.
+   Verifying the sealed directory instead is not the same claim and does not
+   admit a campaign: CI's own output contains what CI just wrote, so it cannot
+   show what publication dropped. `1.0.7`, `1.0.8` and `1.0.9` were each
+   published missing two declared artifacts and each was called verified,
+   because the sealed directory was what got checked.
 2. Record the ZIP SHA-256 before extraction. It must be the same digest used
    in every scenario and in the final receipt.
-3. Use Windows 11 x64 with ZCode Desktop `3.10.2.6414` and bundled CLI `0.16.5`.
+3. Use Windows 11 x64 with ZCode Desktop `3.14.3.7762` and bundled CLI `0.16.9`.
    Any host update invalidates this receipt and requires a complete rerun.
+
+## The host pin, and what to do when it moves
+
+ZCode Desktop updates itself. The pin above is therefore not a fact about the
+product but a fact about one machine at one moment, and it goes stale on its own:
+the lane was written against `3.10.2.6414`; `3.11.2.6792` was installed before it
+ever ran; `3.12.3.7463` was found installed when the 1.0.7 campaign was about to
+start; `3.14.0.7681` arrived minutes later, already downloaded and waiting for a
+restart; `3.14.1.7714` staged itself two days after that; and `3.14.3.7762`
+arrived the day after. Six builds, none of them asked for.
+
+The bundled CLI held at `0.16.5` across the first three and moved to `0.16.9`
+with the fourth, where it has stayed across the sixth. That one move cost a release: the CLI
+version is named in the shipped threat model, so `1.0.7` — already published —
+described a host configuration that no longer existed, and `1.0.8` was cut to
+carry the true one. The fifth build moved only the Desktop number, so it cost
+three lines in this repository and nothing else.
+
+**A host that moves is not only a hazard.** The sixth build is why this lane can
+run. Before `3.14.3.7762`, setting the Desktop `dataBaseDir` to any non-default
+path killed startup with `Storage preparation failed: transport_closed` - and
+that setting is the first of the three isolation axes below, so no admitted
+campaign was possible at all. The fix shipped silently, with the issue reporting
+it still open and unanswered. Test the axis before trusting it: launching
+`ZCode.exe` with `ZCODE_DATA_BASE_DIR` set walks the same resolution as the saved
+setting while persisting nothing, so a host can be cleared for the lane without
+being put into the state the bug made unrecoverable.
+
+**Turning the updater off does not stay off.** The setting lives in the throwaway
+CLI profile, so wiping that profile — which this lane requires — silently returns
+it to its default, and the host stages the next build within seconds. Disable it
+*after* creating the profile, not before, and check it again before the first
+scenario. When an update is already staged and its bundled CLI has not moved, the
+cheaper move is to install it and re-pin rather than fight to stay behind: read
+the CLI version out of the staged installer first, with
+`7z x <installer>` then `7z e $PLUGINSDIR\app-64.7z resources\glm\zcode.cjs`.
+
+Read the two numbers from different places. The Desktop build is the
+`ProductVersion` of `ZCode.exe`. The bundled CLI does **not** follow it and is not
+recorded beside it: it is the version constant inside
+`C:\Program Files\ZCode\resources\glm\zcode.cjs`, the same value that CLI stamps
+on its own database migrations as `appVersion`. Reading the Desktop number twice
+and calling the second one the CLI would pin a host that does not exist.
+
+**Before a campaign.** Read the installed build and confirm it matches the pin:
+
+```text
+(Get-Item 'C:\Program Files\ZCode\ZCode.exe').VersionInfo.ProductVersion
+```
+
+If it differs, update the pin *before* starting, in all four places that carry
+it — `scripts/release/verify-zcode-live-receipt.mjs`, its fixture in
+`tests/qualification/live-certification-receipt.test.mjs`, the production release
+plan and this document — and record in the commit why it moved. Do not start a
+campaign on a host you have not pinned.
+
+**During a campaign.** Do not let the host update. Finish the thirteen scenarios on
+one build, because a receipt mixes evidence from every scenario and a mid-run
+update makes half of it describe a host the other half did not use. If an update
+lands anyway, discard the partial evidence and start over on the new build: a
+receipt is cheaper to re-earn than to argue about.
+
+**After it moves.** A published receipt stays true of the build it names — it is
+not invalidated retroactively. What expires is its usefulness as evidence for the
+*current* host, which is why the plan calls for a rerun rather than a patch.
 4. Use a disposable fixture repository and a disposable ZCode plugin test
-   profile. Keep the withdrawn `1.0.0` isolated from production projects.
+   profile. Isolation has three independent axes, and `ZCODE_DATA_BASE_DIR`
+   alone does not provide it - the host child process does not inherit it. Set
+   the Desktop `dataBaseDir` setting for desktop data, point `~/.zcode/cli` at a
+   throwaway directory for the plugin set and history, and set
+   `ZCODE_CYCLE_DATA_DIR` for the Cycle control plane. A campaign that leaves any
+   one of the three pointing at the production profile is not isolated, and its
+   evidence does not count.
 5. Capture sanitized JSON/text evidence and screenshots where UI state is the
    assertion. Evidence must contain no credentials, user paths, private data
    or model conversation content unrelated to the scenario.
@@ -23,10 +99,11 @@ older ZIP do not satisfy this gate.
 Run each scenario from the same admitted ZIP bytes and record at least one
 digest-bound evidence file:
 
-1. `component-discovery`: install and enable 1.0.2; commands, five skills,
+1. `component-discovery`: install and enable the admitted version; commands, five skills,
    both Hooks and the MCP server load with no Cycle diagnostic.
 2. `setup-doctor`: `/cycle:setup install`, a real new session,
-   `/cycle:setup`, health 1.0.2/protocol 1/read-write schema and doctor PASS.
+   `/cycle:setup`, health at the admitted version/protocol 1/read-write schema
+   and doctor PASS.
 3. `quick`: complete a bounded fixture change through promotion; verify the
    candidate digest and audit-chain receipt.
 4. `full`: complete architecture, execution, both independent reviews,
@@ -39,33 +116,118 @@ digest-bound evidence file:
    close and bind the receipt to the candidate. External origins are excluded
    unless separately approved at action time.
 8. `accessibility`: prove the required accessibility gate from the managed
-   browser snapshot, not from a narrative assertion.
+   browser snapshot, not from a narrative assertion. Read the gate's own
+   evidence record: it must carry the snapshot's findings, and a run against an
+   interface whose controls carry no accessible name must fail it. The 1.0.3
+   campaign found this gate passing on the snapshot operation merely having
+   happened, with the tree described only in the run's narrative and persisted
+   nowhere — which is the shape this row exists to reject.
 9. `goal`: link completed workflows to every milestone and prove completion
    refuses missing workflow/arbiter evidence.
-10. `update-from-withdrawn-1.0.0`: in the disposable profile only, update the
-    historical 1.0.0 installation to the admitted 1.0.2 and verify data/schema
-    reconciliation.
-11. `uninstall`: run `/cycle:setup remove`, uninstall the plugin, verify plugin
-    and project-profile residue is absent while audit data remains intact.
-12. `isolated-rollback-to-withdrawn-1.0.0`: test rollback mechanics only in the
-    disposable profile, record the expected withdrawn warning/read-only
-    behavior, then restore and re-verify 1.0.2. The final state must be
-    `1.0.2-installed-enabled`.
+10. `schema-forward-compatibility`: a build declaring a lower schema version
+    must open a newer store read-only and change nothing. No published version
+    has ever lowered the schema, so prove the mechanism: run the admitted
+    version until the data directory holds ledger entries,
+    signed checkpoints, goal records and browser evidence, then open that
+    directory with a build declaring a lower schema version and observe the
+    documented safe read-only mode. The stored bytes must be unchanged
+    afterwards, compared by digest and not by inspection.
+11. `uninstall`: run `/cycle:setup remove`, uninstall the plugin, and verify the
+    active installation and the project role profiles are absent while audit
+    data remains intact. Any copy the host retains outside the installation must
+    be **inert** - absent from `installed_plugins.json`, with no daemon process
+    running from it - and disclosed in the documentation.
+
+    This row asked for *all* plugin residue to be absent until 1.0.6, and that
+    could never pass. ZCode keeps its marketplace's cached copy of the plugin
+    after an uninstall, and that cache belongs to the host: a plugin reaching
+    into ZCode's registry to erase entries would be a worse fault than the disk
+    space it recovers. The row now measures what this product controls -
+    nothing live is left behind - rather than a host behaviour it cannot change.
+    It is not a weaker test: an inert copy still has to be *proven* inert, by
+    reading `installed_plugins.json` and by counting daemon processes, and the
+    disclosure still has to exist.
+12. `history-survives-version-change`: with the most recent published
+    predecessor installed, its history in the data directory **and its daemon
+    still running**, update to the admitted version from the Plugin Marketplace,
+    restart ZCode and do nothing else. The new plugin must take over the daemon
+    on its own, and the record must come through intact - every ledger entry
+    present, the hash chain verifying end to end, every checkpoint signature
+    still valid, every goal and milestone linked to the workflow it was linked
+    to before. After scenario 11, reinstall over the same data directory; the
+    final state must be `<version>-installed-enabled`.
+
+    The running daemon is the point. It outlives ZCode sessions, so it is
+    running after almost every real update, and the 1.0.10 campaign found that
+    an update could not replace it: 1.0.9 and 1.0.10 both reinstalled cleanly
+    over their own data, and 1.0.10 still never came up after an update from a
+    running 1.0.9. A reinstall of the same version does not exercise that path.
+13. `per-role-model`: assign an explicit model to one role with
+    `/cycle:models`, start a new session, run a governed workflow, and prove
+    from the ledger that the dispatched role ran on the model it was assigned -
+    not on the session's model. Then repeat with a third-party model the user
+    has configured in ZCode, which the host supports, and record what happens.
+
+    This scenario exists because the product is named for multi-model
+    orchestration and nothing else in this lane tests it. The five managed
+    profiles ship as `model: inherit`, so every other scenario certifies a run
+    in which architect, executor, both reviewers and the arbiter shared one
+    model: independent prompts and tool lists, one judgement. That is a
+    narrower claim than "independent reviewers" and the receipt must not imply
+    the wider one.
+
+    Read the answer out of the store rather than the run's account. The control
+    plane resolves the pinned model from the managed profile, and it finds that
+    profile through the code index rather than through anything the observation
+    carries: a role that could name the project path could name one whose
+    profile claims a different model. The 1.0.3 campaign measured `actor.model`
+    null across four workflows, including one where the arbiter was explicitly
+    pinned to a model the session was not using, because the resolution was
+    handed a project key where a directory belonged and the miss was swallowed.
+    A row here is passed only when the ledger names the pinned model.
+
+    A refusal is an acceptable outcome, a silent refusal is not: if the plugin
+    declines a third-party model that ZCode itself accepts, that restriction
+    must be stated in the README, the manual and this plan, with its reason.
 
 ## Receipt and signature
 
 Create `zcode-live-certification.json` using the schema enforced by
 `scripts/release/verify-zcode-live-receipt.mjs`. Every scenario must be `PASS`
 and cite relative evidence paths plus SHA-256 digests. Set
-`isolated_withdrawn_version_tests` and `audit_data_preserved` to `true` only
-after observing those facts.
+`audit_data_preserved` to `true` only after observing that fact.
 
-Sign the receipt with the authorized release key:
+Every scenario also records the host build it actually ran on, and the verifier
+rejects a receipt whose scenarios do not all name the same one. That invariant
+is what enforces the single-host rule, replacing a constant duplicated across
+four files that no campaign is obliged to read: the pin above says which build a
+campaign starts on, and the receipt proves the campaign never changed hosts
+underneath itself.
+
+Sign the receipt with the authorized release key. Its public half is
+[`release-signing-key.asc`](release-signing-key.asc) and its fingerprint is:
+
+```text
+29CB 2E3F A61B 8A2F FE97  BF87 CC4D 1A39 CE15 684F
+```
 
 ```text
 gpg --batch --armor --detach-sign zcode-live-certification.json
-node scripts/release/verify-zcode-live-receipt.mjs --receipt zcode-live-certification.json --signature zcode-live-certification.json.asc --signer-fingerprint <FULL_FINGERPRINT> --sealed <SEALED_DIRECTORY>
+node scripts/release/verify-zcode-live-receipt.mjs --receipt zcode-live-certification.json --signature zcode-live-certification.json.asc --signer-fingerprint 29CB2E3FA61B8A2FFE97BF87CC4D1A39CE15684F --sealed <SEALED_DIRECTORY>
 ```
+
+The key is Ed25519, sign-only, and expires two years from creation. It carries
+**no passphrase**, which is what lets a receipt be signed without an interactive
+prompt. That is a deliberate trade: an attacker who can already read this
+machine's home directory can forge a receipt — but the same attacker can run the
+scenarios and earn a real one, and the threat model already places a compromised
+host inside the boundary. Protect it with
+`gpg --change-passphrase 29CB2E3FA61B8A2FFE97BF87CC4D1A39CE15684F` if receipts
+will ever be signed somewhere less trusted than where they are produced.
+
+A revocation certificate was written at generation time under
+`~/.gnupg/openpgp-revocs.d/`. Move it somewhere you would still have if this
+machine were lost; without it a compromised key cannot be retired.
 
 The marketplace submission, signed tag, GitHub Release and npm publication
 must reject a missing, unsigned, incomplete, stale or wrong-byte receipt.

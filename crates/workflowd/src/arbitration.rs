@@ -24,6 +24,8 @@ pub struct Refusal {
 
 pub const REVIEWER_REJECTED: &str = "an independent reviewer rejected this candidate";
 pub const MANDATORY_GATE_FAILED: &str = "a mandatory gate did not pass";
+pub const REQUEST_CONSTRAINT_VIOLATED: &str =
+    "this candidate contradicts an explicit constraint of the immutable original request";
 
 /// Decides whether an arbiter verdict may stand.
 ///
@@ -35,9 +37,24 @@ pub fn refusal(
     reviews_approved: bool,
     mandatory_gates_passed: bool,
     reviews: &[ReviewVerdict],
+    request_constraints_violated: bool,
 ) -> Option<Refusal> {
     if decision != ArbiterDecision::Approved {
         return None;
+    }
+    // DEFECT-15: an approval stood over an explicit, checkable constraint of the
+    // immutable original request - "do not modify any test file", against a
+    // candidate whose file list named a test file. Judging the candidate against
+    // that frozen text is the arbiter's whole purpose, so where the
+    // contradiction is mechanical the approval is refused rather than argued
+    // with. This outranks the reviews: a reviewer approving it too does not make
+    // the request say something else.
+    if request_constraints_violated {
+        return Some(Refusal {
+            reason: REQUEST_CONSTRAINT_VIOLATED,
+            // The plan may well have been right; the files written were not.
+            repair_target: RepairTarget::Execution,
+        });
     }
     if !reviews_approved {
         return Some(Refusal {

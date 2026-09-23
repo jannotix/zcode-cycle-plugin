@@ -81,7 +81,12 @@ impl Redactor {
                 externally_attributed,
                 revision: self.value(revision),
             },
-            EventData::Verification { gate, status } => EventData::Verification {
+            EventData::Verification {
+                declared,
+                gate,
+                status,
+            } => EventData::Verification {
+                declared,
                 gate: self.value(gate),
                 status: self.value(status),
             },

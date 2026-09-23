@@ -1,6 +1,6 @@
 use rusqlite::{OptionalExtension, params};
 use workflow_core::{
-    ArbiterVerdict, ArbitrationReceipt, CandidateId, WorkflowId, WorkflowTimestamp,
+    ArbiterVerdict, ArbitrationReceipt, CandidateId, ContentDigest, WorkflowId, WorkflowTimestamp,
 };
 
 use crate::{Store, StoreError, StoreMode};
@@ -22,7 +22,9 @@ impl Store {
             || receipt.candidate_digest != verdict.candidate_digest
             || receipt.arbiter_verdict_digest != verdict.digest()
         {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "the arbiter receipt does not bind the workflow, candidate and verdict it is recorded against",
+            ));
         }
         let verdict_json = serde_json::to_string(verdict)?;
         let receipt_json = serde_json::to_string(receipt)?;
@@ -43,7 +45,9 @@ impl Store {
                 receipt_json,
             );
             if current != expected {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "an arbitration verdict is already recorded for this candidate and differs from the one submitted",
+                ));
             }
             return Ok(true);
         }
@@ -64,6 +68,36 @@ impl Store {
         Ok(false)
     }
 
+    /// Every arbitration receipt digest recorded against a workflow.
+    ///
+    /// DEFECT-18: goal completion asked for "independent arbiter evidence",
+    /// accepted a digest and resolved it against nothing, so sixty-four zeros
+    /// completed a goal. Completion is the top-level claim that a body of work
+    /// is done, and the arbiter receipt is the only thing tying that claim to a
+    /// governed verdict. Reading the recorded digests is what lets the caller's
+    /// citation be checked instead of believed.
+    pub fn workflow_arbitration_receipt_digests(
+        &self,
+        workflow_id: WorkflowId,
+    ) -> Result<Vec<ContentDigest>, StoreError> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT receipt_digest FROM workflow_arbitration WHERE workflow_id = ?1")?;
+        let digests = statement
+            .query_map([workflow_id.to_string()], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        digests
+            .into_iter()
+            .map(|value| {
+                value.parse().map_err(|_| {
+                    StoreError::AggregateConflict(
+                        "a stored arbitration row holds a receipt digest this schema cannot parse",
+                    )
+                })
+            })
+            .collect()
+    }
+
     pub fn load_arbitration(
         &self,
         candidate_id: CandidateId,
@@ -82,7 +116,7 @@ impl Store {
                 Ok((
                     workflow_id
                         .parse()
-                        .map_err(|_| StoreError::AggregateConflict)?,
+                        .map_err(|_| StoreError::AggregateConflict("a stored arbitration row holds a workflow identifier this schema cannot parse"))?,
                     serde_json::from_str(&verdict)?,
                     serde_json::from_str(&receipt)?,
                 ))

@@ -23,6 +23,10 @@ const MIGRATIONS: &[(u32, &str)] = &[
     (15, include_str!("../migrations/0015_goals.sql")),
     (16, include_str!("../migrations/0016_candidate_files.sql")),
     (17, include_str!("../migrations/0017_evidence_attempts.sql")),
+    (
+        18,
+        include_str!("../migrations/0018_evidence_per_candidate.sql"),
+    ),
 ];
 
 pub(crate) fn migrate(

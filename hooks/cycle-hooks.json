@@ -1,5 +1,5 @@
 {
-  "description": "Cycle role enforcement: managed project profiles provide the primary tool boundary; this Hook denies read-only mutations, delegation, unsafe executor Git and unregistered executor writes, then audits governed calls.",
+  "description": "Main-session enforcement for Cycle: denies mutation while a workflow is locked, denies a role dispatch without a unique registration, and audits governed calls. Managed project profiles are what bound a dispatched role, because ZCode does not run PreToolUse inside a dispatched agent; the role-scoped guards here are reached only when the main session makes the call itself.",
   "hooks": {
     "PreToolUse": [
       {

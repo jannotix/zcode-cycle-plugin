@@ -1,49 +1,67 @@
-import { readFile } from "node:fs/promises"
+import { execFile } from "node:child_process"
+import { access, constants } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { promisify } from "node:util"
 
 // The daemon embeds CARGO_PKG_VERSION and the bridge refuses a daemon whose
 // product version disagrees with the plugin manifest. A tracked binary built
 // from an earlier version therefore ships an installation that cannot start,
 // and nothing else in the repository compares the two. This does.
 //
-// ponytail: the binary is scanned for the embedded version rather than
-// executed, because a health call needs a data directory and the IPC
-// handshake. Release builds intern the string without separators and LTO also
-// materializes it as immediate operands, so the reliable signal is the
-// presence of a prerelease suffix on the product's own base version — a fresh
-// 1.0.2 build contains "1.0.2" and never "1.0.2-", while a 1.0.2-rc.4 build
-// contains both. Replace this with a health call if a future daemon stops
-// embedding its version as plain text.
+// It used to do it by scanning the executable for the expected version as a
+// substring, and that is how a 1.0.5 linux daemon came to be reported as
+// declaring 1.0.6: in a 39 MB binary the sequence "1.0.6" turns up on its own,
+// in a dependency's metadata or a license or plain padding. The gate whose one
+// job is to stop an unstartable installation passed the wrong daemon, and read
+// as a pass while doing it.
+//
+// So the binary is asked. `workflowd --version` needs no data directory and no
+// IPC handshake, and its answer cannot be produced by an accident of layout.
+// A daemon for another platform cannot be run here, so it is reported as
+// unverified rather than scanned and waved through - the two CI jobs between
+// them execute both, and `--require` names the ones a given job must have
+// actually run.
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
+const run = promisify(execFile)
 
-// `bin/` is local assembly staging and is not tracked; `plugin/bin/` is what
-// an installation actually receives. Both are checked, and a target that does
-// not exist on this machine is skipped rather than failed, because a fresh
-// clone has no staging directory.
+// `bin/` is local assembly staging and is not tracked; `plugin/bin/` is what an
+// installation actually receives. Both are checked, and a staging target that
+// does not exist on this machine is skipped, because a fresh clone has none.
 export const STAGING_TARGETS = ["bin/workflowd", "bin/workflowd.exe"]
 export const SHIPPED_TARGETS = [
   "plugin/bin/linux-x64/workflowd",
   "plugin/bin/win32-x64/workflowd.exe",
 ]
 
+/** Whether this machine can execute that binary, which is what makes the answer worth having. */
+export function runnableHere(target, platform = process.platform) {
+  const windows = target.endsWith(".exe")
+  return platform === "win32" ? windows : !windows
+}
+
 export async function checkNativeVersions(
   root = ROOT,
   targets = [...STAGING_TARGETS, ...SHIPPED_TARGETS],
+  platform = process.platform,
 ) {
-  const manifest = JSON.parse(await readFile(join(root, ".zcode-plugin", "plugin.json"), "utf8"))
+  const manifest = JSON.parse(
+    await (await import("node:fs/promises")).readFile(
+      join(root, ".zcode-plugin", "plugin.json"),
+      "utf8",
+    ),
+  )
   const expected = manifest.version
   if (typeof expected !== "string" || !expected) {
     throw new Error("plugin manifest version is missing")
   }
-  const base = expected.split("-")[0]
 
   const results = []
   for (const target of targets) {
-    let bytes
+    const path = join(root, target)
     try {
-      bytes = await readFile(join(root, target))
+      await access(path, constants.F_OK)
     } catch (error) {
       if (error.code !== "ENOENT") throw error
       // Staging is absent in a fresh clone and that is not a defect. A shipped
@@ -54,39 +72,74 @@ export async function checkNativeVersions(
       }
       continue
     }
-    const content = bytes.toString("latin1")
-    const declares = content.includes(expected)
-    // Every build of this base version that is not the expected one carries a
-    // prerelease suffix the expected build cannot contain.
-    const foreign = [
-      ...new Set(
-        [...content.matchAll(new RegExp(`${base.replaceAll(".", "\\.")}-[0-9A-Za-z.]+`, "gu"))]
-          .map((match) => match[0])
-          .filter((token) => token !== expected),
-      ),
-    ]
-    results.push({ declares, foreign, target })
+    if (!runnableHere(target, platform)) {
+      results.push({
+        reason: "built for another platform",
+        runnable: false,
+        target,
+        verified: false,
+      })
+      continue
+    }
+    try {
+      const { stdout } = await run(path, ["--version"], { timeout: 30_000 })
+      results.push({ declared: stdout.trim(), runnable: true, target, verified: true })
+    } catch (error) {
+      // A daemon that runs on this machine and still will not answer is not a
+      // skip. `--version` was added in 1.0.6, so the one thing that cannot
+      // answer is a daemon older than the release that introduced the flag -
+      // exactly what this gate exists to catch. Reported as a skip it passed,
+      // and `runnable` is what separates it from a binary for another platform.
+      results.push({
+        reason: `could not be asked: ${error.message}`,
+        runnable: true,
+        target,
+        verified: false,
+      })
+    }
   }
   return { expected, results }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  // Every path this job is expected to have executed itself. Without it a job
+  // whose daemon silently became unrunnable would report nothing but skips and
+  // exit zero.
+  const required = process.argv
+    .slice(2)
+    .filter((argument) => argument.startsWith("--require="))
+    .flatMap((argument) => argument.slice("--require=".length).split(","))
+    .filter(Boolean)
+
   const { expected, results } = await checkNativeVersions()
   let failed = false
-  for (const { declares, foreign, target } of results) {
-    if (foreign.length > 0) {
-      failed = true
-      process.stdout.write(`${target}: carries ${foreign.join(", ")}, expected ${expected}\n`)
-    } else if (!declares) {
-      failed = true
-      process.stdout.write(`${target}: does not declare ${expected}\n`)
+  for (const { declared, reason, runnable, target, verified } of results) {
+    if (!verified) {
+      if (runnable) {
+        failed = true
+        process.stdout.write(`${target}: runs here and would not answer --version (${reason})\n`)
+      } else {
+        process.stdout.write(`${target}: not verified here (${reason})\n`)
+      }
+      continue
+    }
+    if (declared === expected) {
+      process.stdout.write(`${target}: ${declared}\n`)
     } else {
-      process.stdout.write(`${target}: ${expected}\n`)
+      failed = true
+      process.stdout.write(`${target}: declares ${declared}, expected ${expected}\n`)
+    }
+  }
+  for (const target of required) {
+    if (!results.some((result) => result.target === target && result.verified)) {
+      failed = true
+      process.stdout.write(`${target}: required on this platform and was not verified\n`)
     }
   }
   if (failed) {
     process.stderr.write("a tracked daemon disagrees with the plugin manifest version\n")
     process.exit(1)
   }
-  process.stdout.write(`every tracked daemon declares ${expected}\n`)
+  const verified = results.filter((result) => result.verified).length
+  process.stdout.write(`${verified} tracked daemon(s) asked, every one declares ${expected}\n`)
 }

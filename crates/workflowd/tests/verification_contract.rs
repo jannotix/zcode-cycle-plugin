@@ -186,3 +186,122 @@ fn dependency_and_packaging_changes_block_without_required_project_adapters() {
     assert!(unavailable.contains(&"security:dependency-license"));
     assert!(unavailable.contains(&"package:production-artifact"));
 }
+
+// DEFECT-17, found by scenario 8 of the live certification: the mandatory
+// browser and accessibility gates attach from the architect's own wording of
+// the write scope. Declaring `public` rather than `public/index.html` removed
+// both, and an interface with two unnamed interactive controls passed every
+// gate in its plan and was promoted.
+#[test]
+fn a_directory_write_scope_still_attaches_the_user_interface_gates() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::create_dir_all(directory.path().join("public")).unwrap();
+    fs::write(
+        directory.path().join("public").join("index.html"),
+        "<!doctype html><title>page</title>",
+    )
+    .unwrap();
+
+    // The coarse scope: a directory, with nothing in the string that reads as
+    // user interface.
+    let plan = discover(
+        directory.path(),
+        &architecture(vec!["public".to_owned()], vec!["bun test".to_owned()]),
+    )
+    .unwrap();
+
+    assert!(
+        plan.gates
+            .iter()
+            .any(|gate| gate.name == "browser:affected-user-flow" && gate.mandatory),
+        "a directory scope holding an .html file must still attach the browser gate"
+    );
+    assert!(
+        plan.gates
+            .iter()
+            .any(|gate| gate.name.starts_with("accessibility:") && gate.mandatory),
+        "a directory scope holding an .html file must still attach the accessibility gate"
+    );
+}
+
+/// A directory with no interface file in it does not gain interface gates.
+#[test]
+fn expanding_a_scope_does_not_invent_gates_for_a_directory_without_an_interface() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::create_dir_all(directory.path().join("server")).unwrap();
+    fs::write(
+        directory.path().join("server").join("main.rs"),
+        "fn main() {}",
+    )
+    .unwrap();
+
+    let plan = discover(
+        directory.path(),
+        &architecture(vec!["server".to_owned()], vec!["bun test".to_owned()]),
+    )
+    .unwrap();
+
+    assert!(
+        !plan
+            .gates
+            .iter()
+            .any(|gate| gate.name == "browser:affected-user-flow"),
+        "expansion must not attach an interface gate where there is no interface"
+    );
+}
+
+// DEFECT-16, found by scenario 5 of the live certification: a mandatory gate
+// whose executor program was an entire shell expression, arguments empty, was
+// accepted into the plan. The daemon spawns the program directly, so no such
+// executable exists: over two and a half hours the workflow produced no
+// evidence, no gate result, no failure and no block.
+#[test]
+fn a_shell_expression_is_not_a_program_and_cannot_enter_a_plan() {
+    for program in [
+        "cd public && npx http-server -p 8080",
+        "npm test | tee out.log",
+        "node server.mjs & sleep 2",
+        "bash -c \"npm run build\"",
+        "echo $(pwd)",
+    ] {
+        let gate = workflowd::verification::VerificationGate {
+            executor: VerificationExecutor::Command {
+                arguments: vec![],
+                program: program.to_owned(),
+            },
+            id: workflow_core::EvidenceId::new(),
+            kind: EvidenceKind::Inspection,
+            mandatory: true,
+            name: "command:shell".to_owned(),
+            precondition: "The project command is configured.".to_owned(),
+            risk: workflowd::verification::VerificationRisk::ProjectCode,
+            timeout_seconds: 600,
+        };
+        assert!(
+            VerificationPlan::validate(workflow_core::VerificationPlanId::new(), vec![gate])
+                .is_err(),
+            "a gate that cannot be spawned must be refused: {program}"
+        );
+    }
+}
+
+/// The ordinary case keeps working: a real program with real arguments.
+#[test]
+fn a_plain_program_with_arguments_is_still_accepted() {
+    let gate = workflowd::verification::VerificationGate {
+        executor: VerificationExecutor::Command {
+            arguments: vec!["test".to_owned(), "--run".to_owned()],
+            program: "bun".to_owned(),
+        },
+        id: workflow_core::EvidenceId::new(),
+        kind: EvidenceKind::Inspection,
+        mandatory: true,
+        name: "command:bun test".to_owned(),
+        precondition: "The project command is configured.".to_owned(),
+        risk: workflowd::verification::VerificationRisk::ProjectCode,
+        timeout_seconds: 600,
+    };
+    assert!(
+        VerificationPlan::validate(workflow_core::VerificationPlanId::new(), vec![gate]).is_ok()
+    );
+}

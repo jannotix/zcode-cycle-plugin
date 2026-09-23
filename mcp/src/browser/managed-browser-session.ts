@@ -139,6 +139,7 @@ class PuppeteerBrowserSession implements ManagedBrowserSession {
         const snapshot = await this.#page.accessibility.snapshot({ includeIframes: true })
         result = {
           ...(await this.#pageState()),
+          accessibility: accessibilitySummary(snapshot),
           snapshot: this.#redact(truncate(JSON.stringify(snapshot, null, 2))),
         }
         break
@@ -181,6 +182,11 @@ class PuppeteerBrowserSession implements ManagedBrowserSession {
         throw new Error("Browser close must be handled by the manager")
     }
     this.#actions.push({
+      // Carried into the receipt so the accessibility gate has something to
+      // judge. Until 1.0.3 the gate passed on the snapshot operation merely
+      // having happened, and the tree it described was never persisted, so a
+      // page with unnamed controls passed exactly like one without.
+      ...(isAccessibilitySummary(result) ? { accessibility: result.accessibility } : {}),
       digest: createHash("sha256").update(JSON.stringify(result)).digest("hex"),
       operation: command.operation,
       timestamp: new Date().toISOString(),
@@ -498,4 +504,73 @@ async function fileDigest(path: string): Promise<string> {
 function required<T>(value: T | undefined, message: string): T {
   if (value === undefined) throw new Error(message)
   return value
+}
+
+/// Roles a person operates. A control they cannot name is a control a screen
+/// reader announces as nothing.
+const INTERACTIVE_ROLES = new Set([
+  "button",
+  "checkbox",
+  "combobox",
+  "link",
+  "listbox",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "option",
+  "radio",
+  "searchbox",
+  "slider",
+  "spinbutton",
+  "switch",
+  "tab",
+  "textbox",
+])
+
+export interface AccessibilitySummary {
+  /// Interactive nodes found in the accessibility tree.
+  readonly interactive: number
+  /// How many of those carry no accessible name.
+  readonly unnamed: number
+  /// The roles that were missing a name, deduplicated, for a refusal that can
+  /// be acted on rather than merely disagreed with.
+  readonly unnamedRoles: string[]
+}
+
+/// Reduces an accessibility tree to what a gate can judge.
+///
+/// A summary rather than the whole tree: the receipt is signed evidence that
+/// travels, and the counts are what a gate needs. The tree itself stays in the
+/// snapshot payload for a person to read.
+export function accessibilitySummary(node: unknown): AccessibilitySummary {
+  let interactive = 0
+  let unnamed = 0
+  const unnamedRoles = new Set<string>()
+
+  const walk = (value: unknown): void => {
+    if (typeof value !== "object" || value === null) return
+    const record = value as { role?: unknown; name?: unknown; children?: unknown }
+    const role = typeof record.role === "string" ? record.role : ""
+    if (INTERACTIVE_ROLES.has(role)) {
+      interactive += 1
+      const name = typeof record.name === "string" ? record.name.trim() : ""
+      if (name.length === 0) {
+        unnamed += 1
+        unnamedRoles.add(role)
+      }
+    }
+    if (Array.isArray(record.children)) for (const child of record.children) walk(child)
+  }
+
+  walk(node)
+  return { interactive, unnamed, unnamedRoles: [...unnamedRoles].sort() }
+}
+
+function isAccessibilitySummary(
+  result: unknown,
+): result is { readonly accessibility: AccessibilitySummary } {
+  if (typeof result !== "object" || result === null) return false
+  const summary = (result as { accessibility?: unknown }).accessibility
+  if (typeof summary !== "object" || summary === null) return false
+  return typeof (summary as { interactive?: unknown }).interactive === "number"
 }

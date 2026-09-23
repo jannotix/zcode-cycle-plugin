@@ -142,7 +142,9 @@ impl Store {
                 journal_digest.to_string(),
             ))
         {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "no delivery reservation for this candidate is held by this workflow with these digests",
+            ));
         }
         let current: String = transaction.query_row(
             "SELECT state_json FROM workflows WHERE id = ?1",
@@ -202,7 +204,9 @@ impl Store {
             ],
         )?;
         if released != 1 {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "no delivery reservation matched this candidate, workflow and digests, so there is nothing to release",
+            ));
         }
         transaction.commit()?;
         Ok(result)

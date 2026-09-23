@@ -26,9 +26,13 @@ pub fn route(
 ) -> Result<RepairOutcome, StoreError> {
     let current = store
         .load_workflow(workflow_id)?
-        .ok_or(StoreError::AggregateConflict)?;
+        .ok_or(StoreError::AggregateConflict(
+            "no workflow with this identifier is recorded",
+        ))?;
     if current.current_candidate() != Some(candidate_id) {
-        return Err(StoreError::AggregateConflict);
+        return Err(StoreError::AggregateConflict(
+            "the workflow is not working on this candidate",
+        ));
     }
     if cause == RepairCause::InfrastructureFailure {
         let state = store

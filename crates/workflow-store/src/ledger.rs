@@ -109,11 +109,15 @@ impl Store {
         for row in rows {
             let event: LedgerEvent = serde_json::from_str(&row?)?;
             if event.workflow_id != Some(workflow_id) || event.actor.role != Some(role) {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "a ledger entry selected for this workflow and role does not carry them",
+                ));
             }
             if let Some(session_id) = event.actor.session_id {
                 if session_id.is_empty() || session_id.len() > 256 {
-                    return Err(StoreError::AggregateConflict);
+                    return Err(StoreError::AggregateConflict(
+                        "a ledger entry carries a session identifier outside the permitted length",
+                    ));
                 }
                 sessions.insert(session_id);
             }
@@ -133,7 +137,9 @@ impl Store {
         for row in rows {
             let event: LedgerEvent = serde_json::from_str(&row?)?;
             if event.workflow_id != Some(workflow_id) {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "a ledger entry selected for this workflow does not carry it",
+                ));
             }
             if event.metadata.get("action").map(String::as_str)
                 != Some("execution_worktree_prepared")
@@ -145,7 +151,9 @@ impl Store {
                 revision,
             } = event.data
             else {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "the worktree preparation entry does not carry a self-attributed git revision",
+                ));
             };
             if matches!(revision.len(), 40 | 64)
                 && revision
@@ -154,7 +162,9 @@ impl Store {
             {
                 return Ok(Some(revision));
             }
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "the worktree preparation entry carries a revision that is not a lowercase hexadecimal digest",
+            ));
         }
         Ok(None)
     }

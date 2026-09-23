@@ -179,6 +179,38 @@ pub fn execute(
             )?;
             snapshot(store, project_id, goal_id)
         }
+        GoalOperation::UnlinkWorkflow {
+            goal_id,
+            workflow_id,
+        } => {
+            let goal = require_owner(store, project_id, goal_id)?;
+            // A terminal goal's links are part of what it claims. Correcting a
+            // link is for work still in progress; rewriting the ties of a goal
+            // that has already been completed or aborted would edit the record
+            // rather than fix it.
+            if goal.state().is_terminal() {
+                return Err(
+                    "a terminal goal's workflow links cannot be changed; its record stands"
+                        .to_owned(),
+                );
+            }
+            if !store
+                .unlink_goal_workflow(goal_id, workflow_id)
+                .map_err(|error| error.to_string())?
+            {
+                return Err("this workflow is not linked to this goal".to_owned());
+            }
+            record(
+                store,
+                checkpoint_key,
+                project_key,
+                goal_id,
+                "system",
+                "goal_workflow_unlinked",
+                BTreeMap::from([("workflow_id".to_owned(), workflow_id.to_string())]),
+            )?;
+            snapshot(store, project_id, goal_id)
+        }
         GoalOperation::List {} => {
             let goals = store
                 .list_goals(project_id)
@@ -318,8 +350,33 @@ fn validate_control(
             );
         }
     }
-    if action == GoalControlAction::ApproveCompletion && completion_evidence.is_none() {
-        return Err("goal completion requires independent arbiter evidence".to_owned());
+    if action == GoalControlAction::ApproveCompletion {
+        let Some(cited) = completion_evidence else {
+            return Err("goal completion requires independent arbiter evidence".to_owned());
+        };
+        // DEFECT-18: this asked only that the field be present and well-formed,
+        // so sixty-four zeros - a value that is a receipt of nothing - completed
+        // a goal. Completion is the top-level claim that a body of work is done,
+        // and the arbiter receipt is the only thing tying that claim to a
+        // governed verdict. Unresolved, the tie does not exist and completion is
+        // declared rather than earned.
+        let recorded = store
+            .goal_workflows(goal_id)
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|(workflow_id, _)| {
+                store
+                    .workflow_arbitration_receipt_digests(workflow_id)
+                    .map_err(|error| error.to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .concat();
+        if !recorded.contains(&cited) {
+            return Err(
+                "goal completion evidence must name an arbitration receipt recorded for a workflow linked to this goal"
+                    .to_owned(),
+            );
+        }
     }
     Ok(())
 }

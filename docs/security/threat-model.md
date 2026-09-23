@@ -15,10 +15,23 @@ remains out of scope.
 ## Trust boundaries
 
 1. **Plugin ↔ host application.** The plugin registers commands, skills,
-   hooks and one MCP server through the host's extension surface. Because
-   ZCode CLI 0.16.5 does not execute plugin-provided agent components,
-   explicit `/cycle:setup install` writes five managed profiles under the
-   project's `.zcode/agents`; it never patches the application installation.
+   hooks and one MCP server through the host's extension surface, and never
+   patches the application installation.
+
+   ZCode CLI 0.16.9 also picks up the `agents/` directory this archive ships,
+   **by convention and without the manifest declaring it**, and lists the five
+   roles as dispatchable subagents with a per-agent model and reasoning level of
+   its own. Assume they are reachable from any session, not only from a governed
+   run. That is not a hole this plugin opens: the definitions the host reads are
+   the same managed role profiles, carrying the same bounded `tools:` lists, and
+   the host's built-in `general-purpose` subagent already holds every tool.
+
+   `/cycle:setup install` writes those five profiles under the project's
+   `.zcode/agents` for a different reason: a dispatched role is bounded by the
+   tool list in its profile, because the host does not run `PreToolUse` inside a
+   dispatched agent. The hooks guard what the main session does; the profile
+   guards what a role can do once dispatched. A project-scoped profile is also
+   what the fail-closed hook checks for before allowing a dispatch.
 2. **Bridge ↔ control plane.** The MCP bridge and hooks speak framed IPC
    to `workflowd` over a named pipe (Windows) or unix socket (Linux),
    authenticated with a local HMAC challenge-response bound to a

@@ -32,10 +32,18 @@ async function fixture() {
           sha256: createHash("sha256").update("certified-binary-bytes").digest("hex"),
           size: Buffer.byteLength("certified-binary-bytes"),
         },
+        "win32-x64": {
+          path: "bin/win32-x64/workflowd.exe",
+          sha256: createHash("sha256").update("certified-binary-bytes").digest("hex"),
+          size: Buffer.byteLength("certified-binary-bytes"),
+        },
       },
     }),
   )
-  return { dataDirectory, pluginRoot, root, source }
+  const windowsSource = join(pluginRoot, "bin", "win32-x64", "workflowd.exe")
+  await mkdir(join(pluginRoot, "bin", "win32-x64"), { recursive: true })
+  await writeFile(windowsSource, "certified-binary-bytes", { mode: 0o600 })
+  return { dataDirectory, pluginRoot, root, source, windowsSource }
 }
 
 test("a non-executable packaged Linux daemon is materialized as verified user-only executable", async () => {
@@ -54,6 +62,32 @@ test("a non-executable packaged Linux daemon is materialized as verified user-on
     assert.equal(second, first)
     assert.equal(await readFile(first, "utf8"), "certified-binary-bytes")
     if (process.platform !== "win32") assert.equal((await stat(first)).mode & 0o777, 0o700)
+  } finally {
+    await rm(item.root, { force: true, recursive: true })
+  }
+})
+
+// Windows has no execute bit, so materialization looks pointless there and the
+// code used to return the packaged path directly. That is what made uninstall
+// fail: a running workflowd.exe cannot be unlinked, so removing the plugin
+// deleted 72 of its 73 files and left the last one behind with the plugin still
+// marked enabled. The daemon must live outside the plugin cache on Windows too.
+test("the Windows daemon is materialized outside the plugin cache", async () => {
+  const item = await fixture()
+  try {
+    const options = {
+      architecture: "x64",
+      dataDirectory: item.dataDirectory,
+      environment: { ZCODE_PLUGIN_ROOT: item.pluginRoot },
+      platform: "win32",
+    }
+    const resolved = await prepareNativeBinary(options)
+
+    assert.notEqual(resolved, item.windowsSource, "the daemon still runs from the plugin cache")
+    assert.equal(resolved.startsWith(item.dataDirectory), true, resolved)
+    assert.equal(resolved.endsWith("workflowd.exe"), true, resolved)
+    assert.equal(await readFile(resolved, "utf8"), "certified-binary-bytes")
+    assert.equal(await prepareNativeBinary(options), resolved, "materialization is not stable")
   } finally {
     await rm(item.root, { force: true, recursive: true })
   }
@@ -102,7 +136,20 @@ test("a packaged daemon that disagrees with its native manifest is rejected", as
   }
 })
 
-test("a symlink cannot be used as the packaged daemon", { skip: process.platform === "win32" }, async () => {
+// The only one of these that cannot run on Windows. The redirect has to be a
+// file, so a junction will not do, and creating a file symlink there needs
+// SeCreateSymbolicLinkPrivilege or Developer Mode — neither of which a test may
+// assume. The guard it covers is not platform-specific: the same
+// `lstat().isSymbolicLink()` check runs for every platform, so Linux proves it
+// on every push.
+test(
+  "a symlink cannot be used as the packaged daemon",
+  {
+    skip:
+      process.platform === "win32" &&
+      "a file symlink needs elevation on Windows; the shared guard is proven on Linux",
+  },
+  async () => {
   const item = await fixture()
   try {
     const other = join(item.root, "other")
@@ -124,7 +171,11 @@ test("a symlink cannot be used as the packaged daemon", { skip: process.platform
   }
 })
 
-test("a symlink cannot replace the private runtime directory", { skip: process.platform === "win32" }, async () => {
+// Runs on both certified platforms: the redirect is a directory, and a Windows
+// junction redirects one without the privileges a POSIX symlink would need
+// there. Node's "junction" type is ignored off Windows, so the same test covers
+// the attack on both.
+test("a symlink cannot replace the private runtime directory", async () => {
   const item = await fixture()
   try {
     const options = {
@@ -138,7 +189,7 @@ test("a symlink cannot replace the private runtime directory", { skip: process.p
     const redirect = join(item.root, "redirect")
     await rm(runtimeDirectory, { force: true, recursive: true })
     await mkdir(redirect)
-    await symlink(redirect, runtimeDirectory, "dir")
+    await symlink(redirect, runtimeDirectory, "junction")
 
     await assert.rejects(prepareNativeBinary(options), /runtime directory is unsafe/u)
   } finally {

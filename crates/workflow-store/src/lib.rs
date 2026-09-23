@@ -32,7 +32,7 @@ use std::{
 
 use rusqlite::{Connection, OpenFlags};
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 17;
+pub const CURRENT_SCHEMA_VERSION: u32 = 18;
 
 pub fn backup_existing_database(
     source: impl AsRef<Path>,
@@ -64,7 +64,17 @@ pub enum StoreError {
     ReadOnly,
     ReaderLimit,
     InvalidBackup,
-    AggregateConflict,
+    /// An aggregate invariant was violated. The payload names which one.
+    ///
+    /// DEFECT-09's sibling, DEFECT-08: this was a unit variant raised from more
+    /// than fifty places - a missing row, a digest that did not match, a workflow
+    /// in the wrong state, an identifier the schema could not parse - and it
+    /// rendered as one sentence asserting one specific cause, "aggregate
+    /// identifier belongs to a different owner". A live run chased ownership for
+    /// a refusal whose real cause was a stale journal digest. The reason is a
+    /// static string because it is diagnostic: callers branch on the variant,
+    /// people read the payload.
+    AggregateConflict(&'static str),
     InvalidCandidatePayload,
     MissingCandidatePayload,
     DeliveryInProgress,
@@ -92,8 +102,8 @@ impl std::fmt::Display for StoreError {
             Self::ReadOnly => formatter.write_str("store is in read-only safe mode"),
             Self::ReaderLimit => formatter.write_str("bounded read connection limit reached"),
             Self::InvalidBackup => formatter.write_str("backup failed SQLite integrity validation"),
-            Self::AggregateConflict => {
-                formatter.write_str("aggregate identifier belongs to a different owner")
+            Self::AggregateConflict(reason) => {
+                write!(formatter, "aggregate conflict: {reason}")
             }
             Self::InvalidCandidatePayload => {
                 formatter.write_str("candidate payload does not match its immutable manifest")

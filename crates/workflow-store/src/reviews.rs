@@ -18,7 +18,9 @@ impl Store {
         if self.mode != StoreMode::ReadWrite {
             return Err(StoreError::ReadOnly);
         }
-        let role = review_role(verdict.role).ok_or(StoreError::AggregateConflict)?;
+        let role = review_role(verdict.role).ok_or(StoreError::AggregateConflict(
+            "the verdict names a role that is not one of the two independent reviewers",
+        ))?;
         let verdict_json = serde_json::to_string(verdict)?;
         let current: Option<String> = self
             .connection
@@ -32,28 +34,40 @@ impl Store {
             return if current == verdict_json {
                 Ok(true)
             } else {
-                Err(StoreError::AggregateConflict)
+                Err(StoreError::AggregateConflict(
+                    "a review verdict is already recorded for this role and differs from the one submitted",
+                ))
             };
         }
         let state = self
             .load_workflow(workflow_id)?
-            .ok_or(StoreError::AggregateConflict)?;
+            .ok_or(StoreError::AggregateConflict(
+                "no workflow with this identifier is recorded",
+            ))?;
         if state.state() != WorkflowState::IndependentReviews
             || state.current_candidate() != Some(candidate_id)
         {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "the workflow is not awaiting independent reviews of this candidate",
+            ));
         }
         let candidate = self
             .load_candidate(candidate_id)?
-            .ok_or(StoreError::AggregateConflict)?;
+            .ok_or(StoreError::AggregateConflict(
+                "no candidate with this identifier is recorded",
+            ))?;
         if candidate.workflow_id != workflow_id
             || verdict.candidate_digest != candidate.manifest.digest()
         {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "the candidate belongs to a different workflow, or the verdict cites a different digest",
+            ));
         }
-        let architecture = self
-            .load_architecture(workflow_id)?
-            .ok_or(StoreError::AggregateConflict)?;
+        let architecture =
+            self.load_architecture(workflow_id)?
+                .ok_or(StoreError::AggregateConflict(
+                    "no architecture plan is recorded for this workflow",
+                ))?;
         let required: BTreeSet<_> = architecture
             .requirements
             .iter()

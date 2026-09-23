@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import test from "node:test"
@@ -131,6 +131,183 @@ test("an executor profile cannot mutate outside a uniquely registered workflow",
   assert.match(denied(run(input, registered)), /ambiguous/u)
 })
 
+// The orchestration contract has always said execution happens inside the
+// managed worktree and never in the project directory. Nothing enforced it: the
+// hook judged role identity and tool class, and a registered executor could
+// write anywhere. A live forced-repair run committed the executor's work
+// straight into the project, so the gates ran on content already sitting in the
+// user's repository and promotion could only refuse and strand the workflow.
+test("a registered executor may write only inside its managed worktree", () => {
+  const worktree = join(ROOT, "target", "managed-worktree-fixture")
+  const registry = {
+    "role-token": {
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: Date.now(),
+      role: "executor",
+      workflow_id: "workflow",
+    },
+    "workflow:workflow": {
+      kind: "workflow_lock",
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 1,
+      workflow_id: "workflow",
+      worktree_path: worktree,
+    },
+  }
+  const write = (filePath) => ({
+    agent_type: "zcode-cycle:executor",
+    sessionId: "child-session",
+    toolName: "Write",
+    toolInput: { file_path: filePath },
+  })
+
+  allowed(run(write(join(worktree, "src", "utils.js")), registry))
+  assert.match(
+    denied(run(write(join(ROOT, "src", "utils.js")), registry)),
+    /only inside its managed worktree/u,
+  )
+  // A sibling whose name merely starts with the worktree's is still outside it.
+  assert.match(
+    denied(run(write(`${worktree}-elsewhere/src/utils.js`), registry)),
+    /only inside its managed worktree/u,
+  )
+  // Every path of a multi-file edit is judged, not just the first.
+  assert.match(
+    denied(
+      run(
+        {
+          agent_type: "zcode-cycle:executor",
+          sessionId: "child-session",
+          toolName: "MultiEdit",
+          toolInput: {
+            edits: [
+              { file_path: join(worktree, "a.js") },
+              { file_path: join(ROOT, "package.json") },
+            ],
+          },
+        },
+        registry,
+      ),
+    ),
+    /only inside its managed worktree/u,
+  )
+  // A shell whose working directory is the project, not the worktree.
+  assert.match(
+    denied(
+      run(
+        {
+          agent_type: "zcode-cycle:executor",
+          cwd: ROOT,
+          sessionId: "child-session",
+          toolName: "Bash",
+          toolInput: { command: "npm test" },
+        },
+        registry,
+      ),
+    ),
+    /only inside its managed worktree/u,
+  )
+  allowed(
+    run(
+      {
+        agent_type: "zcode-cycle:executor",
+        cwd: worktree,
+        sessionId: "child-session",
+        toolName: "Bash",
+        toolInput: { command: "npm test" },
+      },
+      registry,
+    ),
+  )
+})
+
+test("before a worktree exists there is nothing to confine the executor to", () => {
+  // prepare_worktree records the path; until it has run the lock carries none,
+  // and the earlier guards - unique registration, role, tool class - are what
+  // stand. This test pins that the new check does not deny on a missing path.
+  const registry = {
+    "role-token": {
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: Date.now(),
+      role: "executor",
+      workflow_id: "workflow",
+    },
+    "workflow:workflow": {
+      kind: "workflow_lock",
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 1,
+      workflow_id: "workflow",
+    },
+  }
+  allowed(
+    run(
+      {
+        agent_type: "zcode-cycle:executor",
+        sessionId: "child-session",
+        toolName: "Write",
+        toolInput: { file_path: join(ROOT, "src", "utils.js") },
+      },
+      registry,
+    ),
+  )
+})
+
+// Denials were audited and allowances were not, so "was this call judged, and
+// how?" could only be answered by inference. A commit the orchestrator made
+// while it should have been mutation-locked stayed unexplained for exactly that
+// reason. The trace answers it with a record, and stays off unless asked for.
+test("the hook can record every decision it makes, and records none unless asked", () => {
+  const dataDirectory = mkdtempSync(join(tmpdir(), "zcode-cycle-hook-trace-"))
+  const tracePath = join(dataDirectory, "runtime", "hook-trace.jsonl")
+  const registry = {
+    "workflow:active": {
+      kind: "workflow_lock",
+      project_directory: ROOT,
+      project_key: "project",
+      registered_at_unix_millis: 1,
+      workflow_id: "active",
+    },
+  }
+  const call = (trace) => {
+    mkdirSync(join(dataDirectory, "runtime"), { recursive: true })
+    writeFileSync(join(dataDirectory, "runtime", "role-sessions.json"), JSON.stringify(registry))
+    const result = spawnSync(process.execPath, [HOOK], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ZCODE_CYCLE_DATA_DIR: dataDirectory,
+        ZCODE_PROJECT_DIR: ROOT,
+        ...(trace ? { ZCODE_CYCLE_HOOK_TRACE: "1" } : {}),
+      },
+      input: JSON.stringify({ sessionId: "main", toolName: "Bash", toolInput: { command: "ls" } }),
+      shell: false,
+    })
+    assert.equal(result.status, 0, result.stderr)
+    return JSON.parse(result.stdout).hookSpecificOutput
+  }
+
+  try {
+    assert.equal(denied(call(false)).includes("mutation-locked"), true)
+    assert.equal(existsSync(tracePath), false, "the trace wrote itself without being asked")
+
+    assert.equal(denied(call(true)).includes("mutation-locked"), true)
+    const line = JSON.parse(readFileSync(tracePath, "utf8").trim().split("\n").at(-1))
+    assert.equal(line.decision, "deny")
+    assert.equal(line.tool, "Bash")
+    // The facts that decide this branch, so a later question does not need a guess.
+    assert.equal(line.workflow_locks, 1)
+    assert.equal(line.resolved_role, null)
+    assert.equal(line.has_registration, false)
+    assert.match(line.reason, /mutation-locked/u)
+  } finally {
+    rmSync(dataDirectory, { force: true, recursive: true })
+  }
+})
+
 test("an active workflow locks mutation and permits only exact Cycle role dispatch", () => {
   const registry = {
     architect: {
@@ -222,6 +399,20 @@ test("a Cycle role dispatch needs a unique role registration even before a workf
   }
 })
 
+// A hook that waited for EOF would never answer while stdin stays open, so
+// these two tests deadlock on a regression and the timeout is what reports it.
+// It is a deadlock guard, not a performance budget: a value tight enough to
+// also catch a slow machine would fail runs that prove nothing, and the 20x
+// repeatability gate runs these under exactly that load.
+const DEADLOCK_GUARD_MILLIS = 30_000
+
+function deadlockGuard(message) {
+  return new Promise((_, reject) => {
+    // unref so a passing test never keeps the runner alive waiting on a timer.
+    setTimeout(() => reject(new Error(message)), DEADLOCK_GUARD_MILLIS).unref()
+  })
+}
+
 test("the PreToolUse hook consumes ZCode's newline-delimited input before stdin closes", async () => {
   const dataDirectory = mkdtempSync(join(tmpdir(), "zcode-cycle-hook-open-stdin-"))
   const child = spawn(process.execPath, [HOOK], {
@@ -232,11 +423,11 @@ test("the PreToolUse hook consumes ZCode's newline-delimited input before stdin 
     let output = ""
     child.stdout.setEncoding("utf8")
     child.stdout.on("data", (chunk) => (output += chunk))
+    // Attach before writing: a hook fast enough to answer first would leave a
+    // later listener waiting for a chunk that has already been delivered.
+    const answered = once(child.stdout, "data")
     child.stdin.write(`${JSON.stringify({ tool_name: "Write", tool_input: {} })}\n`)
-    await Promise.race([
-      once(child.stdout, "data"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("hook waited for stdin close")), 1_000)),
-    ])
+    await Promise.race([answered, deadlockGuard("PreToolUse hook waited for stdin close")])
     assert.equal(JSON.parse(output).hookSpecificOutput.permissionDecision, "allow")
   } finally {
     child.stdin.end()
@@ -252,11 +443,9 @@ test("the PostToolUse hook consumes ZCode's newline-delimited input before stdin
     stdio: ["pipe", "pipe", "pipe"],
   })
   try {
+    const exited = once(child, "exit")
     child.stdin.write(`${JSON.stringify({ session_id: "unregistered", tool_name: "Read" })}\n`)
-    const [exitCode] = await Promise.race([
-      once(child, "exit"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("post hook waited for stdin close")), 1_000)),
-    ])
+    const [exitCode] = await Promise.race([exited, deadlockGuard("PostToolUse hook waited for stdin close")])
     assert.equal(exitCode, 0)
   } finally {
     child.stdin.end()

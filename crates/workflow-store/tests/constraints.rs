@@ -57,6 +57,6 @@ fn execution_constraint_is_durable_idempotent_and_write_once() {
             &replacement,
             WorkflowTimestamp::now()
         ),
-        Err(StoreError::AggregateConflict)
+        Err(StoreError::AggregateConflict(_))
     ));
 }

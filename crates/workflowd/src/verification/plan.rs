@@ -142,12 +142,7 @@ pub fn discover_for(
         timeout_seconds: 120,
     });
 
-    let scopes: Vec<_> = architecture
-        .tasks
-        .iter()
-        .flat_map(|task| task.write_scopes.iter())
-        .map(|scope| scope.to_ascii_lowercase().replace('\\', "/"))
-        .collect();
+    let scopes = expanded_scopes(repository, architecture);
     if scopes.iter().any(|scope| database_scope(scope))
         && !gates.iter().any(|gate| gate.kind == EvidenceKind::Database)
     {
@@ -334,13 +329,25 @@ fn add_command(
 }
 
 fn validate_command(program: &str, arguments: &[String]) -> Result<(), VerificationPlanError> {
-    if program.trim().is_empty()
-        || program.contains(['\0', '\n', '\r'])
-        || arguments.iter().any(|argument| {
-            argument.contains(['\0', '\n', '\r'])
-                || matches!(argument.as_str(), "&&" | "||" | ";" | "|" | "<" | ">")
-        })
-    {
+    // DEFECT-16: the metacharacter check read the arguments, so a whole shell
+    // expression parked in `program` with no arguments passed every test and was
+    // accepted as a mandatory gate. The daemon spawns `program` directly, so no
+    // such executable exists: the gate could never start, and a gate that cannot
+    // start yields neither a pass nor a fail.
+    //
+    // DEFECT-23: that fix enumerated what a program may not contain, and
+    // `CI=1 npm run check:changelog` slipped through it - `CI=1` is one word,
+    // carries no metacharacter and is on no denylist, yet it is an environment
+    // assignment the shell would have consumed and not a program at all. A
+    // denylist is a guess about every way a string can fail to be an executable.
+    // Saying what a program *may* be settles the whole class at once.
+    if !is_program_name(program) {
+        return Err(VerificationPlanError::InvalidCommand);
+    }
+    if arguments.iter().any(|argument| {
+        argument.contains(['\0', '\n', '\r'])
+            || matches!(argument.as_str(), "&&" | "||" | ";" | "|" | "<" | ">")
+    }) {
         return Err(VerificationPlanError::InvalidCommand);
     }
     let executable = program
@@ -362,6 +369,32 @@ fn validate_command(program: &str, arguments: &[String]) -> Result<(), Verificat
         return Err(VerificationPlanError::InvalidCommand);
     }
     Ok(())
+}
+
+/// Whether `program` can name an executable at all.
+///
+/// A program is a bare command name, or a path whose final component is one. A
+/// command name is made of the characters an executable on any supported
+/// platform may carry: letters, digits, and `_ - . +`. Everything else - an `=`,
+/// a space, a quote, a redirection, a substitution - belongs to a shell, and the
+/// daemon has no shell to give it to.
+///
+/// Path separators and a Windows drive colon are allowed in the rest of the
+/// string so that `./scripts/check.sh` and `C:\tools\node.exe` still resolve;
+/// the final component is held to the stricter rule either way.
+fn is_program_name(program: &str) -> bool {
+    fn command_character(character: char) -> bool {
+        character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.' | '+')
+    }
+
+    let name = program.rsplit(['/', '\\']).next().unwrap_or(program);
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && name.chars().all(command_character)
+        && program
+            .chars()
+            .all(|character| command_character(character) || matches!(character, '/' | '\\' | ':'))
 }
 
 fn classify(command: &str) -> (String, EvidenceKind) {
@@ -422,6 +455,68 @@ fn unavailable(name: &str, kind: EvidenceKind, reason: &str) -> VerificationGate
     }
 }
 
+/// Every declared write scope, plus the files beneath any scope that names a
+/// directory in the repository.
+///
+/// DEFECT-17: the mandatory browser and accessibility gates attach from the
+/// architect's own wording of the scope. Declaring `public` rather than
+/// `public/index.html` removed both, and an interface with two unnamed controls
+/// passed every gate in its plan and was promoted. No deception is needed -
+/// naming a directory as a write scope is an ordinary thing to do.
+///
+/// A scope is a claim about where the work may write, so a directory scope
+/// covers every file under it. Expanding it here means the classification is
+/// decided by what is actually in the tree rather than by how coarsely the
+/// scope was phrased.
+fn expanded_scopes(repository: &Path, architecture: &ArchitecturePlan) -> Vec<String> {
+    const SCOPE_FILE_BUDGET: usize = 4_096;
+
+    let mut scopes = Vec::new();
+    for declared in architecture
+        .tasks
+        .iter()
+        .flat_map(|task| task.write_scopes.iter())
+    {
+        let normalized = declared.to_ascii_lowercase().replace('\\', "/");
+        scopes.push(normalized.clone());
+
+        // A scope that resolves to a directory inside the repository stands for
+        // the files under it. A scope that escapes the repository is ignored
+        // here: it is the write-scope enforcement's business, not the plan's.
+        let candidate = repository.join(normalized.trim_start_matches('/'));
+        if !candidate.starts_with(repository) || !candidate.is_dir() {
+            continue;
+        }
+        let mut pending = vec![candidate];
+        while let Some(directory) = pending.pop() {
+            if scopes.len() >= SCOPE_FILE_BUDGET {
+                break;
+            }
+            let Ok(entries) = std::fs::read_dir(&directory) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                if matches!(name.as_str(), ".git" | "node_modules" | "target" | "dist") {
+                    continue;
+                }
+                if path.is_dir() {
+                    pending.push(path);
+                } else if let Ok(relative) = path.strip_prefix(repository) {
+                    scopes.push(
+                        relative
+                            .to_string_lossy()
+                            .to_ascii_lowercase()
+                            .replace('\\', "/"),
+                    );
+                }
+            }
+        }
+    }
+    scopes
+}
+
 fn database_scope(scope: &str) -> bool {
     scope.ends_with(".sql")
         || contains_any(scope, &["database", "migrations", "schema", "/db", "db/"])
@@ -473,4 +568,59 @@ fn packaging_scope(scope: &str) -> bool {
 
 fn contains_any(value: &str, candidates: &[&str]) -> bool {
     candidates.iter().any(|candidate| value.contains(candidate))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{VerificationPlanError, is_program_name, validate_command};
+
+    #[test]
+    fn an_environment_assignment_is_not_a_program() {
+        // DEFECT-23, exactly as the live 1.0.5 certification found it: the gate
+        // `CI=1 npm run check:changelog` splits into program `CI=1`, which the
+        // 1.0.5 denylist accepted as a mandatory gate.
+        assert!(!is_program_name("CI=1"));
+        assert!(!is_program_name("FOO=bar"));
+        assert_eq!(
+            validate_command("CI=1", &["npm".to_owned(), "test".to_owned()]),
+            Err(VerificationPlanError::InvalidCommand)
+        );
+    }
+
+    #[test]
+    fn ordinary_programs_and_paths_are_still_accepted() {
+        for program in [
+            "npm",
+            "node",
+            "cargo",
+            "python3",
+            "pnpm",
+            "dotnet",
+            "node.exe",
+            "./scripts/check.sh",
+            ".\\gradlew.bat",
+            "C:\\tools\\node.exe",
+        ] {
+            assert!(is_program_name(program), "rejected {program}");
+        }
+        assert_eq!(validate_command("npm", &["test".to_owned()]), Ok(()));
+    }
+
+    #[test]
+    fn shell_lines_and_empty_names_are_refused() {
+        for program in [
+            "",
+            ".",
+            "..",
+            "npm test",
+            "npm&&rm",
+            "$(whoami)",
+            "a|b",
+            "say \"hi\"",
+            "scripts/",
+            "npm\n",
+        ] {
+            assert!(!is_program_name(program), "accepted {program}");
+        }
+    }
 }

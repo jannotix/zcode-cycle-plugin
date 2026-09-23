@@ -27,7 +27,9 @@ impl Store {
             .optional()?;
         if let Some((owner, current)) = current {
             if owner != workflow_id.to_string() || current != plan_json {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "a verification plan with this identifier is already stored under a different workflow or with different content",
+                ));
             }
             return Ok(true);
         }
@@ -62,7 +64,7 @@ impl Store {
                 Ok((
                     workflow_id
                         .parse()
-                        .map_err(|_| StoreError::AggregateConflict)?,
+                        .map_err(|_| StoreError::AggregateConflict("a stored verification plan row holds a workflow identifier this schema cannot parse"))?,
                     serde_json::from_str(&plan)?,
                 ))
             })
@@ -85,7 +87,7 @@ impl Store {
         value
             .map(|(plan_id, plan)| {
                 Ok((
-                    plan_id.parse().map_err(|_| StoreError::AggregateConflict)?,
+                    plan_id.parse().map_err(|_| StoreError::AggregateConflict("a stored verification plan row holds a plan identifier this schema cannot parse"))?,
                     serde_json::from_str(&plan)?,
                 ))
             })
@@ -108,7 +110,9 @@ impl Store {
         }
         record.validate().map_err(StoreError::Evidence)?;
         if output_redacted.len() > 2 * 1024 * 1024 {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "redacted verification output exceeds the 2 MiB limit",
+            ));
         }
         let record_json = serde_json::to_string(record)?;
         let transaction = self.connection.transaction()?;
@@ -126,13 +130,15 @@ impl Store {
             || candidate.0 != workflow_id.to_string()
             || candidate.1 != record.candidate_digest.to_string()
         {
-            return Err(StoreError::AggregateConflict);
+            return Err(StoreError::AggregateConflict(
+                "the plan or candidate belongs to a different workflow, or the evidence cites a different candidate digest",
+            ));
         }
         let current: Option<(String, String, String, bool, String, String)> = transaction
             .query_row(
                 "SELECT plan_id, workflow_id, candidate_id, mandatory, record_json, output_redacted
-                 FROM workflow_evidence WHERE evidence_id = ?1",
-                [record.id.to_string()],
+                 FROM workflow_evidence WHERE evidence_id = ?1 AND candidate_id = ?2",
+                params![record.id.to_string(), candidate_id.to_string()],
                 |row| {
                     Ok((
                         row.get(0)?,
@@ -146,25 +152,29 @@ impl Store {
             )
             .optional()?;
         if let Some(current) = current {
-            let identity = (
-                plan_id.to_string(),
-                workflow_id.to_string(),
-                candidate_id.to_string(),
-                mandatory,
-            );
-            if current.0 != identity.0
-                || current.1 != identity.1
-                || current.2 != identity.2
-                || current.3 != identity.3
+            // DEFECT-22: this comparison used to include the candidate, while the
+            // row was looked up by evidence id alone. An evidence id comes from
+            // the plan and a repair reuses the plan, so the refrozen candidate
+            // always arrived carrying the failed candidate's ids and was refused
+            // here - a repaired candidate could never be verified again. The row
+            // is now keyed by gate *and* candidate, so reaching this branch means
+            // the same gate is being recorded twice for the same candidate, which
+            // is a re-run and is handled below as an attempt.
+            if current.0 != plan_id.to_string()
+                || current.1 != workflow_id.to_string()
+                || current.3 != mandatory
             {
-                return Err(StoreError::AggregateConflict);
+                return Err(StoreError::AggregateConflict(
+                    "evidence for this gate is already recorded with a different identity",
+                ));
             }
             let latest: Option<(i64, String, String)> = transaction
                 .query_row(
                     "SELECT attempt, record_json, output_redacted
-                     FROM workflow_evidence_attempts WHERE evidence_id = ?1
+                     FROM workflow_evidence_attempts
+                     WHERE evidence_id = ?1 AND candidate_id = ?2
                      ORDER BY attempt DESC LIMIT 1",
-                    [record.id.to_string()],
+                    params![record.id.to_string(), candidate_id.to_string()],
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )
                 .optional()?;
@@ -175,10 +185,11 @@ impl Store {
             }
             transaction.execute(
                 "INSERT INTO workflow_evidence_attempts
-                 (evidence_id, attempt, record_json, output_redacted, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                 (evidence_id, candidate_id, attempt, record_json, output_redacted, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
                     record.id.to_string(),
+                    candidate_id.to_string(),
                     attempt + 1,
                     record_json,
                     output_redacted,
@@ -217,12 +228,14 @@ impl Store {
                  COALESCE(
                      (SELECT attempt.record_json FROM workflow_evidence_attempts AS attempt
                       WHERE attempt.evidence_id = evidence.evidence_id
+                        AND attempt.candidate_id = evidence.candidate_id
                       ORDER BY attempt.attempt DESC LIMIT 1),
                      evidence.record_json
                  ),
                  COALESCE(
                      (SELECT attempt.output_redacted FROM workflow_evidence_attempts AS attempt
                       WHERE attempt.evidence_id = evidence.evidence_id
+                        AND attempt.candidate_id = evidence.candidate_id
                       ORDER BY attempt.attempt DESC LIMIT 1),
                      evidence.output_redacted
                  ),

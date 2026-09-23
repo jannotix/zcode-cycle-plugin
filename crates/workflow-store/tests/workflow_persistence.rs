@@ -157,7 +157,7 @@ fn keys_and_task_identifiers_cannot_cross_aggregate_boundaries() {
             TaskCommand::Lease,
             timestamp
         ),
-        Err(StoreError::AggregateConflict)
+        Err(StoreError::AggregateConflict(_))
     ));
     assert!(matches!(
         store.apply_task_command(

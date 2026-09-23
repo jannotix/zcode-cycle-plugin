@@ -83,7 +83,8 @@ jobs:
 
       - name: JavaScript dependency audit
         working-directory: mcp
-        run: bun audit --production
+        shell: bash
+        run: bash ../scripts/ci/audit-with-retry.sh
 
       - name: ZCode marketplace contract
         run: |
@@ -94,8 +95,16 @@ jobs:
       # manifest, so a tracked binary left behind by an earlier version ships an
       # installation that cannot start. The assembler refuses to build one; this
       # refuses to merge one.
+      #
+      # Each job asks the daemon it can actually execute and names it with
+      # --require, so a daemon that stopped answering fails here instead of
+      # being reported as a skip. Between the two jobs both are asked.
       - name: Tracked daemon version
-        run: node scripts/release/check-native-version.mjs
+        run: >-
+          node scripts/release/check-native-version.mjs
+          --require=${{ matrix.target == 'win32-x64'
+            && 'plugin/bin/win32-x64/workflowd.exe'
+            || 'plugin/bin/linux-x64/workflowd' }}
 
       - name: Role and release-evidence regression
         run: node --test tests/qualification/*.test.mjs

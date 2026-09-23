@@ -15,6 +15,7 @@ pub mod lifecycle;
 pub mod memory;
 pub mod memory_policy;
 pub mod repair;
+pub mod request_constraints;
 pub mod resources;
 pub mod routing;
 pub mod scheduler;
