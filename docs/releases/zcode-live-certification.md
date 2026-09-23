@@ -99,10 +99,11 @@ not invalidated retroactively. What expires is its usefulness as evidence for th
 Run each scenario from the same admitted ZIP bytes and record at least one
 digest-bound evidence file:
 
-1. `component-discovery`: install and enable 1.0.9; commands, five skills,
+1. `component-discovery`: install and enable the admitted version; commands, five skills,
    both Hooks and the MCP server load with no Cycle diagnostic.
 2. `setup-doctor`: `/cycle:setup install`, a real new session,
-   `/cycle:setup`, health 1.0.9/protocol 1/read-write schema and doctor PASS.
+   `/cycle:setup`, health at the admitted version/protocol 1/read-write schema
+   and doctor PASS.
 3. `quick`: complete a bounded fixture change through promotion; verify the
    candidate digest and audit-chain receipt.
 4. `full`: complete architecture, execution, both independent reviews,
@@ -123,11 +124,10 @@ digest-bound evidence file:
    nowhere — which is the shape this row exists to reject.
 9. `goal`: link completed workflows to every milestone and prove completion
    refuses missing workflow/arbiter evidence.
-10. `schema-forward-compatibility`: no public predecessor exists to upgrade
-    from. `v1.0.0` was withdrawn carrying no release asset, and no installable
-    archive was ever published under any earlier identity, so an upgrade
-    scenario would have to manufacture the artifact it claims to test. Prove the
-    mechanism instead: run 1.0.9 until the data directory holds ledger entries,
+10. `schema-forward-compatibility`: a build declaring a lower schema version
+    must open a newer store read-only and change nothing. No published version
+    has ever lowered the schema, so prove the mechanism: run the admitted
+    version until the data directory holds ledger entries,
     signed checkpoints, goal records and browser evidence, then open that
     directory with a build declaring a lower schema version and observe the
     documented safe read-only mode. The stored bytes must be unchanged
@@ -147,13 +147,21 @@ digest-bound evidence file:
     It is not a weaker test: an inert copy still has to be *proven* inert, by
     reading `installed_plugins.json` and by counting daemon processes, and the
     disclosure still has to exist.
-12. `history-survives-version-change`: after scenario 10, reinstall 1.0.9 over
-    the same data directory and prove the record came through intact - every
-    ledger entry present, the hash chain verifying end to end, every checkpoint
-    signature still valid, every goal and milestone linked to the workflow it
-    was linked to before. The final state must be `1.0.9-installed-enabled`.
-    Rollback to a published predecessor is certified at the first version that
-    has one; recording it now would be recording an unobserved row as passed.
+12. `history-survives-version-change`: with the most recent published
+    predecessor installed, its history in the data directory **and its daemon
+    still running**, update to the admitted version from the Plugin Marketplace,
+    restart ZCode and do nothing else. The new plugin must take over the daemon
+    on its own, and the record must come through intact - every ledger entry
+    present, the hash chain verifying end to end, every checkpoint signature
+    still valid, every goal and milestone linked to the workflow it was linked
+    to before. After scenario 11, reinstall over the same data directory; the
+    final state must be `<version>-installed-enabled`.
+
+    The running daemon is the point. It outlives ZCode sessions, so it is
+    running after almost every real update, and the 1.0.10 campaign found that
+    an update could not replace it: 1.0.9 and 1.0.10 both reinstalled cleanly
+    over their own data, and 1.0.10 still never came up after an update from a
+    running 1.0.9. A reinstall of the same version does not exercise that path.
 13. `per-role-model`: assign an explicit model to one role with
     `/cycle:models`, start a new session, run a governed workflow, and prove
     from the ledger that the dispatched role ran on the model it was assigned -
