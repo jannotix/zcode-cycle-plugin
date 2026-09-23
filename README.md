@@ -237,6 +237,12 @@ The retained copy is inert: it is not listed in `installed_plugins.json`, so
 nothing loads it, and no daemon process runs from it after an uninstall. It
 costs disk space and nothing else.
 
+One process does outlive the uninstall until ZCode restarts: the plugin's MCP
+server in any session that was already open. ZCode does not stop it. It is
+inert - its files are gone, so any Cycle call from that session fails with
+`required native package ... is not installed` and no daemon starts. Restart
+ZCode after uninstalling and it is gone.
+
 To reclaim the space, remove the marketplace itself in ZCode after uninstalling
 the plugin. Cycle deliberately does not delete it for you: the mirror and its
 registry belong to ZCode, and a plugin reaching into the host's registry to
