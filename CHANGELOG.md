@@ -3,7 +3,7 @@
 All notable changes to Cycle for Zcode are recorded here. Installed plugin
 content is immutable: a published version is never reused for different bytes.
 
-## [Unreleased]
+## [1.0.12] - Unreleased
 
 ### A request that named credential material was routed to `quick`.
 

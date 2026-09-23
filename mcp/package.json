@@ -1,6 +1,6 @@
 {
   "name": "@zcode-cycle/mcp",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "private": true,
   "type": "module",
   "description": "ZCode Cycle MCP bridge to the workflowd control plane",
