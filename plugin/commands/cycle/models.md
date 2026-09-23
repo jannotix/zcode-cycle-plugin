@@ -41,7 +41,9 @@ a specific model). The tool enforces exact pairs only for the three
 `GLM-5.3-Flash`: `low`, `high`, `max`; `GLM-5-Turbo`: `enabled`, `off`. For
 any other reference, including the same models under another provider id, it
 accepts `low`, `high`, `max`, `enabled` or `off` and the host decides; use the
-same pairs there. Never offer `nothink` or `medium`.
+same pairs there, and for a third-party provider the level that provider takes
+(MiniMax models take `enabled`; `high` fails at dispatch). Never offer `nothink`
+or `medium`.
 
 Report the project profile changed and that a new session is required.
 
