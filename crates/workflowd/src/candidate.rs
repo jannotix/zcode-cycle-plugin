@@ -179,8 +179,9 @@ impl std::fmt::Display for CandidateFreezeError {
             Self::ProjectMoved(detail) => write!(
                 formatter,
                 "the project changed while this workflow was holding it, so delivering now would \
-                 mix approved work with work no gate has seen: {detail}. Roles implement inside \
-                 the isolated worktree; commit or revert the project, then freeze again"
+                 mix approved work with work no gate has seen: {detail}. The project directory \
+                 belongs to the operator: no role may modify, commit, revert or delete anything \
+                 in it. Stop and ask the operator to resolve these paths, then freeze again"
             ),
             Self::UnsupportedExecutableMode => formatter
                 .write_str("executable candidate files are not supported on this operating system"),

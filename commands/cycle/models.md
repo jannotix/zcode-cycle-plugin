@@ -1,6 +1,6 @@
 ---
 description: Inspect or safely configure a managed project role profile
-argument-hint: "[role] [inherit|model-ref] [low|high|max|enabled|off]"
+argument-hint: "[role] [inherit|model-ref] [low|high|max|enabled|disabled|off]"
 ---
 
 Handle model assignment with arguments: $ARGUMENTS
@@ -40,9 +40,10 @@ a specific model). The tool enforces exact pairs only for the three
 `custom:builtin:zai-coding-plan:*` references - `GLM-5.3` and
 `GLM-5.3-Flash`: `low`, `high`, `max`; `GLM-5-Turbo`: `enabled`, `off`. For
 any other reference, including the same models under another provider id, it
-accepts `low`, `high`, `max`, `enabled` or `off` and the host decides; use the
-same pairs there, and for a third-party provider the level that provider takes
-(MiniMax models take `enabled`; `high` fails at dispatch). Never offer `nothink`
+accepts `low`, `high`, `max`, `enabled`, `disabled` or `off` and the host
+decides; use the same pairs there, and for a third-party provider the level that
+provider takes (MiniMax models take `enabled` or `disabled`; `high` fails at
+dispatch). Never offer `nothink`
 or `medium`.
 
 Report the project profile changed and that a new session is required.

@@ -41,6 +41,7 @@ test("the MCP handshake stays lightweight and browser code loads on demand", asy
     "high",
     "max",
     "enabled",
+    "disabled",
     "off",
   ])
   child.stdin.end()

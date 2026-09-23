@@ -279,7 +279,7 @@ are the bytes that were published, then tell Windows you accept them.
 on the release page:
 
 ```powershell
-Get-FileHash .\zcode-cycle-1.0.9.zip -Algorithm SHA256
+Get-FileHash .\zcode-cycle-<version>.zip -Algorithm SHA256
 ```
 
 **2. Verify the build provenance** — this proves the archive was built by this
@@ -287,7 +287,7 @@ repository's release workflow, from the commit the release names, and not
 assembled by someone else:
 
 ```powershell
-gh attestation verify .\zcode-cycle-1.0.9.zip --repo jannotix/zcode-cycle-plugin
+gh attestation verify .\zcode-cycle-<version>.zip --repo jannotix/zcode-cycle-plugin
 ```
 
 **3. Only if both check out**, remove the Mark of the Web:
@@ -303,10 +303,58 @@ If a SmartScreen dialog appears while you are launching something directly,
 **More info → Run anyway** is the equivalent choice. Reach for it only after
 steps 1 and 2.
 
-If Defender quarantined the daemon, restore it from **Windows Security →
-Protection history**, and add an exclusion for the Cycle data directory only if
-you are content to own that decision — an exclusion is permanent and applies to
-anything that later lands in that folder.
+### Where the daemon actually runs from
+
+Cycle does not execute the copy inside the plugin cache. Before every start it
+checks the binary against the SHA-256 declared in `bin/native-manifest.json` and
+copies it to
+
+```text
+<data directory>\runtime\native\win32-x64\<sha-256 of the binary>\workflowd.exe
+```
+
+where `<data directory>` is `%LOCALAPPDATA%\ZCode Cycle` unless you set
+`ZCODE_CYCLE_DATA_DIR`. Every release has a different digest, so it lands in a
+new folder: a decision you make for one version does not silently carry over to
+the next, and you repeat these steps after each update.
+
+### If Defender quarantines it
+
+Restore it from **Windows Security → Virus & threat protection → Protection
+history**. If it keeps being quarantined, add an exclusion for the **native
+folder only**, never the whole data directory:
+
+```powershell
+Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\ZCode Cycle\runtime\native"
+```
+
+That needs an elevated PowerShell. An exclusion is permanent and covers anything
+that later lands in that folder; the only thing Cycle ever writes there is a
+binary whose digest the bridge verified first, which is what makes this folder,
+and no wider one, a defensible place for it. Remove it with
+`Remove-MpPreference -ExclusionPath` with the same path.
+
+### If Smart App Control blocks it
+
+Smart App Control (Windows 11, **Windows Security → App & browser control**)
+is different: it has no per-file exception. When it is **On** it refuses
+unsigned executables it has no reputation for, and there is no Unblock, no
+Run anyway and no exclusion that changes that. Your choices are:
+
+- turn Smart App Control **Off**. On current Windows 11 builds that cannot be
+  undone without resetting or reinstalling Windows, so decide deliberately; or
+- keep it On and do not use Cycle on that machine.
+
+If it is in **Evaluation** mode, Windows decides by itself whether to switch it
+on; a block during evaluation is the same decision as On.
+
+### Managed machines
+
+On a machine whose security settings are set by an organisation (Intune, Group
+Policy, WDAC/AppLocker), none of the steps above may be available to you, and
+working around them is not something this project will help with. Ask the
+administrator to allow the binary by its SHA-256 hash, published in
+`bin/native-manifest.json` and in the release's `release-manifest.json`.
 
 ### Why there is no certificate
 

@@ -52,8 +52,8 @@ way: name it as `custom:<encoded provider id>:<model>` - for a MiniMax provider
 ZCode registers as `minimax`, `custom:minimax:MiniMax-M3`. Use the thought level
 that provider understands, not the Z.ai one: ZCode gives MiniMax models
 `enabled`/`disabled`, and `high` fails at dispatch with
-`reasoning-level-not-supported`. Cycle accepts `enabled` but not `disabled`, so
-a MiniMax role always runs with thinking on. The 1.0.9 certification ran the
+`reasoning-level-not-supported`. Cycle accepts both, so `disabled` runs a
+MiniMax role with thinking off. The 1.0.9 certification ran the
 arbiter on `custom:minimax:MiniMax-M3` at `enabled` while every other role ran
 on the session's Z.ai model. Cycle does not keep a
 list of acceptable providers, and it cannot verify the capabilities of a model

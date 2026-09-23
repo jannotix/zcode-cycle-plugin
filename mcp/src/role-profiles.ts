@@ -432,7 +432,7 @@ function supportedModel(value: string): boolean {
 }
 
 /** Thought levels this product knows how to write into a profile. */
-const KNOWN_THOUGHT_LEVELS: readonly string[] = ["low", "high", "max", "enabled", "off"]
+const KNOWN_THOUGHT_LEVELS: readonly string[] = ["low", "high", "max", "enabled", "disabled", "off"]
 
 function defaultThoughtLevel(model: string): string {
   return BUILTIN_ZAI_MODEL_CAPABILITIES.get(model)?.has("off") === true

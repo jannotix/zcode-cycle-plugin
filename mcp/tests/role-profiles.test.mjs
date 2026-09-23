@@ -77,6 +77,21 @@ test("managed project role profiles install, configure, repair and remove fail c
     assert.equal(executorProfile.dispatch_unverified, true)
     assert.match(foreign.dispatch_unverified_warning, /only the host can resolve the provider/u)
 
+    // The 1.0.9 live campaign: ZCode gives MiniMax models the levels
+    // `enabled`/`disabled`. `disabled` was refused, so a MiniMax role could
+    // never run with thinking off.
+    const thinkingOff = await manageRoleProfiles(
+      options(projectRoot, "configure", {
+        confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",
+        model: "custom:minimax:MiniMax-M3",
+        role: "executor",
+        thoughtLevel: "disabled",
+      }),
+    )
+    const minimax = thinkingOff.profiles.find((profile) => profile.role === "executor")
+    assert.equal(minimax.thought_level, "disabled")
+    assert.equal(minimax.state, "current")
+
     const turbo = await manageRoleProfiles(
       options(projectRoot, "configure", {
         confirmation: "CONFIGURE_ZCODE_CYCLE_ROLE_PROFILE",

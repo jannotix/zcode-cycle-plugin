@@ -745,7 +745,7 @@ const TOOLS: Record<string, ToolDefinition> = {
           ],
         },
         model: { type: "string" },
-        thought_level: { enum: ["low", "high", "max", "enabled", "off"] },
+        thought_level: { enum: ["low", "high", "max", "enabled", "disabled", "off"] },
       },
       required: ["operation"],
       additionalProperties: false,

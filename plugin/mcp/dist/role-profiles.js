@@ -328,7 +328,7 @@ function validModel(value) {
 function supportedModel(value) {
   return validModel(value);
 }
-var KNOWN_THOUGHT_LEVELS = ["low", "high", "max", "enabled", "off"];
+var KNOWN_THOUGHT_LEVELS = ["low", "high", "max", "enabled", "disabled", "off"];
 function defaultThoughtLevel(model) {
   return BUILTIN_ZAI_MODEL_CAPABILITIES.get(model)?.has("off") === true ? "off" : INHERIT_THOUGHT_LEVEL;
 }

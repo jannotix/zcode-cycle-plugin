@@ -204,17 +204,82 @@ pub fn read_pinned_model(
     if value.is_empty() {
         return None;
     }
-    // ZCode model refs look like custom:builtin:zai-coding-plan:GLM-5.3 or
-    // provider/model; "inherit" has no provider of its own.
-    let provider = if value == "inherit" {
-        "inherit".to_owned()
-    } else if let Some(rest) = value.strip_prefix("custom:") {
-        rest.split(':').next().unwrap_or("custom").to_owned()
-    } else {
-        value.split('/').next().unwrap_or("unknown").to_owned()
-    };
     Some(workflow_ipc::audit::AuditModel {
         model: value.to_owned(),
-        provider,
+        provider: provider_of(value),
     })
+}
+
+/// The provider a model reference names, read the way ZCode reads it.
+///
+/// ZCode splits `custom:<provider>:<model>` at the first colon and URI-decodes
+/// each half; only a `builtin:` provider keeps its second segment. So
+/// `custom:account%3Azai-individual-coding-plan:GLM-5.3` names
+/// `account:zai-individual-coding-plan`, and
+/// `custom:builtin:zai-coding-plan:GLM-5.3` names `builtin:zai-coding-plan`.
+/// Until 1.0.10 the ledger recorded the first raw segment: `account%3A...` for
+/// the one, and `builtin` for the other. `inherit` has no provider of its own.
+fn provider_of(value: &str) -> String {
+    if value == "inherit" {
+        return "inherit".to_owned();
+    }
+    let Some(rest) = value.strip_prefix("custom:") else {
+        return value.split('/').next().unwrap_or("unknown").to_owned();
+    };
+    let parts: Vec<&str> = rest.split(':').collect();
+    if parts.len() >= 3 && parts[0] == "builtin" {
+        return format!("builtin:{}", parts[1]);
+    }
+    percent_decode(parts[0])
+}
+
+/// `decodeURIComponent` for the characters a provider id can carry. Anything
+/// that is not a well-formed escape is kept as written, as ZCode does when its
+/// own decode fails.
+fn percent_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        let escape = (bytes[index] == b'%')
+            .then(|| value.get(index + 1..index + 3))
+            .flatten()
+            .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+        match escape {
+            Some(byte) => {
+                decoded.push(byte);
+                index += 3;
+            }
+            None => {
+                decoded.push(bytes[index]);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8(decoded).unwrap_or_else(|_| value.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::provider_of;
+
+    #[test]
+    fn the_ledger_names_the_provider_zcode_resolves() {
+        for (reference, provider) in [
+            (
+                "custom:account%3Azai-individual-coding-plan:GLM-5.3",
+                "account:zai-individual-coding-plan",
+            ),
+            (
+                "custom:builtin:zai-coding-plan:GLM-5.3",
+                "builtin:zai-coding-plan",
+            ),
+            ("custom:minimax:MiniMax-M3", "minimax"),
+            ("anthropic/claude-sonnet", "anthropic"),
+            ("inherit", "inherit"),
+            ("custom:broken%zz:model", "broken%zz"),
+        ] {
+            assert_eq!(provider_of(reference), provider, "{reference}");
+        }
+    }
 }

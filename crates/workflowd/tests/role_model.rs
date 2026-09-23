@@ -41,7 +41,7 @@ fn a_pinned_model_is_read_from_the_managed_profile() {
     .expect("a pinned profile must yield a model");
 
     assert_eq!(model.model, "custom:builtin:zai-coding-plan:GLM-5.3-Flash");
-    assert_eq!(model.provider, "builtin");
+    assert_eq!(model.provider, "builtin:zai-coding-plan");
 }
 
 /// "inherit" means the session's model, whichever that was. Recording it as a
@@ -176,5 +176,5 @@ fn recording_an_event_for_a_pinned_role_puts_the_model_on_the_ledger() {
         .model
         .expect("the ledger entry must name the model the arbiter was pinned to");
     assert_eq!(model.model, "custom:builtin:zai-coding-plan:GLM-5.3-Flash");
-    assert_eq!(model.provider, "builtin");
+    assert_eq!(model.provider, "builtin:zai-coding-plan");
 }

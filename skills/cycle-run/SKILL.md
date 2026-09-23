@@ -123,6 +123,13 @@ returned path; it never implements a "quick" change in place.
    `origin-approval-required`.
 3. `cycle_freeze_candidate` with the base revision, plan id and evidence
    ids. Record `candidateId`, `candidateDigest` and the manifest.
+   If the freeze is refused because **the project changed while this
+   workflow was holding it**, the project directory is the operator's, not
+   the workflow's. Never dispatch a role - or act yourself - to modify,
+   commit, revert, stash or delete anything in it, including untracked files
+   you did not create: a file you cannot explain may be the operator's own
+   work, or a file the host writes. Report the named paths verbatim, say the
+   operator must resolve them, and stop; after they do, freeze again.
 4. `cycle_verify_candidate`. Record every gate's status.
 5. Mandatory gates failed or skipped for lack of valid attestations: the
    evidence becomes repair feedback; the daemon drives the state back to

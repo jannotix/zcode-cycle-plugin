@@ -219,14 +219,14 @@ Cycle 附带原生控制平面守护进程 `workflowd.exe`，**它没有使用 A
 **1. 比对校验和**，与发布页面上随压缩包一同发布的 `.sha256` 文件对照：
 
 ```powershell
-Get-FileHash .\zcode-cycle-1.0.9.zip -Algorithm SHA256
+Get-FileHash .\zcode-cycle-<version>.zip -Algorithm SHA256
 ```
 
 **2. 验证构建来源证明**——这可以证明压缩包由本仓库的发布流水线、从发布所声明的
 提交构建而来，而不是由他人组装：
 
 ```powershell
-gh attestation verify .\zcode-cycle-1.0.9.zip --repo jannotix/zcode-cycle-plugin
+gh attestation verify .\zcode-cycle-<version>.zip --repo jannotix/zcode-cycle-plugin
 ```
 
 **3. 只有两项都通过后**，再移除 Mark of the Web：
@@ -241,9 +241,39 @@ Get-ChildItem -Recurse "$env:LOCALAPPDATA\ZCode Cycle" | Unblock-File
 如果你直接启动某个程序时出现 SmartScreen 对话框，**更多信息 → 仍要运行**是等效的
 选择。只有在完成第 1、2 步之后才使用它。
 
-如果 Defender 已隔离该守护进程，请在 **Windows 安全中心 → 保护历史记录**中还原；
-只有当你愿意为此决定负责时，才为 Cycle 数据目录添加排除项——排除是永久性的，并且
-对之后进入该目录的任何内容都生效。
+### 守护进程实际从哪里运行
+
+Cycle 不会直接执行插件缓存中的副本。每次启动前，它都会按 `bin/native-manifest.json`
+中声明的 SHA-256 校验二进制文件，然后将其复制到：
+
+```text
+<数据目录>\runtime\native\win32-x64\<二进制文件的 sha-256>\workflowd.exe
+```
+
+除非设置了 `ZCODE_CYCLE_DATA_DIR`，`<数据目录>` 为 `%LOCALAPPDATA%\ZCode Cycle`。
+每个版本的摘要不同，因此会落在新的文件夹中：为某个版本做出的决定不会悄悄延续到下一个版本，
+每次更新后都需要重复上述步骤。
+
+### 如果 Defender 隔离了它
+
+在 **Windows 安全中心 → 病毒和威胁防护 → 保护历史记录** 中恢复。如果反复被隔离，
+**只**为 native 文件夹添加排除项，切勿排除整个数据目录（需要管理员权限的 PowerShell）：
+
+```powershell
+Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\ZCode Cycle\runtime\native"
+```
+
+### 如果智能应用控制（Smart App Control）阻止了它
+
+智能应用控制没有针对单个文件的例外。处于 **开启** 状态时，它会拒绝没有信誉的未签名可执行文件，
+"解除锁定"、"仍要运行"和排除项都无法改变这一点。你只能选择将其 **关闭**（在当前的 Windows 11
+版本中，关闭后无法恢复，除非重置或重装 Windows），或者不在该机器上使用 Cycle。
+
+### 受管理的机器
+
+如果机器的安全设置由组织统一管理（Intune、组策略、WDAC/AppLocker），上述步骤可能都不可用，
+本项目也不会协助绕过。请管理员按 SHA-256 哈希放行该二进制文件，哈希值发布在
+`bin/native-manifest.json` 和发布版本的 `release-manifest.json` 中。
 
 ### 为什么没有证书
 

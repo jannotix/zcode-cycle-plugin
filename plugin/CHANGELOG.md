@@ -41,6 +41,47 @@ router escalated it to `full` on its own because of the content. Of three
 layers, the router recognised the risk, the scanner was silent, and the
 reviewer trusted the scanner.
 
+### A freeze refusal told the run to revert the operator's project.
+
+When the project changed under a running workflow, the freeze refused with
+*"commit or revert the project, then freeze again"*. An orchestrator cannot
+commit - that moves HEAD, which the same guard also refuses - so in the 1.0.9
+live campaign it reverted: it dispatched an executor that deleted an untracked
+file it had not created. The file was ZCode's own and harmless to lose. The next
+one might be the operator's uncommitted work.
+
+The refusal now says the project directory belongs to the operator, that no
+role may modify, commit, revert or delete anything in it, and that the run must
+stop and ask. The orchestration skill states the same rule at the freeze step,
+including for untracked files the run cannot explain. A test pins the message.
+
+### Thinking could not be turned off for a third-party role.
+
+ZCode gives MiniMax models the reasoning levels `enabled` and `disabled`. Cycle
+accepted `enabled` and refused `disabled`, so a MiniMax role always ran with
+thinking on. `disabled` is now accepted for any reference the plugin does not
+pin to an exact list; the three `builtin` Z.ai references keep their exact pairs.
+
+### The ledger named the wrong provider for two reference forms.
+
+The model recorded on a role's ledger event is right; the provider beside it was
+the first raw segment of the reference. `custom:account%3Azai-individual-coding-plan:GLM-5.3`
+recorded `account%3Azai-individual-coding-plan`, still encoded, and
+`custom:builtin:zai-coding-plan:GLM-5.3` recorded `builtin`. The provider is now
+read the way ZCode reads it - `account:zai-individual-coding-plan`,
+`builtin:zai-coding-plan`, `minimax`. Entries already written keep their bytes;
+the hash chain covers them.
+
+### The unsigned daemon: what Windows will do, and what to do about it.
+
+There will be no Authenticode signature. The README section on SmartScreen now
+also says where the daemon actually runs from (a per-digest folder under the
+data directory, so each release is a new decision), narrows the Defender
+exclusion it suggests from the whole data directory to the `runtime\native`
+folder, states plainly that Smart App Control has no per-file exception, and
+tells administrators of managed machines to allow the binary by its published
+hash. The same text is in the Chinese README.
+
 ### Per-role models worked since 1.0.7, and the documentation said they could not.
 
 1.0.7 changed `/cycle:models` to validate a reference's shape and leave provider

@@ -77,6 +77,13 @@ fn work_left_in_the_project_is_refused_and_named() {
         message.contains("escaped.rs"),
         "the refusal must name the file that appeared: {message}"
     );
+    // The 1.0.9 live campaign: told to "commit or revert the project", an
+    // orchestrator that cannot commit (HEAD would move) reverted - by deleting
+    // an untracked file that was not its to delete. The remedy is the operator's.
+    assert!(
+        message.contains("belongs to the operator") && !message.contains("commit or revert"),
+        "the refusal must hand the project back to the operator: {message}"
+    );
 }
 
 #[test]
